@@ -1,19 +1,22 @@
 # Cloudflare Worker config for the Central Command API.
 #
-# Resource IDs below are placeholders — create the resources, then paste the
-# IDs that Wrangler prints:
-#   wrangler d1 create central-command-db
-#   wrangler kv namespace create CACHE
+# Resource IDs (D1, KV) are committed here — they are identifiers, not secrets.
 #
 # Secrets are NOT stored here. Set them with `wrangler secret put <NAME>` for
 # production, and in an untracked `.dev.vars` file for local dev
 # (see .dev.vars.example):
-#   API_BEARER_TOKEN, OPENWEATHERMAP_API_KEY, RIOT_API_KEY,
-#   RIOT_DEV_RIOT_ID, GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET
+#   API_BEARER_TOKEN, OPENWEATHERMAP_API_KEY, RIOT_API_KEY, RIOT_DEV_RIOT_ID,
+#   GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, TOKEN_ENCRYPTION_KEY
 
 name = "centralcommand"
 main = "src/index.ts"
 compatibility_date = "2025-06-01"
+
+# Non-secret config consumed by the Cloudflare Access JWT verification
+# middleware. The AUD tag and team domain are identifiers, not credentials.
+[vars]
+CF_ACCESS_AUD = "bfc64a3d5d7c310c26a650f9fd950a6490f13b174db5f17d98bbef868c4e53dc"
+CF_ACCESS_TEAM_DOMAIN = "studiosc.cloudflareaccess.com"
 
 [observability]
 enabled = true
@@ -21,12 +24,12 @@ enabled = true
 [[d1_databases]]
 binding = "DB"
 database_name = "central-command-db"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "ac9fe7af-f080-4ced-bc1e-66d996cf5c22"
 migrations_dir = "../../packages/db/migrations"
 
 [[kv_namespaces]]
 binding = "CACHE"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "371f6b05b8f74a369d4053ed0b50345e"
 
 # Riot refresh cron. Cron Triggers fire in UTC only — the "8am / 8pm in the
 # user's local timezone" rule from CLAUDE.md is enforced per-user in code

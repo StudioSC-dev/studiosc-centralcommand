@@ -9,6 +9,10 @@ export interface Bindings {
   DB: D1Database;
   CACHE: KVNamespace;
 
+  // Non-secret config vars (wrangler.toml [vars])
+  CF_ACCESS_AUD: string;
+  CF_ACCESS_TEAM_DOMAIN: string;
+
   // Secrets
   API_BEARER_TOKEN: string;
   OPENWEATHERMAP_API_KEY: string;

@@ -49,6 +49,15 @@ export async function storeGoogleTokens(
     });
 }
 
+/** The user's stored Google provider row, or `undefined` if not connected. */
+export async function getGoogleProvider(db: Database, userId: string) {
+  return db
+    .select()
+    .from(authProviders)
+    .where(and(eq(authProviders.userId, userId), eq(authProviders.provider, PROVIDER)))
+    .get();
+}
+
 /**
  * Return a valid Google access token for a user, transparently refreshing it
  * (and re-persisting) when it's within the expiry skew window.

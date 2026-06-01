@@ -59,6 +59,31 @@ export interface User {
 export type GamingProvider = "riot" | "steam";
 export type Game = "league" | "valorant" | "dota2" | "cs2";
 
+// ─── Calendar ────────────────────────────────────────────────────────────────
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  start: EpochMs;
+  end: EpochMs;
+  allDay: boolean;
+  location: string | null;
+}
+
+export interface CalendarData {
+  connected: true;
+  events: CalendarEvent[];
+  /** Duration-based busyness for today, 0–100 (Phase 1). */
+  todayBusyness: number;
+}
+
+/** Returned when the user hasn't connected their Google account yet. */
+export interface CalendarNotConnected {
+  connected: false;
+}
+
+export type CalendarResponse = CalendarData | CalendarNotConnected;
+
 // ─── Weather ─────────────────────────────────────────────────────────────────
 
 export type WeatherUnits = "metric" | "imperial";

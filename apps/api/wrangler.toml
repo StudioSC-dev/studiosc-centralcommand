@@ -1,0 +1,37 @@
+# Cloudflare Worker config for the Central Command API.
+#
+# Resource IDs below are placeholders — create the resources, then paste the
+# IDs that Wrangler prints:
+#   wrangler d1 create central-command-db
+#   wrangler kv namespace create CACHE
+#
+# Secrets are NOT stored here. Set them with `wrangler secret put <NAME>` for
+# production, and in an untracked `.dev.vars` file for local dev
+# (see .dev.vars.example):
+#   API_BEARER_TOKEN, OPENWEATHERMAP_API_KEY, RIOT_API_KEY,
+#   RIOT_DEV_RIOT_ID, GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET
+
+name = "centralcommand"
+main = "src/index.ts"
+compatibility_date = "2025-06-01"
+
+[observability]
+enabled = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "central-command-db"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "../../packages/db/migrations"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# Riot refresh cron. Cron Triggers fire in UTC only — the "8am / 8pm in the
+# user's local timezone" rule from CLAUDE.md is enforced per-user in code
+# (the cron handler checks each user's timezone before calling the Riot API).
+# These two UTC times are a placeholder cadence; tighten once a timezone
+# strategy is wired up.
+[triggers]
+crons = ["0 8 * * *", "0 20 * * *"]

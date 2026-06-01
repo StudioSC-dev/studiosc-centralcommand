@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Turborepo
+.turbo/
+
+# Cloudflare / Wrangler
+.wrangler/
+.dev.vars
+.dev.vars.*
+wrangler.toml.bak
+
+# TanStack Router generated route tree
+**/src/routeTree.gen.ts
+
+# Drizzle (keep migrations/ committed; ignore local SQLite artifacts)
+*.sqlite
+*.sqlite3
+*.db
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Project-private session files (Claude tooling) — never committed
+CLAUDE.md
+HANDOVER.md

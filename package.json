@@ -1,0 +1,21 @@
+{
+  "name": "central-command",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Central Command — a Cloudflare-native personal performance dashboard.",
+  "packageManager": "pnpm@11.5.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "typecheck": "turbo typecheck",
+    "lint": "turbo lint",
+    "deploy": "turbo deploy"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  }
+}

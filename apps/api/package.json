@@ -14,7 +14,8 @@
     "@central-command/types": "workspace:*",
     "@central-command/utils": "workspace:*",
     "drizzle-orm": "^0.44.2",
-    "hono": "^4.8.3"
+    "hono": "^4.8.3",
+    "uuid": "^14.0.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250620.0",

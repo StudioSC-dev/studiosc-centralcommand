@@ -12,7 +12,7 @@
  * fleshed out per pillar in later sessions.
  */
 import { sql } from "drizzle-orm";
-import { integer, primaryKey, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import { integer, primaryKey, real, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
@@ -42,6 +42,23 @@ export const authCredentials = sqliteTable("auth_credentials", {
     .primaryKey()
     .references(() => users.id), // local provider only
   passwordHash: text("password_hash").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+// ─── Per-user settings ───────────────────────────────────────────────────────
+
+// One row per user. Location is defaulted from Cloudflare edge geo at sign-up
+// (request.cf), confirmed by the user, then persisted here. `timezone` also
+// drives the Riot refresh cron's "8am/8pm local" rule.
+export const userSettings = sqliteTable("user_settings", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id),
+  timezone: text("timezone"), // IANA name, e.g. "America/New_York"
+  homeLat: real("home_lat"),
+  homeLon: real("home_lon"),
+  locationLabel: text("location_label"), // human-readable, e.g. "Brooklyn, NY"
+  createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
 

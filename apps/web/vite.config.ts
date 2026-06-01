@@ -9,4 +9,10 @@ export default defineConfig({
     tanstackRouter({ target: "react", autoCodeSplitting: true }),
     react(),
   ],
+  server: {
+    // Same-origin in dev: forward /api to the local Worker (wrangler dev).
+    proxy: {
+      "/api": "http://localhost:8787",
+    },
+  },
 });

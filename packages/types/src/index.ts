@@ -59,6 +59,41 @@ export interface User {
 export type GamingProvider = "riot" | "steam";
 export type Game = "league" | "valorant" | "dota2" | "cs2";
 
+// ─── Weather ─────────────────────────────────────────────────────────────────
+
+export type WeatherUnits = "metric" | "imperial";
+
+export interface WeatherCurrent {
+  temp: number;
+  feelsLike: number;
+  humidity: number;
+  windSpeed: number;
+  description: string;
+  icon: string;
+  observedAt: EpochMs;
+}
+
+export interface WeatherForecastEntry {
+  at: EpochMs;
+  temp: number;
+  description: string;
+  icon: string;
+}
+
+export interface WeatherData {
+  location: { lat: number; lon: number; label: string | null };
+  units: WeatherUnits;
+  current: WeatherCurrent;
+  forecast: WeatherForecastEntry[];
+}
+
+/** Returned when the user hasn't set a home location yet (sign-up incomplete). */
+export interface WeatherNeedsLocation {
+  location: null;
+}
+
+export type WeatherResponse = WeatherData | WeatherNeedsLocation;
+
 // ─── Performance ─────────────────────────────────────────────────────────────
 
 /** Inputs to the daily performance score. All sub-scores normalize to 0–100. */

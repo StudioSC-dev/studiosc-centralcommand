@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type { Pillar } from "@central-command/types";
+import { WeatherCard } from "../components/WeatherCard";
 
 export const Route = createFileRoute("/")({
   component: Dashboard,
 });
 
-const PILLARS: Pillar[] = [
+// Pillars still awaiting their own cards.
+const PENDING_PILLARS: Pillar[] = [
   "calendar",
-  "weather",
   "fitness",
   "nutrition",
   "sleep",
@@ -19,9 +20,9 @@ const PILLARS: Pillar[] = [
 function Dashboard() {
   return (
     <section className="dashboard">
-      <p>Phase 1 scaffolding. The pillars below are not wired up yet.</p>
+      <WeatherCard />
       <ul className="pillar-grid">
-        {PILLARS.map((pillar) => (
+        {PENDING_PILLARS.map((pillar) => (
           <li key={pillar} className="pillar-card">
             {pillar}
           </li>

@@ -1,10 +1,13 @@
 import type { ApiResponse } from "@central-command/types";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8787";
+// Same-origin by default: prod serves the API at /api/* on the same host, and
+// the Vite dev server proxies /api to the local Worker (see vite.config.ts).
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 /**
  * Typed GET against the Central Command API. Unwraps the standard envelope and
- * throws on the error variant so TanStack Query can surface it.
+ * throws on the error variant so TanStack Query can surface it. Paths are
+ * absolute from the API root, e.g. `apiGet("/api/weather")`.
  */
 export async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {

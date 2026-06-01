@@ -20,12 +20,19 @@ export interface Bindings {
   RIOT_DEV_RIOT_ID: string;
   GOOGLE_OAUTH_CLIENT_ID: string;
   GOOGLE_OAUTH_CLIENT_SECRET: string;
+  TOKEN_ENCRYPTION_KEY: string;
+
+  // Local dev only — never set in production. When present and no Access JWT
+  // is provided, the auth middleware treats this email as the verified identity.
+  DEV_AUTH_EMAIL?: string;
 }
 
 /** Values attached to the Hono context during a request. */
 export interface Variables {
   /** Authenticated user id (UUID v7), resolved by auth middleware. */
   userId: string;
+  /** Authenticated user email. */
+  userEmail: string;
 }
 
 /** Hono generics for the whole app. */

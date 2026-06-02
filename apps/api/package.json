@@ -14,6 +14,7 @@
     "@central-command/types": "workspace:*",
     "@central-command/utils": "workspace:*",
     "drizzle-orm": "^0.44.2",
+    "fast-xml-parser": "^5.8.0",
     "hono": "^4.8.3",
     "jose": "^6.2.3",
     "uuid": "^14.0.0"

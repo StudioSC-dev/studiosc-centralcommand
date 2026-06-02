@@ -59,6 +59,25 @@ export interface User {
 export type GamingProvider = "riot" | "steam";
 export type Game = "league" | "valorant" | "dota2" | "cs2";
 
+// ─── News ────────────────────────────────────────────────────────────────────
+
+export type NewsTopic = "basketball" | "tech" | "league";
+
+export interface NewsItem {
+  id: string;
+  source: string;
+  topic: NewsTopic;
+  title: string;
+  url: string;
+  publishedAt: EpochMs;
+}
+
+export interface NewsData {
+  items: NewsItem[];
+}
+
+export type NewsResponse = NewsData;
+
 // ─── Calendar ────────────────────────────────────────────────────────────────
 
 export interface CalendarEvent {

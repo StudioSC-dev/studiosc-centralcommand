@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import type { Pillar } from "@central-command/types";
 import { WeatherCard } from "../components/WeatherCard";
 import { CalendarCard } from "../components/CalendarCard";
+import { NewsCard } from "../components/NewsCard";
 
 export const Route = createFileRoute("/")({
   component: Dashboard,
@@ -13,7 +14,6 @@ const PENDING_PILLARS: Pillar[] = [
   "nutrition",
   "sleep",
   "gaming",
-  "news",
   "performance",
 ];
 
@@ -22,6 +22,7 @@ function Dashboard() {
     <section className="dashboard">
       <CalendarCard />
       <WeatherCard />
+      <NewsCard />
       <ul className="pillar-grid">
         {PENDING_PILLARS.map((pillar) => (
           <li key={pillar} className="pillar-card">

@@ -134,6 +134,8 @@ export interface NewsItem {
   topic: NewsTopic;
   title: string;
   url: string;
+  /** Lead image from the feed (enclosure/media/inline). Null when none. */
+  image: string | null;
   publishedAt: EpochMs;
 }
 

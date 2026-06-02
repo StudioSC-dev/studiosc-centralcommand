@@ -53,16 +53,53 @@ function decodeEntities(input: string): string {
     .replace(/&nbsp;/g, " ");
 }
 
+interface MediaNode {
+  "@_url"?: string;
+  "@_type"?: string;
+  "@_medium"?: string;
+}
+
 interface RssItem {
   title?: string;
   link?: string | { "@_href"?: string };
   pubDate?: string;
   guid?: string | { "#text"?: string };
+  enclosure?: MediaNode;
+  "media:content"?: MediaNode | MediaNode[];
+  "media:thumbnail"?: MediaNode | MediaNode[];
+  "content:encoded"?: string;
+  description?: string;
 }
 
 function linkOf(item: RssItem): string {
   if (typeof item.link === "string") return item.link;
   return item.link?.["@_href"] ?? "";
+}
+
+/** First image-typed URL from a media node (which may be a single node or array). */
+function mediaUrl(node: MediaNode | MediaNode[] | undefined): string | null {
+  if (!node) return null;
+  for (const n of Array.isArray(node) ? node : [node]) {
+    const url = n["@_url"];
+    const type = n["@_type"];
+    if (url && (n["@_medium"] === "image" || !type || type.startsWith("image"))) return url;
+  }
+  return null;
+}
+
+/** Best-effort lead image: enclosure → media:* → first <img> in the HTML body. */
+function imageOf(item: RssItem): string | null {
+  if (item.enclosure) {
+    const { "@_url": url, "@_type": type } = item.enclosure;
+    if (url && (!type || type.startsWith("image"))) return url;
+  }
+  const media = mediaUrl(item["media:content"]) ?? mediaUrl(item["media:thumbnail"]);
+  if (media) return media;
+
+  const html =
+    (typeof item["content:encoded"] === "string" ? item["content:encoded"] : "") ||
+    (typeof item.description === "string" ? item.description : "");
+  return html.match(/<img[^>]+src=["']([^"']+)["']/i)?.[1] ?? null;
 }
 
 async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
@@ -86,6 +123,7 @@ async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
         topic: feed.topic,
         title: decodeEntities(title).trim(),
         url,
+        image: imageOf(item),
         publishedAt: item.pubDate ? Date.parse(item.pubDate) : Date.now(),
       };
     })

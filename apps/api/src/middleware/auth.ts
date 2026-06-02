@@ -6,12 +6,11 @@ import { getOrCreateUser } from "../services/users";
 import { fail } from "../lib/response";
 
 /**
- * Auth model:
- *   - `accessAuth` guards user-facing routes. Browser traffic is fronted by
- *     Cloudflare Access, which injects a signed `Cf-Access-Jwt-Assertion`. We
- *     verify it against the team JWKS, then resolve the email to our user.
- *   - `serviceAuth` guards non-browser / programmatic routes with the static
- *     bearer token. This token is never shipped to the browser.
+ * `accessAuth` guards user-facing routes. Browser traffic is fronted by
+ * Cloudflare Access, which injects a signed `Cf-Access-Jwt-Assertion`. We verify
+ * it against the team JWKS, then resolve the email to our user. (A bearer-token
+ * `serviceAuth` for programmatic callers will return when a service endpoint
+ * needs it — `API_BEARER_TOKEN` is reserved for that.)
  */
 
 // JWKS sets are cached per team domain (jose caches the fetched keys internally).
@@ -53,13 +52,5 @@ export const accessAuth = createMiddleware<AppEnv>(async (c, next) => {
   const user = await getOrCreateUser(createDb(c.env.DB), email);
   c.set("userId", user.id);
   c.set("userEmail", user.email);
-  await next();
-});
-
-export const serviceAuth = createMiddleware<AppEnv>(async (c, next) => {
-  const header = c.req.header("Authorization");
-  if (!header || header !== `Bearer ${c.env.API_BEARER_TOKEN}`) {
-    return fail(c, "unauthorized", "Missing or invalid service token.", 401);
-  }
   await next();
 });

@@ -2,8 +2,12 @@ import { XMLParser } from "fast-xml-parser";
 import type { NewsItem, NewsTopic } from "@central-command/types";
 
 /**
- * News aggregation from RSS feeds (no auth, no API keys). All four sources are
- * RSS 2.0. Per CLAUDE.md: ESPN NBA, Hacker News, TechCrunch, Dot Esports.
+ * News aggregation from RSS feeds (no auth, no API keys). All sources are
+ * RSS 2.0. Topics: basketball (ESPN NBA), tech (Hacker News, TechCrunch),
+ * league (PCGamesN + Dexerto LoL feeds).
+ *
+ * Dot Esports was dropped — its general feed had drifted to off-topic filler.
+ * Both League feeds are LoL-specific and news-focused (verified live).
  */
 
 interface Feed {
@@ -16,13 +20,13 @@ const FEEDS: Feed[] = [
   { source: "ESPN NBA", topic: "basketball", url: "https://www.espn.com/espn/rss/nba/news" },
   { source: "Hacker News", topic: "tech", url: "https://news.ycombinator.com/rss" },
   { source: "TechCrunch", topic: "tech", url: "https://techcrunch.com/feed/" },
-  // The LoL-category feed was discontinued (301 → HTML page); the general Dot
-  // Esports feed is the working RSS source and remains LoL/esports-centric.
-  { source: "Dot Esports", topic: "league", url: "https://dotesports.com/feed" },
+  { source: "PCGamesN", topic: "league", url: "https://www.pcgamesn.com/league-of-legends/feed" },
+  { source: "Dexerto", topic: "league", url: "https://www.dexerto.com/league-of-legends/feed/" },
 ];
 
-/** Max items returned across all feeds. */
-const MAX_ITEMS = 30;
+/** Max items kept per topic (basketball/tech/league) so a fast-moving feed can't
+ * crowd a slower one out of its tab. */
+const PER_TOPIC = 12;
 /** Max items taken from any single feed (keeps one chatty feed from dominating). */
 const PER_FEED = 10;
 
@@ -88,12 +92,24 @@ async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
     .filter((item): item is NewsItem => item !== null);
 }
 
-/** Fetch all feeds in parallel; a failing feed is skipped, not fatal. */
+/**
+ * Fetch all feeds in parallel; a failing feed is skipped, not fatal. Items are
+ * capped per topic (not globally) so each tab stays populated even when one
+ * topic's feeds publish far more often than another's.
+ */
 export async function fetchAllNews(): Promise<NewsItem[]> {
   const results = await Promise.allSettled(FEEDS.map(fetchFeed));
+  const all = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
 
-  const items = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
-  return items
-    .sort((a, b) => b.publishedAt - a.publishedAt)
-    .slice(0, MAX_ITEMS);
+  const byTopic = new Map<NewsTopic, NewsItem[]>();
+  for (const item of all) {
+    const list = byTopic.get(item.topic) ?? [];
+    list.push(item);
+    byTopic.set(item.topic, list);
+  }
+
+  const balanced = [...byTopic.values()].flatMap((list) =>
+    list.sort((a, b) => b.publishedAt - a.publishedAt).slice(0, PER_TOPIC),
+  );
+  return balanced.sort((a, b) => b.publishedAt - a.publishedAt);
 }

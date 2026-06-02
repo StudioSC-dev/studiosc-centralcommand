@@ -210,6 +210,41 @@ body {
   font-weight: 500;
 }
 
+.news-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.news-tab {
+  padding: 0.25rem 0.7rem;
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.news-tab:hover {
+  opacity: 1;
+}
+
+.news-tab.active {
+  border-color: currentColor;
+  opacity: 1;
+  font-weight: 600;
+}
+
+.news-empty {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.6;
+}
+
 .news-list {
   list-style: none;
   margin: 0;

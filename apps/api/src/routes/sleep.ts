@@ -7,6 +7,8 @@ import type { AppEnv } from "../env";
 import { createDb } from "../lib/db";
 import { ok, fail } from "../lib/response";
 import { newId } from "../lib/ids";
+import { getUserSettings } from "../services/users";
+import { persistPerformanceToday } from "../services/performance";
 
 const RECENT_LIMIT = 20;
 
@@ -36,21 +38,31 @@ export const sleep = new Hono<AppEnv>()
       return fail(c, "bad_request", "A positive durationMin is required.", 400);
     }
 
+    const db = createDb(c.env.DB);
+    const userId = c.get("userId");
+    const timeZone = (await getUserSettings(db, userId))?.timezone ?? undefined;
+
     const entry: SleepLogEntry = {
       id: newId(),
-      date: typeof body.date === "string" && body.date.trim() ? body.date.trim() : dayKey(),
+      date:
+        typeof body.date === "string" && body.date.trim()
+          ? body.date.trim()
+          : dayKey(Date.now(), timeZone),
       durationMin: Math.round(body.durationMin),
       quality: typeof body.quality === "number" ? body.quality : undefined,
       loggedAt: Date.now(),
     };
 
-    await createDb(c.env.DB).insert(sleepLogs).values({
+    await db.insert(sleepLogs).values({
       id: entry.id,
-      userId: c.get("userId"),
+      userId,
       date: entry.date ?? null,
       durationMin: entry.durationMin,
       quality: entry.quality ?? null,
       loggedAt: entry.loggedAt,
     });
+
+    // Keep today's performance row current (GET stays read-only).
+    await persistPerformanceToday(db, userId, timeZone);
     return ok(c, entry, 201);
   });

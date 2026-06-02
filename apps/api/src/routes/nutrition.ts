@@ -6,6 +6,8 @@ import type { AppEnv } from "../env";
 import { createDb } from "../lib/db";
 import { ok, fail } from "../lib/response";
 import { newId } from "../lib/ids";
+import { getUserSettings } from "../services/users";
+import { persistPerformanceToday } from "../services/performance";
 
 const RECENT_LIMIT = 20;
 
@@ -50,9 +52,11 @@ export const nutrition = new Hono<AppEnv>()
       loggedAt: Date.now(),
     };
 
-    await createDb(c.env.DB).insert(nutritionLogs).values({
+    const db = createDb(c.env.DB);
+    const userId = c.get("userId");
+    await db.insert(nutritionLogs).values({
       id: entry.id,
-      userId: c.get("userId"),
+      userId,
       meal: entry.meal ?? null,
       calories: entry.calories,
       protein: entry.protein ?? null,
@@ -60,5 +64,9 @@ export const nutrition = new Hono<AppEnv>()
       fat: entry.fat ?? null,
       loggedAt: entry.loggedAt,
     });
+
+    // Keep today's performance row current (GET stays read-only).
+    const timeZone = (await getUserSettings(db, userId))?.timezone ?? undefined;
+    await persistPerformanceToday(db, userId, timeZone);
     return ok(c, entry, 201);
   });

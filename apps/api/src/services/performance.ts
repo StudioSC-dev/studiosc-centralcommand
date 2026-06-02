@@ -1,8 +1,9 @@
 import { and, eq, gte, lt } from "drizzle-orm";
-import { dayKey, nutritionSubScore, performanceScore, sleepSubScore } from "@central-command/utils";
-import { nutritionLogs, sleepLogs } from "@central-command/db";
+import { dayBounds, nutritionSubScore, performanceScore, sleepSubScore } from "@central-command/utils";
+import { nutritionLogs, performanceScores, sleepLogs } from "@central-command/db";
 import type { PerformanceBreakdown } from "@central-command/types";
 import type { Database } from "../lib/db";
+import { newId } from "../lib/ids";
 
 const HRV_NEUTRAL = 50;
 
@@ -18,22 +19,20 @@ const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
 /**
  * Compute today's performance score from the user's sleep + nutrition logs.
  * Pure (no writes) so both the performance route and the summary can reuse it.
- * A component with no data is neutral (50), like the HRV default.
+ * "Today" is the user's local day (`timeZone`); a component with no data is
+ * neutral (50), like the HRV default.
  */
 export async function computePerformanceToday(
   db: Database,
   userId: string,
+  timeZone?: string,
 ): Promise<ComputedPerformance> {
-  const today = dayKey();
-  const dayStart = new Date();
-  dayStart.setUTCHours(0, 0, 0, 0);
-  const start = dayStart.getTime();
-  const end = start + 24 * 60 * 60 * 1000;
+  const { start, end, key } = dayBounds(timeZone);
 
   const sleepRows = await db
     .select()
     .from(sleepLogs)
-    .where(and(eq(sleepLogs.userId, userId), eq(sleepLogs.date, today)))
+    .where(and(eq(sleepLogs.userId, userId), eq(sleepLogs.date, key)))
     .all();
   const nutritionRows = await db
     .select()
@@ -63,9 +62,49 @@ export async function computePerformanceToday(
   const hrv = HRV_NEUTRAL;
 
   return {
-    date: today,
+    date: key,
     score: performanceScore({ sleep, nutrition, hrv }),
     breakdown: { sleep, nutrition, hrv },
     hasData: hasSleep || hasNutrition,
   };
+}
+
+/**
+ * Compute today's score and upsert the daily `performance_scores` row (one per
+ * user per day). Called when a sleep/nutrition log is created so the GET
+ * endpoint can stay read-only. No-op when there's no data to record.
+ */
+export async function persistPerformanceToday(
+  db: Database,
+  userId: string,
+  timeZone?: string,
+): Promise<ComputedPerformance> {
+  const today = await computePerformanceToday(db, userId, timeZone);
+  if (!today.hasData) return today;
+
+  const now = Date.now();
+  const { score, breakdown } = today;
+  await db
+    .insert(performanceScores)
+    .values({
+      id: newId(),
+      userId,
+      date: today.date,
+      score,
+      sleepScore: breakdown.sleep,
+      nutritionScore: breakdown.nutrition,
+      hrvScore: breakdown.hrv,
+      scoredAt: now,
+    })
+    .onConflictDoUpdate({
+      target: [performanceScores.userId, performanceScores.date],
+      set: {
+        score,
+        sleepScore: breakdown.sleep,
+        nutritionScore: breakdown.nutrition,
+        hrvScore: breakdown.hrv,
+        scoredAt: now,
+      },
+    });
+  return today;
 }

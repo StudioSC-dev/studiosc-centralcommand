@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { and, desc, eq, gte, lt } from "drizzle-orm";
-import { isWithinDays } from "@central-command/utils";
+import { dayBounds, isWithinDays } from "@central-command/utils";
 import { fitnessLogs, gamingSnapshots, nutritionLogs, sleepLogs } from "@central-command/db";
 import type {
   CalendarData,
@@ -25,18 +25,15 @@ export const summary = new Hono<AppEnv>().get("/", async (c) => {
   const db = createDb(c.env.DB);
   const userId = c.get("userId");
 
-  const dayStart = new Date();
-  dayStart.setUTCHours(0, 0, 0, 0);
-  const start = dayStart.getTime();
-  const end = start + 24 * 60 * 60 * 1000;
-  const today = dayStart.toISOString().slice(0, 10);
+  const settings = await getUserSettings(db, userId);
+  const timeZone = settings?.timezone ?? undefined;
+  const { start, end, key: today } = dayBounds(timeZone);
 
   // Performance (computed from logs).
-  const perf = await computePerformanceToday(db, userId);
+  const perf = await computePerformanceToday(db, userId, timeZone);
 
   // Weather (cached only).
   let weather: SummaryData["weather"] = null;
-  const settings = await getUserSettings(db, userId);
   if (settings?.homeLat != null && settings?.homeLon != null) {
     const key = `weather:current:metric:${round(settings.homeLat)}:${round(settings.homeLon)}`;
     const cached = await c.env.CACHE.get<WeatherCurrent>(key, "json");

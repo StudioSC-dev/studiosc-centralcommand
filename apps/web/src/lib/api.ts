@@ -24,8 +24,17 @@ export async function apiGet<T>(path: string): Promise<T> {
 
 /** Typed POST with a JSON body. Unwraps the envelope, throws on the error variant. */
 export async function apiPost<T>(path: string, payload: unknown): Promise<T> {
+  return apiSend<T>("POST", path, payload);
+}
+
+/** Typed PUT with a JSON body. Unwraps the envelope, throws on the error variant. */
+export async function apiPut<T>(path: string, payload: unknown): Promise<T> {
+  return apiSend<T>("PUT", path, payload);
+}
+
+async function apiSend<T>(method: "POST" | "PUT", path: string, payload: unknown): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
-    method: "POST",
+    method,
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     credentials: "include",
     body: JSON.stringify(payload),

@@ -177,6 +177,8 @@ export interface WeatherCurrent {
   feelsLike: number;
   humidity: number;
   windSpeed: number;
+  /** Rainfall in the last hour, mm. Null when it isn't raining. */
+  rain1h: number | null;
   description: string;
   icon: string;
   observedAt: EpochMs;
@@ -185,8 +187,27 @@ export interface WeatherCurrent {
 export interface WeatherForecastEntry {
   at: EpochMs;
   temp: number;
+  /** Probability of precipitation for the slot, 0–1. */
+  pop: number;
   description: string;
   icon: string;
+}
+
+/** A geocoded place, from OWM's free Geocoding API (city search / reverse). */
+export interface GeoCity {
+  name: string;
+  state: string | null;
+  country: string; // ISO 3166 country code, e.g. "PH"
+  lat: number;
+  lon: number;
+}
+
+export interface CitySearchResponse {
+  results: GeoCity[];
+}
+
+export interface ReverseGeocodeResponse {
+  result: GeoCity | null;
 }
 
 export interface WeatherData {
@@ -202,6 +223,43 @@ export interface WeatherNeedsLocation {
 }
 
 export type WeatherResponse = WeatherData | WeatherNeedsLocation;
+
+// ─── User settings (location + timezone) ─────────────────────────────────────
+
+export interface UserSettings {
+  userId: UserId;
+  timezone: string | null; // IANA name, e.g. "Asia/Singapore"
+  homeLat: number | null;
+  homeLon: number | null;
+  locationLabel: string | null; // human-readable, e.g. "Singapore"
+  createdAt: EpochMs;
+  updatedAt: EpochMs;
+}
+
+/** Best-effort defaults from the Cloudflare edge (pre-fills the location form). */
+export interface GeoDefaults {
+  timezone: string | null;
+  homeLat: number | null;
+  homeLon: number | null;
+  locationLabel: string | null;
+}
+
+export interface SettingsResponse {
+  settings: UserSettings | null;
+  geoDefaults: GeoDefaults;
+}
+
+/** Body for PUT /settings/location. All fields optional/nullable. */
+export interface LocationInput {
+  timezone?: string | null;
+  homeLat?: number | null;
+  homeLon?: number | null;
+  locationLabel?: string | null;
+}
+
+export interface SetLocationResponse {
+  settings: UserSettings;
+}
 
 // ─── Manual logs (fitness / nutrition / sleep) ───────────────────────────────
 

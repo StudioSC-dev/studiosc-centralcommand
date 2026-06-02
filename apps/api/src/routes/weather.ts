@@ -1,24 +1,61 @@
 import { Hono } from "hono";
 import type {
+  GeoCity,
   WeatherCurrent,
   WeatherForecastEntry,
   WeatherUnits,
 } from "@central-command/types";
 import type { AppEnv } from "../env";
 import { createDb } from "../lib/db";
-import { ok } from "../lib/response";
+import { ok, fail } from "../lib/response";
 import { getUserSettings } from "../services/users";
-import { fetchCurrentWeather, fetchForecast } from "../services/openweathermap";
+import {
+  fetchCurrentWeather,
+  fetchForecast,
+  reverseGeocode,
+  searchCities,
+} from "../services/openweathermap";
 
 // KV TTLs (seconds) per CLAUDE.md.
 const CURRENT_TTL = 30 * 60;
 const FORECAST_TTL = 60 * 60;
+const GEO_TTL = 24 * 60 * 60; // place lookups are stable; cache aggressively
 
 /** Round to ~1km so users near each other share a cache entry. */
 const round = (n: number) => Math.round(n * 100) / 100;
 
-/** GET /weather — current conditions + forecast for the user's home location. */
-export const weather = new Hono<AppEnv>().get("/", async (c) => {
+export const weather = new Hono<AppEnv>()
+  // GET /weather/search?q=… — city search for the location picker.
+  .get("/search", async (c) => {
+    const query = c.req.query("q")?.trim();
+    if (!query || query.length < 2) return ok(c, { results: [] as GeoCity[] });
+
+    const cacheKey = `geo:search:${query.toLowerCase()}`;
+    let results = await c.env.CACHE.get<GeoCity[]>(cacheKey, "json");
+    if (!results) {
+      results = await searchCities({ query, apiKey: c.env.OPENWEATHERMAP_API_KEY });
+      await c.env.CACHE.put(cacheKey, JSON.stringify(results), { expirationTtl: GEO_TTL });
+    }
+    return ok(c, { results });
+  })
+  // GET /weather/reverse?lat=&lon=… — resolve browser coordinates to a place.
+  .get("/reverse", async (c) => {
+    const lat = Number(c.req.query("lat"));
+    const lon = Number(c.req.query("lon"));
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      return fail(c, "bad_request", "lat and lon are required numbers.", 400);
+    }
+
+    const cacheKey = `geo:reverse:${round(lat)}:${round(lon)}`;
+    let result = await c.env.CACHE.get<GeoCity | null>(cacheKey, "json");
+    if (result === null) {
+      result = await reverseGeocode({ lat, lon, apiKey: c.env.OPENWEATHERMAP_API_KEY });
+      await c.env.CACHE.put(cacheKey, JSON.stringify(result), { expirationTtl: GEO_TTL });
+    }
+    return ok(c, { result });
+  })
+  // GET /weather — current conditions + forecast for the user's home location.
+  .get("/", async (c) => {
   const settings = await getUserSettings(createDb(c.env.DB), c.get("userId"));
 
   if (settings?.homeLat == null || settings?.homeLon == null) {

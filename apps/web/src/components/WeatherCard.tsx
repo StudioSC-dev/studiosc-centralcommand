@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { WeatherData } from "@central-command/types";
 import { useWeather } from "../lib/weather";
+import { LocationSetter } from "./LocationSetter";
 
 const fmtTemp = (t: number, units: WeatherData["units"]) =>
   `${Math.round(t)}°${units === "imperial" ? "F" : "C"}`;
@@ -10,12 +11,18 @@ const fmtHour = (ms: number) =>
 
 export function WeatherCard() {
   const { data, isPending, isError, error } = useWeather();
+  const [editing, setEditing] = useState(false);
 
   if (isPending) return <Card>Loading weather…</Card>;
   if (isError) return <Card>Weather unavailable: {error.message}</Card>;
 
   if (data.location === null) {
-    return <Card>Set your home location to see weather.</Card>;
+    return (
+      <Card>
+        <p className="weather-meta">Set your home location to see weather.</p>
+        <LocationSetter />
+      </Card>
+    );
   }
 
   const { current, forecast, units, location } = data;
@@ -29,12 +36,18 @@ export function WeatherCard() {
       <div className="weather-meta">
         {location.label ?? `${location.lat}, ${location.lon}`} · feels{" "}
         {fmtTemp(current.feelsLike, units)} · {current.humidity}% humidity
+        {current.rain1h != null && ` · ${current.rain1h}mm rain`} ·{" "}
+        <button type="button" className="link-button" onClick={() => setEditing((v) => !v)}>
+          {editing ? "Cancel" : "Change"}
+        </button>
       </div>
+      {editing && <LocationSetter onDone={() => setEditing(false)} />}
       <ul className="weather-forecast">
         {forecast.map((entry) => (
           <li key={entry.at}>
             <span>{fmtHour(entry.at)}</span>
             <span>{fmtTemp(entry.temp, units)}</span>
+            {entry.pop > 0 && <span className="weather-pop">{Math.round(entry.pop * 100)}%</span>}
           </li>
         ))}
       </ul>

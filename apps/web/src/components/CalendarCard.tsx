@@ -1,22 +1,25 @@
-import type { ReactNode } from "react";
-import type { CalendarEvent } from "@central-command/types";
+import { Card } from "./Card";
 import { useCalendar } from "../lib/calendar";
+import { isSameLocalDay, useNow } from "../lib/time";
 
-const fmtWhen = (e: CalendarEvent) => {
-  const d = new Date(e.start);
-  if (e.allDay) return d.toLocaleDateString([], { month: "short", day: "numeric" });
-  return d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-};
+const fmtTime = (ms: number) =>
+  new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
+/** How far ahead to show timed events (next-few-hours day view). */
+const HORIZON_MS = 12 * 60 * 60 * 1000;
+const MAX_TIMED = 6;
+
+/** Calendar as a next-few-hours timeline rather than a flat list. */
 export function CalendarCard() {
   const { data, isPending, isError, error } = useCalendar();
+  const now = useNow();
 
-  if (isPending) return <Card>Loading calendar…</Card>;
-  if (isError) return <Card>Calendar unavailable: {error.message}</Card>;
+  if (isPending) return <Card title="Calendar">Loading calendar…</Card>;
+  if (isError) return <Card title="Calendar">Calendar unavailable: {error.message}</Card>;
 
   if (!data.connected) {
     return (
-      <Card>
+      <Card title="Calendar">
         <a className="connect-link" href="/api/auth/google">
           Connect Google Calendar
         </a>
@@ -24,30 +27,47 @@ export function CalendarCard() {
     );
   }
 
+  const allDay = data.events.filter((e) => e.allDay && isSameLocalDay(e.start, now));
+  const timed = data.events
+    .filter((e) => !e.allDay && e.end > now && e.start - now < HORIZON_MS)
+    .sort((a, b) => a.start - b.start)
+    .slice(0, MAX_TIMED);
+
   return (
-    <Card>
-      <p className="cal-busyness">Today's busyness: {data.todayBusyness}/100</p>
-      {data.events.length === 0 ? (
-        <p>No upcoming events.</p>
-      ) : (
-        <ul className="cal-events">
-          {data.events.map((e) => (
-            <li key={e.id}>
-              <span className="cal-when">{fmtWhen(e)}</span>
-              <span className="cal-title">{e.title}</span>
-            </li>
+    <Card title="Calendar">
+      {allDay.length > 0 && (
+        <div className="cal-allday">
+          {allDay.map((e) => (
+            <span key={e.id}>{e.title}</span>
           ))}
+        </div>
+      )}
+
+      {timed.length === 0 ? (
+        <p className="news-empty">Nothing scheduled for the next few hours.</p>
+      ) : (
+        <ul className="timeline">
+          {timed.map((e) => {
+            const live = e.start <= now && now < e.end;
+            return (
+              <li key={e.id} className={`timeline-item${live ? " live" : ""}`}>
+                <div className="timeline-time">
+                  <span>{fmtTime(e.start)}</span>
+                  <span className="timeline-dash">{fmtTime(e.end)}</span>
+                </div>
+                <div className="timeline-marker" />
+                <div className="timeline-body">
+                  <span className="timeline-title">
+                    {e.title}
+                    {live && <span className="timeline-live-tag">Now</span>}
+                  </span>
+                  {e.location && <span className="timeline-loc">{e.location}</span>}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </Card>
-  );
-}
-
-function Card({ children }: { children: ReactNode }) {
-  return (
-    <section className="card calendar-card">
-      <h2 className="card-title">Calendar</h2>
-      {children}
-    </section>
   );
 }

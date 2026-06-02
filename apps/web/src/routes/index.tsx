@@ -1,13 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { WeatherCard } from "../components/WeatherCard";
-import { CalendarCard } from "../components/CalendarCard";
-import { NewsCard } from "../components/NewsCard";
-import { FitnessCard } from "../components/FitnessCard";
-import { NutritionCard } from "../components/NutritionCard";
-import { SleepCard } from "../components/SleepCard";
-import { PerformanceCard } from "../components/PerformanceCard";
-import { GamingCard } from "../components/GamingCard";
 import { SummaryCard } from "../components/SummaryCard";
+import { PerformanceCard } from "../components/PerformanceCard";
+import { NewsCard } from "../components/NewsCard";
+import { CalendarCard } from "../components/CalendarCard";
+import { HealthCard } from "../components/HealthCard";
+import { GamingCard } from "../components/GamingCard";
 
 export const Route = createFileRoute("/")({
   component: Dashboard,
@@ -16,15 +14,13 @@ export const Route = createFileRoute("/")({
 function Dashboard() {
   return (
     <section className="dashboard">
+      <WeatherCard />
       <SummaryCard />
       <PerformanceCard />
-      <CalendarCard />
-      <WeatherCard />
-      <SleepCard />
-      <FitnessCard />
-      <NutritionCard />
-      <GamingCard />
       <NewsCard />
+      <CalendarCard />
+      <HealthCard />
+      <GamingCard />
     </section>
   );
 }

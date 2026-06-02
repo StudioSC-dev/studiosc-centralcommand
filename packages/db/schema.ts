@@ -126,18 +126,47 @@ export const gamingProviders = sqliteTable(
       .references(() => users.id),
     provider: text("provider").notNull(), // 'riot' | 'steam'
     game: text("game").notNull(), // 'league' | 'valorant' | 'dota2' | 'cs2'
-    riotId: text("riot_id"), // user-provided; never hardcoded
+    riotId: text("riot_id"), // user-provided "gameName#tagLine"; never hardcoded
+    region: text("region"), // platform id, e.g. 'sg2' | 'na1' | 'euw1'
+    puuid: text("puuid"), // resolved + cached
+    summonerId: text("summoner_id"), // resolved + cached (for league-v4)
     createdAt: integer("created_at").notNull(),
   },
   (table) => [unique().on(table.userId, table.provider, table.game)],
 );
 
+// One table for both match and rank snapshots (CLAUDE.md), discriminated by
+// `kind`. Match columns describe a single game; rank columns a ranked-queue
+// standing at `capturedAt`.
 export const gamingSnapshots = sqliteTable("gaming_snapshots", {
   id: text("id").primaryKey(),
   userId: text("user_id")
     .notNull()
     .references(() => users.id),
+  game: text("game").notNull(), // 'league' | …
+  kind: text("kind").notNull(), // 'match' | 'rank'
   capturedAt: integer("captured_at").notNull(),
+
+  // kind = 'match'
+  matchId: text("match_id"),
+  champion: text("champion"),
+  position: text("position"), // TOP | JUNGLE | MIDDLE | BOTTOM | UTILITY
+  queueId: integer("queue_id"),
+  win: integer("win"), // 0 | 1
+  kills: integer("kills"),
+  deaths: integer("deaths"),
+  assists: integer("assists"),
+  cs: integer("cs"),
+  durationSec: integer("duration_sec"),
+  score: integer("score"), // role-normalized, non-authoritative
+
+  // kind = 'rank'
+  queueType: text("queue_type"), // 'solo' | 'flex'
+  tier: text("tier"), // IRON … CHALLENGER
+  division: text("division"), // I–IV
+  leaguePoints: integer("league_points"),
+  wins: integer("wins"),
+  losses: integer("losses"),
 });
 
 export const performanceScores = sqliteTable(

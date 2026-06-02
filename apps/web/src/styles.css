@@ -288,3 +288,80 @@ body {
   opacity: 0.4;
   border-radius: 2px 2px 0 0;
 }
+
+.log-form select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  border-radius: 0.3rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.gaming-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.gaming-id {
+  font-weight: 600;
+}
+
+.gaming-head button {
+  padding: 0.25rem 0.7rem;
+  border: 1px solid currentColor;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.gaming-ranks {
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.gaming-winrate {
+  margin: 0.4rem 0;
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.gaming-matches {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.gaming-matches li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  padding-left: 0.5rem;
+  border-left: 3px solid transparent;
+}
+
+.gaming-matches li.win {
+  border-left-color: #3fa34d;
+}
+
+.gaming-matches li.loss {
+  border-left-color: #d9534f;
+}
+
+.gaming-kda {
+  margin-left: auto;
+  opacity: 0.75;
+}
+
+.gaming-score {
+  flex: 0 0 2rem;
+  text-align: right;
+  font-weight: 600;
+}

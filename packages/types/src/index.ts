@@ -59,6 +59,54 @@ export interface User {
 export type GamingProvider = "riot" | "steam";
 export type Game = "league" | "valorant" | "dota2" | "cs2";
 
+export type RiotRole = "TOP" | "JUNGLE" | "MIDDLE" | "BOTTOM" | "UTILITY";
+
+export interface GamingConnectInput {
+  riotId: string; // "gameName#tagLine"
+  region: string; // platform id, e.g. "sg2"
+}
+
+export interface RankInfo {
+  queueType: "solo" | "flex";
+  tier: string; // e.g. "GOLD"
+  division: string; // I–IV
+  leaguePoints: number;
+  wins: number;
+  losses: number;
+}
+
+export interface MatchSummary {
+  matchId: string;
+  champion: string;
+  position: string;
+  win: boolean;
+  kills: number;
+  deaths: number;
+  assists: number;
+  cs: number;
+  durationSec: number;
+  /** Role-normalized, non-authoritative score, 0–100. */
+  score: number;
+  playedAt: EpochMs;
+}
+
+export interface GamingData {
+  connected: true;
+  riotId: string;
+  region: string;
+  ranks: RankInfo[];
+  matches: MatchSummary[];
+  /** Win rate over the rolling window, 0–1, or null if no games. */
+  winRate7d: number | null;
+  winRate30d: number | null;
+}
+
+export interface GamingNotConnected {
+  connected: false;
+}
+
+export type GamingResponse = GamingData | GamingNotConnected;
+
 // ─── News ────────────────────────────────────────────────────────────────────
 
 export type NewsTopic = "basketball" | "tech" | "league";

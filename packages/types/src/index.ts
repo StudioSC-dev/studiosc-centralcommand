@@ -145,6 +145,60 @@ export interface NewsData {
 
 export type NewsResponse = NewsData;
 
+// ─── Tasks (current priorities) ──────────────────────────────────────────────
+
+export type TaskPriority = "high" | "med" | "low";
+export type TaskStatus = "open" | "done";
+/** Where a task originates. Phase 2 adds external sources. */
+export type TaskSource = "native" | "linear" | "jira" | "trello";
+
+export interface Task {
+  id: string;
+  title: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+  position: number;
+  source: TaskSource;
+  createdAt: EpochMs;
+  completedAt: EpochMs | null;
+}
+
+export interface TaskCreateInput {
+  title: string;
+  priority?: TaskPriority;
+}
+
+/** Partial update — toggle status, re-prioritize, rename, reorder. */
+export interface TaskUpdateInput {
+  title?: string;
+  priority?: TaskPriority;
+  status?: TaskStatus;
+  position?: number;
+}
+
+export interface TasksData {
+  tasks: Task[];
+}
+
+export type TasksResponse = TasksData;
+
+// ─── Insights (rule-based; LLM narrative is Phase 2) ─────────────────────────
+
+export type InsightTone = "good" | "bad" | "neutral";
+
+export interface Insight {
+  id: string;
+  title: string; // short headline
+  detail: string; // one-line explanation
+  tone: InsightTone;
+}
+
+export interface InsightsData {
+  insights: Insight[];
+}
+
+export type InsightsResponse = InsightsData;
+
 // ─── Calendar ────────────────────────────────────────────────────────────────
 
 export interface CalendarEvent {

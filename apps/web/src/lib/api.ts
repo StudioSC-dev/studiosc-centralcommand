@@ -32,12 +32,26 @@ export async function apiPut<T>(path: string, payload: unknown): Promise<T> {
   return apiSend<T>("PUT", path, payload);
 }
 
-async function apiSend<T>(method: "POST" | "PUT", path: string, payload: unknown): Promise<T> {
+/** Typed PATCH with a JSON body. */
+export async function apiPatch<T>(path: string, payload: unknown): Promise<T> {
+  return apiSend<T>("PATCH", path, payload);
+}
+
+/** Typed DELETE (no body). */
+export async function apiDelete<T>(path: string): Promise<T> {
+  return apiSend<T>("DELETE", path, undefined);
+}
+
+async function apiSend<T>(
+  method: "POST" | "PUT" | "PATCH" | "DELETE",
+  path: string,
+  payload: unknown,
+): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     credentials: "include",
-    body: JSON.stringify(payload),
+    body: payload === undefined ? undefined : JSON.stringify(payload),
   });
 
   const body = (await res.json()) as ApiResponse<T>;

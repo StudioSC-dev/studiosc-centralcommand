@@ -4,8 +4,10 @@ import { SummaryCard } from "../components/SummaryCard";
 import { PerformanceCard } from "../components/PerformanceCard";
 import { NewsCard } from "../components/NewsCard";
 import { CalendarCard } from "../components/CalendarCard";
+import { TasksCard } from "../components/TasksCard";
 import { HealthCard } from "../components/HealthCard";
 import { GamingCard } from "../components/GamingCard";
+import { InsightsCard } from "../components/InsightsCard";
 
 export const Route = createFileRoute("/")({
   component: Dashboard,
@@ -17,10 +19,12 @@ function Dashboard() {
       <WeatherCard />
       <SummaryCard />
       <PerformanceCard />
-      <NewsCard />
       <CalendarCard />
+      <TasksCard />
       <HealthCard />
       <GamingCard />
+      <InsightsCard />
+      <NewsCard />
     </section>
   );
 }

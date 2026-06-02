@@ -188,3 +188,29 @@ export interface PerformanceInputs {
   /** HRV sub-score, 0–100. Optional — defaults to a neutral 50. */
   hrv?: number;
 }
+
+export interface PerformanceBreakdown {
+  sleep: number;
+  nutrition: number;
+  hrv: number;
+}
+
+export interface PerformanceToday {
+  date: string;
+  score: number;
+  breakdown: PerformanceBreakdown;
+  /** Whether any sleep/nutrition was logged for the day. */
+  hasData: boolean;
+}
+
+export interface PerformanceHistoryPoint {
+  date: string;
+  score: number;
+}
+
+export interface PerformanceData {
+  today: PerformanceToday;
+  history: PerformanceHistoryPoint[];
+}
+
+export type PerformanceResponse = PerformanceData;

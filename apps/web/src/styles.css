@@ -213,3 +213,78 @@ body {
   gap: 0.3rem;
   font-size: 0.85rem;
 }
+
+.perf-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.perf-score {
+  font-size: 2.5rem;
+  font-weight: 700;
+}
+
+.perf-out {
+  opacity: 0.5;
+}
+
+.perf-note {
+  margin-left: 0.5rem;
+  font-size: 0.78rem;
+  opacity: 0.6;
+}
+
+.perf-bars {
+  margin-top: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.perf-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.perf-bar-label {
+  flex: 0 0 4.5rem;
+  opacity: 0.7;
+}
+
+.perf-bar-track {
+  flex: 1;
+  height: 0.5rem;
+  border-radius: 0.25rem;
+  background: rgba(128, 128, 128, 0.2);
+  overflow: hidden;
+}
+
+.perf-bar-fill {
+  display: block;
+  height: 100%;
+  background: currentColor;
+  opacity: 0.55;
+}
+
+.perf-bar-val {
+  flex: 0 0 1.75rem;
+  text-align: right;
+}
+
+.perf-history {
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 40px;
+}
+
+.perf-spark {
+  flex: 1;
+  background: currentColor;
+  opacity: 0.4;
+  border-radius: 2px 2px 0 0;
+}

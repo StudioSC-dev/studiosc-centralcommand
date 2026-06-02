@@ -140,14 +140,23 @@ export const gamingSnapshots = sqliteTable("gaming_snapshots", {
   capturedAt: integer("captured_at").notNull(),
 });
 
-export const performanceScores = sqliteTable("performance_scores", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id),
-  score: integer("score").notNull(),
-  scoredAt: integer("scored_at").notNull(),
-});
+export const performanceScores = sqliteTable(
+  "performance_scores",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    date: text("date"), // day the score is for (YYYY-MM-DD)
+    score: integer("score").notNull(),
+    sleepScore: integer("sleep_score"),
+    nutritionScore: integer("nutrition_score"),
+    hrvScore: integer("hrv_score"),
+    scoredAt: integer("scored_at").notNull(),
+  },
+  // One stored score per user per day (upserted).
+  (table) => [unique().on(table.userId, table.date)],
+);
 
 export const newsItems = sqliteTable("news_items", {
   id: text("id").primaryKey(),

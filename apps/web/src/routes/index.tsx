@@ -3,25 +3,25 @@ import type { Pillar } from "@central-command/types";
 import { WeatherCard } from "../components/WeatherCard";
 import { CalendarCard } from "../components/CalendarCard";
 import { NewsCard } from "../components/NewsCard";
+import { FitnessCard } from "../components/FitnessCard";
+import { NutritionCard } from "../components/NutritionCard";
+import { SleepCard } from "../components/SleepCard";
 
 export const Route = createFileRoute("/")({
   component: Dashboard,
 });
 
 // Pillars still awaiting their own cards.
-const PENDING_PILLARS: Pillar[] = [
-  "fitness",
-  "nutrition",
-  "sleep",
-  "gaming",
-  "performance",
-];
+const PENDING_PILLARS: Pillar[] = ["gaming", "performance"];
 
 function Dashboard() {
   return (
     <section className="dashboard">
       <CalendarCard />
       <WeatherCard />
+      <SleepCard />
+      <FitnessCard />
+      <NutritionCard />
       <NewsCard />
       <ul className="pillar-grid">
         {PENDING_PILLARS.map((pillar) => (

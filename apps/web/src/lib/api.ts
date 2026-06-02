@@ -21,3 +21,19 @@ export async function apiGet<T>(path: string): Promise<T> {
   }
   return body.data;
 }
+
+/** Typed POST with a JSON body. Unwraps the envelope, throws on the error variant. */
+export async function apiPost<T>(path: string, payload: unknown): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+
+  const body = (await res.json()) as ApiResponse<T>;
+  if (!body.ok) {
+    throw new Error(body.error.message);
+  }
+  return body.data;
+}

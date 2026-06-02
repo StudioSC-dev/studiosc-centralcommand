@@ -138,6 +138,45 @@ export interface WeatherNeedsLocation {
 
 export type WeatherResponse = WeatherData | WeatherNeedsLocation;
 
+// ─── Manual logs (fitness / nutrition / sleep) ───────────────────────────────
+
+export interface FitnessLogInput {
+  activity: string;
+  durationMin: number;
+  intensity?: number; // 1–5
+}
+export interface FitnessLogEntry extends FitnessLogInput {
+  id: string;
+  loggedAt: EpochMs;
+}
+
+export interface NutritionLogInput {
+  meal?: string;
+  calories: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+}
+export interface NutritionLogEntry extends NutritionLogInput {
+  id: string;
+  loggedAt: EpochMs;
+}
+
+export interface SleepLogInput {
+  date?: string; // YYYY-MM-DD
+  durationMin: number;
+  quality?: number; // 1–5
+}
+export interface SleepLogEntry extends SleepLogInput {
+  id: string;
+  loggedAt: EpochMs;
+}
+
+/** GET response for each log pillar. */
+export interface LogList<T> {
+  entries: T[];
+}
+
 // ─── Performance ─────────────────────────────────────────────────────────────
 
 /** Inputs to the daily performance score. All sub-scores normalize to 0–100. */

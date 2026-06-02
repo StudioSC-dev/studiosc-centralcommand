@@ -87,6 +87,9 @@ export const fitnessLogs = sqliteTable("fitness_logs", {
   userId: text("user_id")
     .notNull()
     .references(() => users.id),
+  activity: text("activity"),
+  durationMin: integer("duration_min"),
+  intensity: integer("intensity"), // 1–5
   loggedAt: integer("logged_at").notNull(),
 });
 
@@ -95,6 +98,11 @@ export const nutritionLogs = sqliteTable("nutrition_logs", {
   userId: text("user_id")
     .notNull()
     .references(() => users.id),
+  meal: text("meal"), // optional label, e.g. "breakfast"
+  calories: integer("calories"),
+  protein: integer("protein"), // grams
+  carbs: integer("carbs"), // grams
+  fat: integer("fat"), // grams
   loggedAt: integer("logged_at").notNull(),
 });
 
@@ -103,6 +111,9 @@ export const sleepLogs = sqliteTable("sleep_logs", {
   userId: text("user_id")
     .notNull()
     .references(() => users.id),
+  date: text("date"), // night the sleep is attributed to (YYYY-MM-DD)
+  durationMin: integer("duration_min"),
+  quality: integer("quality"), // 1–5
   loggedAt: integer("logged_at").notNull(),
 });
 

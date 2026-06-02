@@ -25,6 +25,23 @@ export type Pillar =
   | "news"
   | "performance";
 
+// ─── Summary (cross-pillar overview) ─────────────────────────────────────────
+// Every field is nullable: the summary is a cheap read of already-available
+// data (DB + KV caches) and never triggers fresh external fetches.
+
+export interface SummaryData {
+  performance: { score: number; hasData: boolean } | null;
+  weather: { temp: number; units: WeatherUnits; description: string } | null;
+  calendar: { nextEventTitle: string; nextEventStart: EpochMs; todayBusyness: number } | null;
+  sleep: { durationMin: number } | null;
+  nutrition: { calories: number } | null;
+  fitness: { sessions: number; durationMin: number } | null;
+  gaming: { rank: string; winRate7d: number | null } | null;
+  news: { title: string; source: string } | null;
+}
+
+export type SummaryResponse = SummaryData;
+
 // ─── API envelope ────────────────────────────────────────────────────────────
 
 /** Standard success envelope returned by every API route. */

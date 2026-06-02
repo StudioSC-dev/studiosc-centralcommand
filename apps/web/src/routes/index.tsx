@@ -7,6 +7,7 @@ import { NutritionCard } from "../components/NutritionCard";
 import { SleepCard } from "../components/SleepCard";
 import { PerformanceCard } from "../components/PerformanceCard";
 import { GamingCard } from "../components/GamingCard";
+import { SummaryCard } from "../components/SummaryCard";
 
 export const Route = createFileRoute("/")({
   component: Dashboard,
@@ -15,6 +16,7 @@ export const Route = createFileRoute("/")({
 function Dashboard() {
   return (
     <section className="dashboard">
+      <SummaryCard />
       <PerformanceCard />
       <CalendarCard />
       <WeatherCard />

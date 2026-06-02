@@ -21,6 +21,14 @@ CF_ACCESS_TEAM_DOMAIN = "studiosc.cloudflareaccess.com"
 [observability]
 enabled = true
 
+# Bind the Worker to the API path on the production hostname. Pages serves the
+# SPA at the root; this more-specific /api/* route takes precedence for API
+# traffic. The OAuth callback URL is derived from the request origin, so it
+# resolves to https://centralcommand.studiosc.dev/api/auth/google/callback.
+[[routes]]
+pattern = "centralcommand.studiosc.dev/api/*"
+zone_name = "studiosc.dev"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "central-command-db"

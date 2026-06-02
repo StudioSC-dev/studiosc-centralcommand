@@ -16,6 +16,8 @@ import { sleep } from "./routes/sleep";
 import { gaming } from "./routes/gaming";
 import { news } from "./routes/news";
 import { performance } from "./routes/performance";
+import { tasks_routes } from "./routes/tasks";
+import { insights } from "./routes/insights";
 
 const app = new Hono<AppEnv>();
 
@@ -39,6 +41,8 @@ api.route("/sleep", sleep);
 api.route("/gaming", gaming);
 api.route("/news", news);
 api.route("/performance", performance);
+api.route("/tasks", tasks_routes);
+api.route("/insights", insights);
 
 // The single-host topology routes centralcommand.studiosc.dev/api/* to this Worker.
 app.route("/api", api);

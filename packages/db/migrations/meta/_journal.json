@@ -36,6 +36,13 @@
       "when": 1780371350259,
       "tag": "0004_classy_warlock",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1780412819916,
+      "tag": "0005_nice_xorn",
+      "breakpoints": true
     }
   ]
 }

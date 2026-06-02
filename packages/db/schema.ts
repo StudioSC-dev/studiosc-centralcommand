@@ -187,6 +187,24 @@ export const performanceScores = sqliteTable(
   (table) => [unique().on(table.userId, table.date)],
 );
 
+// Native task list — "current priorities", independent of calendar time.
+// Phase 2 will add external sources (Linear/Jira/Trello) feeding the same table
+// via `source` / `externalId`.
+export const tasks = sqliteTable("tasks", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id),
+  title: text("title").notNull(),
+  priority: text("priority").notNull().default("med"), // 'high' | 'med' | 'low'
+  status: text("status").notNull().default("open"), // 'open' | 'done'
+  position: integer("position").notNull().default(0), // manual ordering within a priority
+  source: text("source").notNull().default("native"), // 'native' | 'linear' | 'jira' | 'trello'
+  externalId: text("external_id"), // id in the source system (null for native)
+  createdAt: integer("created_at").notNull(),
+  completedAt: integer("completed_at"),
+});
+
 export const newsItems = sqliteTable("news_items", {
   id: text("id").primaryKey(),
   source: text("source").notNull(),

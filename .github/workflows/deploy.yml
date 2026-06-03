@@ -1,0 +1,128 @@
+name: Deploy
+
+# CI/CD: on every push to main, run the quality gate, then deploy whatever
+# changed. API -> Cloudflare Worker, Web -> Cloudflare Pages.
+on:
+  push:
+    branches: [main]
+
+# A newer commit on main supersedes an in-flight deploy.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Figure out which app(s) a push touched so we only deploy what changed.
+  # Shared roots (lockfile, root config, this workflow) and the shared packages
+  # fan out to the apps that depend on them.
+  # ---------------------------------------------------------------------------
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      web: ${{ steps.filter.outputs.web }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shared: &shared
+              - 'pnpm-lock.yaml'
+              - 'package.json'
+              - 'turbo.json'
+              - 'tsconfig.base.json'
+              - '.github/workflows/deploy.yml'
+            api:
+              - *shared
+              - 'apps/api/**'
+              - 'packages/db/**'
+              - 'packages/types/**'
+              - 'packages/utils/**'
+            web:
+              - *shared
+              - 'apps/web/**'
+              - 'packages/types/**'
+              - 'packages/utils/**'
+
+  # ---------------------------------------------------------------------------
+  # Quality gate. Runs once if anything deployable changed. `pnpm build` runs
+  # first because it generates apps/web/src/routeTree.gen.ts, which typecheck
+  # depends on. `pnpm lint` is currently a no-op (no eslint config yet) and
+  # becomes a real gate automatically once one is added.
+  # ---------------------------------------------------------------------------
+  verify:
+    name: Typecheck, lint & build
+    needs: changes
+    if: ${{ needs.changes.outputs.api == 'true' || needs.changes.outputs.web == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm lint
+
+  # ---------------------------------------------------------------------------
+  # Deploy the API Worker. Applies pending D1 migrations against the remote
+  # production database before deploying the new code, so schema is in sync
+  # before the Worker that depends on it goes live.
+  # ---------------------------------------------------------------------------
+  deploy-api:
+    name: Deploy API (Worker)
+    needs: [changes, verify]
+    if: ${{ needs.changes.outputs.api == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply D1 migrations (remote)
+        run: pnpm --filter @central-command/api exec wrangler d1 migrations apply central-command-db --remote
+      - name: Deploy Worker
+        run: pnpm --filter @central-command/api exec wrangler deploy
+
+  # ---------------------------------------------------------------------------
+  # Deploy the web SPA to Cloudflare Pages. --branch=main marks this as a
+  # production deployment (assuming the Pages project's production branch is
+  # main); other branches would publish as previews.
+  # ---------------------------------------------------------------------------
+  deploy-web:
+    name: Deploy Web (Pages)
+    needs: [changes, verify]
+    if: ${{ needs.changes.outputs.web == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build web
+        run: pnpm --filter @central-command/web build
+      - name: Deploy to Pages
+        run: pnpm --filter @central-command/web exec wrangler pages deploy dist --project-name=centralcommand --branch=main

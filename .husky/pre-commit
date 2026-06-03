@@ -1,0 +1,4 @@
+# Mirror the CI quality gate so every commit is one that would pass on main.
+# Build first: it generates apps/web/src/routeTree.gen.ts, which the web
+# typecheck depends on. Turbo caches all three, so repeat commits are fast.
+pnpm build && pnpm typecheck && pnpm lint

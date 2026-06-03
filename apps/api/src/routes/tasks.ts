@@ -27,17 +27,23 @@ const toTask = (r: TaskRow): Task => ({
   status: r.status as TaskStatus,
   position: r.position,
   source: r.source as Task["source"],
+  deadline: r.deadline ?? null,
   createdAt: r.createdAt,
   completedAt: r.completedAt ?? null,
 });
 
-/** Open tasks first (by priority then manual order), then completed by recency. */
+/**
+ * Open tasks first, ordered by importance (priority) then urgency (soonest deadline,
+ * undated last), then manual order — the Eisenhower lens. Completed tasks by recency.
+ */
 function sortTasks(rows: TaskRow[]): Task[] {
   return rows.map(toTask).sort((a, b) => {
     if (a.status !== b.status) return a.status === "open" ? -1 : 1;
     if (a.status === "open") {
       const p = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
       if (p !== 0) return p;
+      const d = (a.deadline ?? Infinity) - (b.deadline ?? Infinity);
+      if (d !== 0) return d;
       if (a.position !== b.position) return a.position - b.position;
       return a.createdAt - b.createdAt;
     }
@@ -70,6 +76,7 @@ export const tasks_routes = new Hono<AppEnv>()
       position: Date.now(), // monotonic default order; explicit reordering overrides
       source: "native" as const,
       externalId: null,
+      deadline: typeof body?.deadline === "number" ? body.deadline : null,
       createdAt: Date.now(),
       completedAt: null,
     };
@@ -94,6 +101,7 @@ export const tasks_routes = new Hono<AppEnv>()
     if (typeof body.title === "string" && body.title.trim()) patch.title = body.title.trim();
     if (isPriority(body.priority)) patch.priority = body.priority;
     if (typeof body.position === "number") patch.position = body.position;
+    if (typeof body.deadline === "number" || body.deadline === null) patch.deadline = body.deadline;
     if (body.status === "open" || body.status === "done") {
       patch.status = body.status;
       patch.completedAt = body.status === "done" ? Date.now() : null;

@@ -1,13 +1,22 @@
 import { Hono } from "hono";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { fitnessLogs } from "@central-command/db";
-import type { FitnessLogEntry, FitnessLogInput } from "@central-command/types";
+import type { FitnessLogEntry, FitnessLogInput, FitnessLogUpdate } from "@central-command/types";
 import type { AppEnv } from "../env";
 import { createDb } from "../lib/db";
 import { ok, fail } from "../lib/response";
 import { newId } from "../lib/ids";
 
 const RECENT_LIMIT = 20;
+
+type FitnessRow = typeof fitnessLogs.$inferSelect;
+const toEntry = (r: FitnessRow): FitnessLogEntry => ({
+  id: r.id,
+  activity: r.activity ?? "",
+  durationMin: r.durationMin ?? 0,
+  intensity: r.intensity ?? undefined,
+  loggedAt: r.loggedAt,
+});
 
 /** GET /fitness, POST /fitness/log — manual fitness entries (Phase 1). */
 export const fitness = new Hono<AppEnv>()
@@ -20,14 +29,7 @@ export const fitness = new Hono<AppEnv>()
       .limit(RECENT_LIMIT)
       .all();
 
-    const entries: FitnessLogEntry[] = rows.map((r) => ({
-      id: r.id,
-      activity: r.activity ?? "",
-      durationMin: r.durationMin ?? 0,
-      intensity: r.intensity ?? undefined,
-      loggedAt: r.loggedAt,
-    }));
-    return ok(c, { entries });
+    return ok(c, { entries: rows.map(toEntry) });
   })
   .post("/log", async (c) => {
     const body = await c.req.json<FitnessLogInput>().catch(() => null);
@@ -58,4 +60,35 @@ export const fitness = new Hono<AppEnv>()
       loggedAt: entry.loggedAt,
     });
     return ok(c, entry, 201);
+  })
+  .patch("/:id", async (c) => {
+    const id = c.req.param("id");
+    const body = await c.req.json<FitnessLogUpdate>().catch(() => null);
+    if (!body) return fail(c, "bad_request", "Invalid JSON body.", 400);
+
+    const db = createDb(c.env.DB);
+    const userId = c.get("userId");
+    const existing = await db
+      .select()
+      .from(fitnessLogs)
+      .where(and(eq(fitnessLogs.id, id), eq(fitnessLogs.userId, userId)))
+      .get();
+    if (!existing) return fail(c, "not_found", "Entry not found.", 404);
+
+    const patch: Partial<FitnessRow> = {};
+    if (typeof body.activity === "string" && body.activity.trim()) patch.activity = body.activity.trim();
+    if (typeof body.durationMin === "number" && body.durationMin > 0) patch.durationMin = Math.round(body.durationMin);
+    if (body.intensity === null) patch.intensity = null;
+    else if (typeof body.intensity === "number") patch.intensity = body.intensity;
+
+    await db.update(fitnessLogs).set(patch).where(and(eq(fitnessLogs.id, id), eq(fitnessLogs.userId, userId)));
+    return ok(c, toEntry({ ...existing, ...patch }));
+  })
+  .delete("/:id", async (c) => {
+    const id = c.req.param("id");
+    const userId = c.get("userId");
+    await createDb(c.env.DB)
+      .delete(fitnessLogs)
+      .where(and(eq(fitnessLogs.id, id), eq(fitnessLogs.userId, userId)));
+    return ok(c, { id });
   });

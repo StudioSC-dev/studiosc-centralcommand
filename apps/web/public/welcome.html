@@ -38,6 +38,22 @@
       }
       h1 { font-size: 44px; line-height: 1.1; margin: 0 0 16px; }
       .lede { font-size: 19px; color: var(--muted); max-width: 620px; }
+      .cta-row { margin: 32px 0 0; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--accent);
+        color: #0b0f1a;
+        font-weight: 600;
+        font-size: 15px;
+        text-decoration: none;
+        padding: 12px 22px;
+        border-radius: 10px;
+        transition: filter 0.15s ease, transform 0.15s ease;
+      }
+      .btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+      .btn-note { color: var(--muted); font-size: 13px; }
       .grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -81,6 +97,11 @@
         into a single, private interface — so the signal from every part of your day
         lives in one place.
       </p>
+
+      <div class="cta-row">
+        <a class="btn" href="/">Open the dashboard →</a>
+        <span class="btn-note">Sign-in required · access is invite-only</span>
+      </div>
 
       <div class="grid">
         <div class="card">

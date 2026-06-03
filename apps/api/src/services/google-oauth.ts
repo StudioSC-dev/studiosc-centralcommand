@@ -99,6 +99,19 @@ export interface RefreshedToken {
   expires_in: number;
 }
 
+/**
+ * Thrown when a stored Google credential is unrecoverable and the user must
+ * re-consent — e.g. the refresh token expired (7-day limit while the OAuth app
+ * is in "Testing" publishing status) or was revoked. Callers should surface a
+ * reconnect prompt rather than a generic error.
+ */
+export class GoogleReauthRequiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "GoogleReauthRequiredError";
+  }
+}
+
 /** Exchange a refresh token for a fresh access token. */
 export async function refreshAccessToken(opts: {
   refreshToken: string;
@@ -116,7 +129,14 @@ export async function refreshAccessToken(opts: {
     }),
   });
   if (!res.ok) {
-    throw new Error(`Google token refresh failed: ${res.status} ${await res.text()}`);
+    const body = await res.text();
+    // An expired or revoked refresh token comes back as 400 invalid_grant.
+    // That is terminal — only re-consent fixes it, so flag it distinctly from
+    // a transient upstream failure (which should stay a 500).
+    if (res.status === 400 && body.includes("invalid_grant")) {
+      throw new GoogleReauthRequiredError("Google refresh token is invalid or expired.");
+    }
+    throw new Error(`Google token refresh failed: ${res.status} ${body}`);
   }
   return (await res.json()) as RefreshedToken;
 }

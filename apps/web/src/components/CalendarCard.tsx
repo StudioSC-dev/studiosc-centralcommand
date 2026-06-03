@@ -20,8 +20,11 @@ export function CalendarCard() {
   if (!data.connected) {
     return (
       <Card title="Calendar" pillar="calendar">
+        {data.needsReconnect && (
+          <p className="news-empty">Google Calendar access expired. Reconnect to restore events.</p>
+        )}
         <a className="connect-link" href="/api/auth/google">
-          Connect Google Calendar
+          {data.needsReconnect ? "Reconnect Google Calendar" : "Connect Google Calendar"}
         </a>
       </Card>
     );

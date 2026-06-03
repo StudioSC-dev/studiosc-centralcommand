@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="index,follow" />
+    <title>Central Command — Personal Performance Dashboard</title>
+    <meta
+      name="description"
+      content="Central Command is a Cloudflare-native personal performance dashboard that unifies calendar, weather, fitness, nutrition, sleep, gaming, and news into one interface."
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b0f1a;
+        --panel: #131a2b;
+        --border: #233049;
+        --text: #e6ebf5;
+        --muted: #9aa7c2;
+        --accent: #7c9cff;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background:
+          radial-gradient(1200px 600px at 50% -10%, #1a2440 0%, transparent 60%),
+          var(--bg);
+        color: var(--text);
+        font: 16px/1.65 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      }
+      .wrap { max-width: 860px; margin: 0 auto; padding: 80px 24px 96px; }
+      .eyebrow {
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        font-size: 12px;
+        color: var(--accent);
+        margin: 0 0 12px;
+      }
+      h1 { font-size: 44px; line-height: 1.1; margin: 0 0 16px; }
+      .lede { font-size: 19px; color: var(--muted); max-width: 620px; }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin: 48px 0;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 20px;
+      }
+      .card h3 { margin: 0 0 6px; font-size: 16px; }
+      .card p { margin: 0; color: var(--muted); font-size: 14px; }
+      .stack {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 24px;
+        margin: 40px 0;
+      }
+      .stack h2 { margin: 0 0 12px; font-size: 18px; }
+      .stack ul { margin: 0; padding-left: 20px; color: var(--muted); }
+      a { color: var(--accent); }
+      footer {
+        margin-top: 56px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <p class="eyebrow">Central Command</p>
+      <h1>One dashboard for everything you track.</h1>
+      <p class="lede">
+        Central Command is a Cloudflare-native personal performance dashboard. It
+        unifies your calendar, weather, fitness, nutrition, sleep, gaming, and news
+        into a single, private interface — so the signal from every part of your day
+        lives in one place.
+      </p>
+
+      <div class="grid">
+        <div class="card">
+          <h3>Calendar</h3>
+          <p>Upcoming events and a duration-based busyness score for the day.</p>
+        </div>
+        <div class="card">
+          <h3>Weather</h3>
+          <p>Current conditions and forecast at a glance.</p>
+        </div>
+        <div class="card">
+          <h3>Health</h3>
+          <p>Sleep, nutrition, and fitness logging with a daily performance score.</p>
+        </div>
+        <div class="card">
+          <h3>Gaming</h3>
+          <p>Match results and ranked progress, correlated with your habits.</p>
+        </div>
+      </div>
+
+      <div class="stack">
+        <h2>Your Google data</h2>
+        <p style="color: var(--muted); margin: 0 0 12px;">
+          If you connect Google Calendar, Central Command requests
+          <strong>read-only</strong> access to display your upcoming events and
+          compute your busyness score. It never modifies your calendar, and your data
+          is never sold or used for advertising.
+        </p>
+        <ul>
+          <li>Read-only calendar access — display and busyness scoring only</li>
+          <li>Tokens encrypted at rest; calendar data cached only briefly</li>
+          <li>Revoke access any time from your Google Account permissions</li>
+        </ul>
+      </div>
+
+      <footer>
+        Central Command · A personal project ·
+        <a href="/privacy">Privacy Policy</a> ·
+        <a href="mailto:admin@studiosc.dev">admin@studiosc.dev</a>
+      </footer>
+    </div>
+  </body>
+</html>

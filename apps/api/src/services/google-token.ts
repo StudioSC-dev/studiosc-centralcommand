@@ -3,7 +3,7 @@ import { authProviders } from "@central-command/db";
 import type { Bindings } from "../env";
 import type { Database } from "../lib/db";
 import { decryptSecret, encryptSecret } from "../lib/crypto";
-import { refreshAccessToken } from "./google-oauth";
+import { GoogleReauthRequiredError, refreshAccessToken } from "./google-oauth";
 
 const PROVIDER = "google";
 
@@ -82,7 +82,9 @@ export async function getValidGoogleAccessToken(
   }
 
   if (!row.refreshToken) {
-    throw new Error("Google access token expired and no refresh token is stored; reconnect.");
+    throw new GoogleReauthRequiredError(
+      "Google access token expired and no refresh token is stored.",
+    );
   }
 
   const refreshToken = await decryptSecret(row.refreshToken, env.TOKEN_ENCRYPTION_KEY);

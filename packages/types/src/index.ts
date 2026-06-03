@@ -221,9 +221,15 @@ export interface CalendarData {
   todayBusyness: number;
 }
 
-/** Returned when the user hasn't connected their Google account yet. */
+/** Returned when no usable Google connection exists for the user. */
 export interface CalendarNotConnected {
   connected: false;
+  /**
+   * True when a connection previously existed but its credentials expired or
+   * were revoked, so the user must re-consent. Distinguishes a reconnect
+   * prompt from a first-time connect.
+   */
+  needsReconnect?: boolean;
 }
 
 export type CalendarResponse = CalendarData | CalendarNotConnected;

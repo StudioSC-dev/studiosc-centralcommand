@@ -7,6 +7,7 @@ import { ok } from "../lib/response";
 import { fetchUpcomingEvents } from "../services/google-calendar";
 import { getUserSettings } from "../services/users";
 import { getGoogleProvider, getValidGoogleAccessToken } from "../services/google-token";
+import { GoogleReauthRequiredError } from "../services/google-oauth";
 
 const CACHE_TTL = 5 * 60; // calendar TTL per CLAUDE.md
 const MS_PER_HOUR = 60 * 60 * 1000;
@@ -39,8 +40,18 @@ export const calendar = new Hono<AppEnv>().get("/", async (c) => {
   const cached = await c.env.CACHE.get<CalendarData>(cacheKey, "json");
   if (cached) return ok(c, cached);
 
-  const accessToken = await getValidGoogleAccessToken(db, c.env, userId);
-  const events = await fetchUpcomingEvents(accessToken, 10);
+  let events: CalendarEvent[];
+  try {
+    const accessToken = await getValidGoogleAccessToken(db, c.env, userId);
+    events = await fetchUpcomingEvents(accessToken, 10);
+  } catch (err) {
+    // Expired/revoked credentials are a recoverable, user-actionable state —
+    // prompt a reconnect instead of bubbling up to the generic 500 handler.
+    if (err instanceof GoogleReauthRequiredError) {
+      return ok(c, { connected: false, needsReconnect: true });
+    }
+    throw err;
+  }
 
   const { start, end } = dayBounds((await getUserSettings(db, userId))?.timezone ?? undefined);
   const data: CalendarData = {

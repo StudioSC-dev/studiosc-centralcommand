@@ -159,6 +159,8 @@ export interface Task {
   status: TaskStatus;
   position: number;
   source: TaskSource;
+  /** Optional due date (epoch ms). Importance = priority, urgency = deadline. */
+  deadline: EpochMs | null;
   createdAt: EpochMs;
   completedAt: EpochMs | null;
 }
@@ -166,14 +168,16 @@ export interface Task {
 export interface TaskCreateInput {
   title: string;
   priority?: TaskPriority;
+  deadline?: EpochMs | null;
 }
 
-/** Partial update — toggle status, re-prioritize, rename, reorder. */
+/** Partial update — toggle status, re-prioritize, rename, reorder, (re)schedule. */
 export interface TaskUpdateInput {
   title?: string;
   priority?: TaskPriority;
   status?: TaskStatus;
   position?: number;
+  deadline?: EpochMs | null;
 }
 
 export interface TasksData {
@@ -349,6 +353,27 @@ export interface SleepLogInput {
 export interface SleepLogEntry extends SleepLogInput {
   id: string;
   loggedAt: EpochMs;
+}
+
+/* Partial edits to an existing log entry. Optional fields accept null to clear
+   them; required fields (activity, calories, durationMin) are only changed when a
+   valid value is supplied. */
+export interface FitnessLogUpdate {
+  activity?: string;
+  durationMin?: number;
+  intensity?: number | null;
+}
+export interface NutritionLogUpdate {
+  meal?: string | null;
+  calories?: number;
+  protein?: number | null;
+  carbs?: number | null;
+  fat?: number | null;
+}
+export interface SleepLogUpdate {
+  date?: string;
+  durationMin?: number;
+  quality?: number | null;
 }
 
 /** GET response for each log pillar. */

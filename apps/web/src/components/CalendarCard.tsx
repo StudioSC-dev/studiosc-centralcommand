@@ -14,12 +14,12 @@ export function CalendarCard() {
   const { data, isPending, isError, error } = useCalendar();
   const now = useNow();
 
-  if (isPending) return <Card title="Calendar">Loading calendar…</Card>;
-  if (isError) return <Card title="Calendar">Calendar unavailable: {error.message}</Card>;
+  if (isPending) return <Card title="Calendar" pillar="calendar">Loading calendar…</Card>;
+  if (isError) return <Card title="Calendar" pillar="calendar">Calendar unavailable: {error.message}</Card>;
 
   if (!data.connected) {
     return (
-      <Card title="Calendar">
+      <Card title="Calendar" pillar="calendar">
         <a className="connect-link" href="/api/auth/google">
           Connect Google Calendar
         </a>
@@ -34,7 +34,7 @@ export function CalendarCard() {
     .slice(0, MAX_TIMED);
 
   return (
-    <Card title="Calendar">
+    <Card title="Calendar" pillar="calendar">
       {allDay.length > 0 && (
         <div className="cal-allday">
           {allDay.map((e) => (

@@ -119,9 +119,9 @@ function NewsRow({ item }: { item: NewsItem }) {
 
 function Card({ children }: { children: ReactNode }) {
   return (
-    <section className="card news-card">
+    <section className="card news-card pillar-news">
       <h2 className="card-title">News</h2>
-      {children}
+      <div className="card-body">{children}</div>
     </section>
   );
 }

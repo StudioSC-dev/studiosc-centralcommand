@@ -80,7 +80,7 @@ export function GamingCard() {
   const { data, isPending, isError, error } = useGaming();
 
   return (
-    <Card title="Gaming">
+    <Card title="Gaming" pillar="gaming">
       {isPending && <p>Loading…</p>}
       {isError && <p className="log-error">{error.message}</p>}
       {data && !data.connected && <ConnectForm />}

@@ -2,13 +2,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   FitnessLogEntry,
   FitnessLogInput,
+  FitnessLogUpdate,
   LogList,
   NutritionLogEntry,
   NutritionLogInput,
+  NutritionLogUpdate,
   SleepLogEntry,
   SleepLogInput,
+  SleepLogUpdate,
 } from "@central-command/types";
-import { apiGet, apiPost } from "./api";
+import { apiDelete, apiGet, apiPatch, apiPost } from "./api";
 
 // ─── Fitness ─────────────────────────────────────────────────────────────────
 export function useFitness() {
@@ -21,6 +24,21 @@ export function useLogFitness() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: FitnessLogInput) => apiPost<FitnessLogEntry>("/api/fitness/log", input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["fitness"] }),
+  });
+}
+export function useUpdateFitness() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: FitnessLogUpdate & { id: string }) =>
+      apiPatch<FitnessLogEntry>(`/api/fitness/${id}`, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["fitness"] }),
+  });
+}
+export function useDeleteFitness() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiDelete<{ id: string }>(`/api/fitness/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["fitness"] }),
   });
 }
@@ -39,6 +57,28 @@ export function useLogNutrition() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["nutrition"] }),
   });
 }
+export function useUpdateNutrition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: NutritionLogUpdate & { id: string }) =>
+      apiPatch<NutritionLogEntry>(`/api/nutrition/${id}`, patch),
+    // Nutrition feeds the performance score, so refresh that card too.
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["nutrition"] });
+      qc.invalidateQueries({ queryKey: ["performance"] });
+    },
+  });
+}
+export function useDeleteNutrition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiDelete<{ id: string }>(`/api/nutrition/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["nutrition"] });
+      qc.invalidateQueries({ queryKey: ["performance"] });
+    },
+  });
+}
 
 // ─── Sleep ───────────────────────────────────────────────────────────────────
 export function useSleep() {
@@ -52,5 +92,27 @@ export function useLogSleep() {
   return useMutation({
     mutationFn: (input: SleepLogInput) => apiPost<SleepLogEntry>("/api/sleep/log", input),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["sleep"] }),
+  });
+}
+export function useUpdateSleep() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: SleepLogUpdate & { id: string }) =>
+      apiPatch<SleepLogEntry>(`/api/sleep/${id}`, patch),
+    // Sleep feeds the performance score, so refresh that card too.
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sleep"] });
+      qc.invalidateQueries({ queryKey: ["performance"] });
+    },
+  });
+}
+export function useDeleteSleep() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiDelete<{ id: string }>(`/api/sleep/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sleep"] });
+      qc.invalidateQueries({ queryKey: ["performance"] });
+    },
   });
 }

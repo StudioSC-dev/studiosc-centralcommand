@@ -16,13 +16,13 @@ function Bar({ label, value }: { label: string; value: number }) {
 export function PerformanceCard() {
   const { data, isPending, isError, error } = usePerformance();
 
-  if (isPending) return <Card title="Performance">Loading…</Card>;
-  if (isError) return <Card title="Performance">Unavailable: {error.message}</Card>;
+  if (isPending) return <Card title="Performance" pillar="perf">Loading…</Card>;
+  if (isError) return <Card title="Performance" pillar="perf">Unavailable: {error.message}</Card>;
 
   const { today, history } = data;
 
   return (
-    <Card title="Performance">
+    <Card title="Performance" pillar="perf">
       <div className="perf-head">
         <span className="perf-score">{today.score}</span>
         <span className="perf-out">/100</span>

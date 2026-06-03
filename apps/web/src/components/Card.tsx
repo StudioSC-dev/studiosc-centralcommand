@@ -1,11 +1,19 @@
 import type { ReactNode } from "react";
 
-/** Shared dashboard card shell: titled section. */
-export function Card({ title, children }: { title: string; children: ReactNode }) {
+export interface CardProps {
+  title: string;
+  children: ReactNode;
+  /** Pillar key for the per-card accent tint (e.g. "weather", "tasks"). */
+  pillar?: string;
+}
+
+/** Shared dashboard card shell: fixed-size glass tile with a scrollable body. */
+export function Card({ title, children, pillar }: CardProps) {
+  const className = ["card", pillar && `pillar-${pillar}`].filter(Boolean).join(" ");
   return (
-    <section className="card">
+    <section className={className}>
       <h2 className="card-title">{title}</h2>
-      {children}
+      <div className="card-body">{children}</div>
     </section>
   );
 }

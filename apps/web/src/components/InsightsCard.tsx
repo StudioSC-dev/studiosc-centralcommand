@@ -5,12 +5,12 @@ import { useInsights } from "../lib/insights";
 export function InsightsCard() {
   const { data, isPending, isError, error } = useInsights();
 
-  if (isPending) return <Card title="Insights">Loading…</Card>;
-  if (isError) return <Card title="Insights">Insights unavailable: {error.message}</Card>;
+  if (isPending) return <Card title="Insights" pillar="insights">Loading…</Card>;
+  if (isError) return <Card title="Insights" pillar="insights">Insights unavailable: {error.message}</Card>;
 
   if (data.insights.length === 0) {
     return (
-      <Card title="Insights">
+      <Card title="Insights" pillar="insights">
         <p className="news-empty">
           Keep logging sleep, nutrition, and games — insights appear as the data builds up.
         </p>
@@ -19,7 +19,7 @@ export function InsightsCard() {
   }
 
   return (
-    <Card title="Insights">
+    <Card title="Insights" pillar="insights">
       <ul className="insight-list">
         {data.insights.map((i) => (
           <li key={i.id} className={`insight tone-${i.tone}`}>

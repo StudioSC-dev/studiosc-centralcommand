@@ -201,6 +201,7 @@ export const tasks = sqliteTable("tasks", {
   position: integer("position").notNull().default(0), // manual ordering within a priority
   source: text("source").notNull().default("native"), // 'native' | 'linear' | 'jira' | 'trello'
   externalId: text("external_id"), // id in the source system (null for native)
+  deadline: integer("deadline"), // optional due date (epoch ms) — drives Eisenhower urgency
   createdAt: integer("created_at").notNull(),
   completedAt: integer("completed_at"),
 });

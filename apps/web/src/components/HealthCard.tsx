@@ -107,6 +107,7 @@ function SleepSection() {
   const remove = useDeleteSleep();
   const [hours, setHours] = useState("");
   const [quality, setQuality] = useState("");
+  const [hrv, setHrv] = useState("");
 
   const entries = data?.entries ?? [];
   const todayMin = entries
@@ -118,11 +119,16 @@ function SleepSection() {
     const h = Number(hours);
     if (!h) return;
     log.mutate(
-      { durationMin: Math.round(h * 60), quality: quality ? Number(quality) : undefined },
+      {
+        durationMin: Math.round(h * 60),
+        quality: quality ? Number(quality) : undefined,
+        hrv: hrv ? Number(hrv) : undefined,
+      },
       {
         onSuccess: () => {
           setHours("");
           setQuality("");
+          setHrv("");
         },
       },
     );
@@ -134,6 +140,7 @@ function SleepSection() {
       <form className="log-form" onSubmit={submit}>
         <input type="number" min="0" step="0.5" placeholder="hours" value={hours} onChange={(e) => setHours(e.target.value)} />
         <input type="number" min="1" max="5" placeholder="1-5" value={quality} onChange={(e) => setQuality(e.target.value)} />
+        <input type="number" min="1" max="300" placeholder="HRV ms" value={hrv} onChange={(e) => setHrv(e.target.value)} />
         <button type="submit" disabled={log.isPending}>Log</button>
       </form>
       {log.isError && <p className="log-error">{log.error.message}</p>}
@@ -163,23 +170,30 @@ function SleepRow({
   const [editing, setEditing] = useState(false);
   const [hours, setHours] = useState("");
   const [quality, setQuality] = useState("");
+  const [hrv, setHrv] = useState("");
 
   const start = () => {
     setHours(minToHours(entry.durationMin ?? 0));
     setQuality(entry.quality != null ? String(entry.quality) : "");
+    setHrv(entry.hrv != null ? String(entry.hrv) : "");
     setEditing(true);
   };
   const save = (e: React.FormEvent) => {
     e.preventDefault();
     const h = Number(hours);
     if (!h) return;
-    onSave({ id: entry.id, durationMin: Math.round(h * 60), quality: quality ? Number(quality) : null });
+    onSave({
+      id: entry.id,
+      durationMin: Math.round(h * 60),
+      quality: quality ? Number(quality) : null,
+      hrv: hrv ? Number(hrv) : null,
+    });
     setEditing(false);
   };
 
   return (
     <LogRow
-      text={`${entry.date ?? ""} · ${fmtDuration(entry.durationMin ?? 0)}${entry.quality ? ` · quality ${entry.quality}` : ""}`}
+      text={`${entry.date ?? ""} · ${fmtDuration(entry.durationMin ?? 0)}${entry.quality ? ` · quality ${entry.quality}` : ""}${entry.hrv != null ? ` · HRV ${entry.hrv}ms` : ""}`}
       onEdit={start}
       onDelete={onDelete}
       editForm={
@@ -187,6 +201,7 @@ function SleepRow({
           <form className="log-edit-form" onSubmit={save}>
             <input type="number" min="0" step="0.5" placeholder="hours" value={hours} onChange={(e) => setHours(e.target.value)} autoFocus />
             <input type="number" min="1" max="5" placeholder="1-5" value={quality} onChange={(e) => setQuality(e.target.value)} />
+            <input type="number" min="1" max="300" placeholder="HRV ms" value={hrv} onChange={(e) => setHrv(e.target.value)} />
             <button type="submit">Save</button>
             <button type="button" className="link-button" onClick={() => setEditing(false)}>Cancel</button>
           </form>

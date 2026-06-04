@@ -1,3 +1,4 @@
+import type { PerformanceHrv } from "@central-command/types";
 import { Card } from "./Card";
 import { usePerformance } from "../lib/performance";
 
@@ -9,6 +10,23 @@ function Bar({ label, value }: { label: string; value: number }) {
         <span className="perf-bar-fill" style={{ width: `${value}%` }} />
       </span>
       <span className="perf-bar-val">{value}</span>
+    </div>
+  );
+}
+
+/**
+ * HRV is captured + displayed but not yet folded into the score (too individual
+ * to score from a thin baseline). Show the latest reading + baseline progress
+ * instead of a misleading bar value.
+ */
+function HrvRow({ hrv }: { hrv: PerformanceHrv }) {
+  return (
+    <div className="perf-bar perf-bar-hrv">
+      <span className="perf-bar-label">HRV</span>
+      <span className="perf-hrv-note">
+        {hrv.latestMs != null ? `${hrv.latestMs}ms today · ` : ""}
+        not scored yet — building baseline ({hrv.nights} {hrv.nights === 1 ? "night" : "nights"})
+      </span>
     </div>
   );
 }
@@ -31,7 +49,7 @@ export function PerformanceCard() {
       <div className="perf-bars">
         <Bar label="Sleep" value={today.breakdown.sleep} />
         <Bar label="Nutrition" value={today.breakdown.nutrition} />
-        <Bar label="HRV" value={today.breakdown.hrv} />
+        <HrvRow hrv={today.hrv} />
       </div>
       {history.length > 1 && (
         <div className="perf-history">

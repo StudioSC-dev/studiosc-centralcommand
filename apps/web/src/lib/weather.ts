@@ -1,16 +1,31 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   CitySearchResponse,
   ReverseGeocodeResponse,
+  UserSettings,
   WeatherResponse,
+  WeatherUnits,
 } from "@central-command/types";
-import { apiGet } from "./api";
+import { apiGet, apiPut } from "./api";
 
 /** Fetch the authenticated user's weather (current + forecast). */
 export function useWeather() {
   return useQuery({
     queryKey: ["weather"],
     queryFn: () => apiGet<WeatherResponse>("/api/weather"),
+  });
+}
+
+/** Persist the user's metric/imperial preference, then refresh weather + summary. */
+export function useSetUnits() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (units: WeatherUnits) =>
+      apiPut<{ settings: UserSettings | null }>("/api/settings/units", { units }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["weather"] });
+      qc.invalidateQueries({ queryKey: ["summary"] });
+    },
   });
 }
 

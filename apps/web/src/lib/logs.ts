@@ -91,7 +91,11 @@ export function useLogSleep() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: SleepLogInput) => apiPost<SleepLogEntry>("/api/sleep/log", input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["sleep"] }),
+    // Sleep feeds the performance score + HRV baseline, so refresh that card too.
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sleep"] });
+      qc.invalidateQueries({ queryKey: ["performance"] });
+    },
   });
 }
 export function useUpdateSleep() {

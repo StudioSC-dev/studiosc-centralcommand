@@ -1001,6 +1001,14 @@ button {
   color: var(--text-dim);
 }
 
+/* HRV is captured + displayed but not yet scored — show a note in place of a bar. */
+.perf-hrv-note {
+  flex: 1;
+  font-size: 0.72rem;
+  font-style: italic;
+  color: var(--text-dim);
+}
+
 .perf-history {
   margin-top: 0.85rem;
   display: flex;

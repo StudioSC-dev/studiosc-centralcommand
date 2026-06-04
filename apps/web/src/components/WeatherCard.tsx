@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import type { WeatherData } from "@central-command/types";
-import { useWeather } from "../lib/weather";
+import { useSetUnits, useWeather } from "../lib/weather";
 import { LocationSetter } from "./LocationSetter";
 import { WeatherGlyph, weatherGroup } from "./WeatherGlyph";
 
@@ -12,6 +12,7 @@ const fmtHour = (ms: number) =>
 
 export function WeatherCard() {
   const { data, isPending, isError, error } = useWeather();
+  const setUnits = useSetUnits();
   const [editing, setEditing] = useState(false);
 
   if (isPending) return <Card>Loading weather…</Card>;
@@ -41,6 +42,16 @@ export function WeatherCard() {
         {location.label ?? `${location.lat}, ${location.lon}`} · feels{" "}
         {fmtTemp(current.feelsLike, units)} · {current.humidity}% humidity
         {current.rain1h != null && ` · ${current.rain1h}mm rain`} ·{" "}
+        <button
+          type="button"
+          className="link-button"
+          disabled={setUnits.isPending}
+          onClick={() => setUnits.mutate(units === "imperial" ? "metric" : "imperial")}
+          title="Toggle units"
+        >
+          {units === "imperial" ? "°C" : "°F"}
+        </button>{" "}
+        ·{" "}
         <button type="button" className="link-button" onClick={() => setEditing((v) => !v)}>
           {editing ? "Cancel" : "Change"}
         </button>

@@ -298,8 +298,14 @@ export interface UserSettings {
   homeLat: number | null;
   homeLon: number | null;
   locationLabel: string | null; // human-readable, e.g. "Singapore"
+  units: WeatherUnits | null; // weather display preference (null → metric)
   createdAt: EpochMs;
   updatedAt: EpochMs;
+}
+
+/** Body for PUT /settings/units. */
+export interface SetUnitsInput {
+  units: WeatherUnits;
 }
 
 /** Best-effort defaults from the Cloudflare edge (pre-fills the location form). */
@@ -355,6 +361,7 @@ export interface SleepLogInput {
   date?: string; // YYYY-MM-DD
   durationMin: number;
   quality?: number; // 1–5
+  hrv?: number | null; // overnight/morning HRV (ms); stored + displayed, not yet scored
 }
 export interface SleepLogEntry extends SleepLogInput {
   id: string;
@@ -380,6 +387,7 @@ export interface SleepLogUpdate {
   date?: string;
   durationMin?: number;
   quality?: number | null;
+  hrv?: number | null;
 }
 
 /** GET response for each log pillar. */
@@ -405,10 +413,23 @@ export interface PerformanceBreakdown {
   hrv: number;
 }
 
+/**
+ * HRV readiness info. Captured + displayed in Phase 1 but NOT yet folded into
+ * the score (`scored: false`) — HRV is too individual to score from a thin
+ * baseline. `breakdown.hrv` therefore stays neutral; this block drives the UI's
+ * "building baseline" note.
+ */
+export interface PerformanceHrv {
+  latestMs: number | null; // most recent reading for the day
+  nights: number; // count of HRV-logged nights so far (baseline progress)
+  scored: false;
+}
+
 export interface PerformanceToday {
   date: string;
   score: number;
   breakdown: PerformanceBreakdown;
+  hrv: PerformanceHrv;
   /** Whether any sleep/nutrition was logged for the day. */
   hasData: boolean;
 }

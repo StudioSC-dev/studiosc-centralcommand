@@ -58,6 +58,7 @@ export const userSettings = sqliteTable("user_settings", {
   homeLat: real("home_lat"),
   homeLon: real("home_lon"),
   locationLabel: text("location_label"), // human-readable, e.g. "Brooklyn, NY"
+  units: text("units"), // 'metric' | 'imperial' — weather display preference (null → metric)
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
@@ -74,13 +75,24 @@ export const calendarEvents = sqliteTable("calendar_events", {
   endsAt: integer("ends_at").notNull(),
 });
 
-export const weatherSnapshots = sqliteTable("weather_snapshots", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id),
-  capturedAt: integer("captured_at").notNull(),
-});
+// One representative snapshot per user per local day, upserted when the weather
+// route serves fresh data. Feeds the weather↔outcome correlation insight.
+// `tempC` is always canonical metric (converted from °F when fetched imperial).
+export const weatherSnapshots = sqliteTable(
+  "weather_snapshots",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    date: text("date"), // local day key (YYYY-MM-DD)
+    tempC: real("temp_c"), // canonical metric temperature
+    condition: text("condition"), // e.g. "clear sky", "light rain"
+    rain1h: real("rain_1h"), // mm in the last hour; null when dry
+    capturedAt: integer("captured_at").notNull(),
+  },
+  (table) => [unique().on(table.userId, table.date)],
+);
 
 export const fitnessLogs = sqliteTable("fitness_logs", {
   id: text("id").primaryKey(),
@@ -114,6 +126,7 @@ export const sleepLogs = sqliteTable("sleep_logs", {
   date: text("date"), // night the sleep is attributed to (YYYY-MM-DD)
   durationMin: integer("duration_min"),
   quality: integer("quality"), // 1–5
+  hrv: integer("hrv"), // overnight/morning HRV reading (ms); displayed, not yet scored
   loggedAt: integer("logged_at").notNull(),
 });
 

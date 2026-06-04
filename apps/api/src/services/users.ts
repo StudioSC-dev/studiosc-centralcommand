@@ -15,6 +15,7 @@ export interface SettingsInput {
   homeLat?: number | null;
   homeLon?: number | null;
   locationLabel?: string | null;
+  units?: "metric" | "imperial" | null;
 }
 
 /**

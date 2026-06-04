@@ -1,7 +1,7 @@
-import { and, eq, gte, lt } from "drizzle-orm";
+import { and, eq, gte, isNotNull, lt } from "drizzle-orm";
 import { dayBounds, nutritionSubScore, performanceScore, sleepSubScore } from "@central-command/utils";
 import { nutritionLogs, performanceScores, sleepLogs } from "@central-command/db";
-import type { PerformanceBreakdown } from "@central-command/types";
+import type { PerformanceBreakdown, PerformanceHrv } from "@central-command/types";
 import type { Database } from "../lib/db";
 import { newId } from "../lib/ids";
 
@@ -11,6 +11,7 @@ export interface ComputedPerformance {
   date: string;
   score: number;
   breakdown: PerformanceBreakdown;
+  hrv: PerformanceHrv;
   hasData: boolean;
 }
 
@@ -59,12 +60,27 @@ export async function computePerformanceToday(
 
   const sleep = hasSleep ? sleepSubScore(totalSleepMin, avgQuality) : HRV_NEUTRAL;
   const nutrition = hasNutrition ? nutritionSubScore(totalKcal, totalProtein) : HRV_NEUTRAL;
+  // HRV stays neutral in the formula this phase (captured + displayed, not scored).
   const hrv = HRV_NEUTRAL;
+
+  // Latest HRV reading attributed to today (most recently logged non-null).
+  const latestHrvMs =
+    [...sleepRows]
+      .filter((r) => r.hrv != null)
+      .sort((a, b) => b.loggedAt - a.loggedAt)[0]?.hrv ?? null;
+
+  // Total nights with an HRV reading so far — drives the "building baseline" note.
+  const hrvNightRows = await db
+    .selectDistinct({ date: sleepLogs.date })
+    .from(sleepLogs)
+    .where(and(eq(sleepLogs.userId, userId), isNotNull(sleepLogs.hrv)))
+    .all();
 
   return {
     date: key,
     score: performanceScore({ sleep, nutrition, hrv }),
     breakdown: { sleep, nutrition, hrv },
+    hrv: { latestMs: latestHrvMs, nights: hrvNightRows.length, scored: false },
     hasData: hasSleep || hasNutrition,
   };
 }

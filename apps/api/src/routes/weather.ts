@@ -15,6 +15,7 @@ import {
   reverseGeocode,
   searchCities,
 } from "../services/openweathermap";
+import { persistWeatherSnapshot } from "../services/weather";
 
 // KV TTLs (seconds) per CLAUDE.md.
 const CURRENT_TTL = 30 * 60;
@@ -56,14 +57,23 @@ export const weather = new Hono<AppEnv>()
   })
   // GET /weather — current conditions + forecast for the user's home location.
   .get("/", async (c) => {
-  const settings = await getUserSettings(createDb(c.env.DB), c.get("userId"));
+  const db = createDb(c.env.DB);
+  const userId = c.get("userId");
+  const settings = await getUserSettings(db, userId);
 
   if (settings?.homeLat == null || settings?.homeLon == null) {
     // Sign-up location not set yet — frontend prompts the user to set it.
     return ok(c, { location: null });
   }
 
-  const units: WeatherUnits = c.req.query("units") === "imperial" ? "imperial" : "metric";
+  // Units: explicit query param wins, else the user's saved preference, else metric.
+  const queryUnits = c.req.query("units");
+  const units: WeatherUnits =
+    queryUnits === "imperial" || queryUnits === "metric"
+      ? queryUnits
+      : settings.units === "imperial"
+        ? "imperial"
+        : "metric";
   const lat = round(settings.homeLat);
   const lon = round(settings.homeLon);
   const loc = `${units}:${lat}:${lon}`;
@@ -73,6 +83,12 @@ export const weather = new Hono<AppEnv>()
   if (!current) {
     current = await fetchCurrentWeather({ lat, lon, units, apiKey: c.env.OPENWEATHERMAP_API_KEY });
     await c.env.CACHE.put(currentKey, JSON.stringify(current), { expirationTtl: CURRENT_TTL });
+    // Record one snapshot per local day for the correlation insight (best-effort).
+    try {
+      await persistWeatherSnapshot(db, userId, current, units, settings.timezone ?? undefined);
+    } catch {
+      // Never let snapshot persistence break the weather response.
+    }
   }
 
   const forecastKey = `weather:forecast:${loc}`;

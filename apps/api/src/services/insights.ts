@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { gamingSnapshots, performanceScores, sleepLogs } from "@central-command/db";
+import { gamingSnapshots, performanceScores, sleepLogs, weatherSnapshots } from "@central-command/db";
 import type { Insight } from "@central-command/types";
 import type { Database } from "../lib/db";
 
@@ -34,6 +34,11 @@ export async function computeInsights(db: Database, userId: string): Promise<Ins
     .select({ kind: gamingSnapshots.kind, win: gamingSnapshots.win, capturedAt: gamingSnapshots.capturedAt })
     .from(gamingSnapshots)
     .where(eq(gamingSnapshots.userId, userId))
+    .all();
+  const weatherRows = await db
+    .select({ date: weatherSnapshots.date, rain1h: weatherSnapshots.rain1h })
+    .from(weatherSnapshots)
+    .where(eq(weatherSnapshots.userId, userId))
     .all();
 
   const scored = perfRows
@@ -71,6 +76,24 @@ export async function computeInsights(db: Database, userId: string): Promise<Ins
       title: `Performance ${diff >= 0 ? "up" : "down"} ${Math.abs(diff)} pts this week`,
       detail: `Averaging ${Math.round(avg(last7.map((p) => p.score)))} vs ${Math.round(avg(prev7.map((p) => p.score)))} the week before.`,
       tone: diff >= 0 ? "good" : "bad",
+    });
+  }
+
+  // Correlation: weather (wet vs dry days) vs performance, joined by date.
+  const wetScores: number[] = [];
+  const dryScores: number[] = [];
+  for (const w of weatherRows) {
+    if (w.date == null || !perfByDate.has(w.date)) continue;
+    const score = perfByDate.get(w.date) as number;
+    (w.rain1h != null && w.rain1h > 0 ? wetScores : dryScores).push(score);
+  }
+  if (wetScores.length >= 2 && dryScores.length >= 2) {
+    const diff = Math.round(avg(dryScores) - avg(wetScores));
+    out.push({
+      id: "weather-vs-perf",
+      title: `You perform ${Math.abs(diff)} pts ${diff >= 0 ? "better" : "worse"} on dry days`,
+      detail: `${Math.round(avg(dryScores))} avg on clear days vs ${Math.round(avg(wetScores))} on rainy ones.`,
+      tone: "neutral",
     });
   }
 

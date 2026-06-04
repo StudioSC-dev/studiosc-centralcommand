@@ -47,4 +47,16 @@ export const settings = new Hono<AppEnv>()
 
     const updated = await getUserSettings(createDb(c.env.DB), c.get("userId"));
     return ok(c, { settings: updated });
+  })
+  // Set the weather units display preference.
+  .put("/units", async (c) => {
+    const body = await c.req.json<{ units?: unknown }>().catch(() => null);
+    if (body?.units !== "metric" && body?.units !== "imperial") {
+      return fail(c, "bad_request", "units must be 'metric' or 'imperial'.", 400);
+    }
+
+    const db = createDb(c.env.DB);
+    await upsertUserSettings(db, c.get("userId"), { units: body.units });
+    const updated = await getUserSettings(db, c.get("userId"));
+    return ok(c, { settings: updated });
   });

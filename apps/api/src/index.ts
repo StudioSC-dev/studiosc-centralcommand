@@ -7,6 +7,7 @@ import { runRiotRefresh } from "./workers/riot-cron";
 
 import { authPublic, authGuarded } from "./routes/auth";
 import { settings } from "./routes/settings";
+import { profile } from "./routes/profile";
 import { summary } from "./routes/summary";
 import { calendar } from "./routes/calendar";
 import { weather } from "./routes/weather";
@@ -35,6 +36,7 @@ const api = new Hono<AppEnv>();
 api.use("*", sessionAuth);
 api.route("/auth", authGuarded);
 api.route("/settings", settings);
+api.route("/profile", profile);
 api.route("/summary", summary);
 api.route("/calendar", calendar);
 api.route("/weather", weather);

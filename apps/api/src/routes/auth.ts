@@ -14,6 +14,7 @@ import {
 } from "../services/google-oauth";
 import { storeGoogleTokens } from "../services/google-token";
 import { getOrCreateUser } from "../services/users";
+import { isProfileComplete } from "../services/profile";
 import { getSession, issueSession, setSessionCookie, clearSessionCookie } from "../lib/session";
 
 type Purpose = "login" | "connect";
@@ -103,5 +104,13 @@ export const authPublic = new Hono<AppEnv>()
  *   GET /api/auth/google    → begin Calendar connect (incremental consent)
  */
 export const authGuarded = new Hono<AppEnv>()
-  .get("/me", (c) => ok(c, { id: c.get("userId"), email: c.get("userEmail"), demo: c.get("isDemo") }))
+  .get("/me", async (c) => {
+    const profileComplete = await isProfileComplete(createDb(c.env.DB), c.get("userId"));
+    return ok(c, {
+      id: c.get("userId"),
+      email: c.get("userEmail"),
+      demo: c.get("isDemo"),
+      profileComplete,
+    });
+  })
   .get("/google", (c) => startGoogle(c, "connect"));

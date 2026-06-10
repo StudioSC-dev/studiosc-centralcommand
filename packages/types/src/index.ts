@@ -243,6 +243,21 @@ export interface WeatherCurrent {
   feelsLike: number;
   humidity: number;
   windSpeed: number;
+  /** Wind direction in meteorological degrees (0 = N, 90 = E). */
+  windDeg: number;
+  /** Gust speed in the same units as windSpeed. Null when not reported. */
+  windGust: number | null;
+  /** Sea-level atmospheric pressure, hPa. */
+  pressure: number;
+  /** Cloud cover, %. */
+  clouds: number;
+  /** Visibility in metres (OWM caps at 10000). */
+  visibility: number;
+  /** Sunrise / sunset for the location's day (epoch ms). */
+  sunrise: EpochMs;
+  sunset: EpochMs;
+  /** Seconds offset from UTC for the location, for formatting sunrise/sunset locally. */
+  timezoneOffsetSec: number;
   /** Rainfall in the last hour, mm. Null when it isn't raining. */
   rain1h: number | null;
   description: string;
@@ -257,6 +272,22 @@ export interface WeatherForecastEntry {
   pop: number;
   description: string;
   icon: string;
+}
+
+/** One day of the multi-day outlook, aggregated from the 3-hour forecast slots. */
+export interface WeatherDailyEntry {
+  date: string; // YYYY-MM-DD in the location's local day
+  min: number;
+  max: number;
+  /** Highest precip probability across the day's slots, 0–1. */
+  pop: number;
+  icon: string;
+}
+
+/** Combined forecast payload — hourly strip (next 24h) + multi-day outlook. */
+export interface WeatherForecast {
+  hourly: WeatherForecastEntry[];
+  daily: WeatherDailyEntry[];
 }
 
 /** A geocoded place, from OWM's free Geocoding API (city search / reverse). */
@@ -280,7 +311,10 @@ export interface WeatherData {
   location: { lat: number; lon: number; label: string | null };
   units: WeatherUnits;
   current: WeatherCurrent;
+  /** Hourly strip for the next 24h. */
   forecast: WeatherForecastEntry[];
+  /** Multi-day outlook (today + up to 4 more days). */
+  daily: WeatherDailyEntry[];
 }
 
 /** Returned when the user hasn't set a home location yet (sign-up incomplete). */
@@ -362,6 +396,7 @@ export interface SleepLogInput {
   durationMin: number;
   quality?: number; // 1–5
   hrv?: number | null; // overnight/morning HRV (ms); stored + displayed, not yet scored
+  restingHr?: number | null; // overnight/morning resting heart rate (bpm)
 }
 export interface SleepLogEntry extends SleepLogInput {
   id: string;
@@ -388,6 +423,7 @@ export interface SleepLogUpdate {
   durationMin?: number;
   quality?: number | null;
   hrv?: number | null;
+  restingHr?: number | null;
 }
 
 /** GET response for each log pillar. */
@@ -439,9 +475,21 @@ export interface PerformanceHistoryPoint {
   score: number;
 }
 
+/**
+ * Resting-heart-rate summary (bpm), captured alongside sleep. Distinct from HRV.
+ * `avg7d`/`avg30d` drive the weekly stat + trend; null when no readings yet.
+ */
+export interface PerformanceRestingHr {
+  latest: number | null;
+  avg7d: number | null;
+  avg30d: number | null;
+}
+
 export interface PerformanceData {
   today: PerformanceToday;
+  /** Daily scores, ascending. Up to ~30 points; the card toggles 7d/30d. */
   history: PerformanceHistoryPoint[];
+  restingHr: PerformanceRestingHr;
 }
 
 export type PerformanceResponse = PerformanceData;

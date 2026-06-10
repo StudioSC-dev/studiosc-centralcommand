@@ -18,10 +18,6 @@ const fmtClock = (ms: number, offsetSec: number) =>
     timeZone: "UTC",
   });
 
-const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-const compass = (deg: number) => COMPASS[Math.round(deg / 45) % 8];
-
-const speedUnit = (units: Units) => (units === "imperial" ? "mph" : "m/s");
 const fmtVisibility = (m: number, units: Units) =>
   units === "imperial" ? `${(m / 1609).toFixed(1)} mi` : `${(m / 1000).toFixed(1)} km`;
 
@@ -133,14 +129,6 @@ export function WeatherCard() {
 
       <div className="weather-details">
         <Detail label="Humidity" value={`${current.humidity}%`} />
-        <Detail
-          label="Wind"
-          value={`${compass(current.windDeg)} ${Math.round(current.windSpeed)} ${speedUnit(units)}`}
-        />
-        {current.windGust != null && (
-          <Detail label="Gusts" value={`${Math.round(current.windGust)} ${speedUnit(units)}`} />
-        )}
-        <Detail label="Clouds" value={`${current.clouds}%`} />
         <Detail label="Pressure" value={`${current.pressure} hPa`} />
         <Detail label="Visibility" value={fmtVisibility(current.visibility, units)} />
       </div>
@@ -161,14 +149,12 @@ export function WeatherCard() {
           {daily.map((d, i) => (
             <li key={d.date}>
               <span className="weather-outlook-day">{dayLabel(d.date, i)}</span>
-              <WeatherGlyph icon={d.icon} size={20} />
-              {d.pop > 0 ? (
-                <span className="weather-pop">{Math.round(d.pop * 100)}%</span>
-              ) : (
-                <span className="weather-pop weather-pop-dry" />
-              )}
+              <WeatherGlyph icon={d.icon} size={22} />
+              <span className={`weather-pop${d.pop > 0 ? "" : " weather-pop-dry"}`}>
+                {d.pop > 0 ? `${Math.round(d.pop * 100)}%` : "—"}
+              </span>
               <span className="weather-outlook-temp">
-                {fmtTemp(d.max, units)} <span className="weather-outlook-min">{fmtTemp(d.min, units)}</span>
+                {Math.round(d.max)}°<span className="weather-outlook-min">{Math.round(d.min)}°</span>
               </span>
             </li>
           ))}

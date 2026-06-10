@@ -7,7 +7,7 @@
     <title>Central Command — Personal Performance Dashboard</title>
     <meta
       name="description"
-      content="Central Command is a Cloudflare-native personal performance dashboard that unifies calendar, weather, fitness, nutrition, sleep, gaming, and news into one interface."
+      content="Central Command is a Cloudflare-native personal performance dashboard that unifies calendar, weather, fitness, nutrition, sleep, gaming, news, tasks, and insights into one interface. Sign in with Google or try the read-only demo."
     />
     <style>
       :root {
@@ -53,7 +53,34 @@
         transition: filter 0.15s ease, transform 0.15s ease;
       }
       .btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+      .btn-secondary {
+        background: transparent;
+        color: var(--accent);
+        border: 1px solid var(--border);
+      }
       .btn-note { color: var(--muted); font-size: 13px; }
+      .pill {
+        display: inline-block;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        color: var(--accent);
+        background: rgba(124, 156, 255, 0.14);
+        border: 1px solid var(--border);
+        padding: 3px 10px;
+        border-radius: 999px;
+        margin-left: 10px;
+        vertical-align: middle;
+      }
+      .cols {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+        margin: 40px 0;
+      }
+      .changelog { margin: 0; padding-left: 20px; color: var(--muted); }
+      .changelog li { margin: 0 0 6px; }
+      .changelog li strong { color: var(--text); font-weight: 600; }
       .grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -89,18 +116,19 @@
   </head>
   <body>
     <div class="wrap">
-      <p class="eyebrow">Central Command</p>
+      <p class="eyebrow">Central Command <span class="pill">v1</span></p>
       <h1>One dashboard for everything you track.</h1>
       <p class="lede">
         Central Command is a Cloudflare-native personal performance dashboard. It
-        unifies your calendar, weather, fitness, nutrition, sleep, gaming, and news
-        into a single, private interface — so the signal from every part of your day
-        lives in one place.
+        unifies your calendar, weather, fitness, nutrition, sleep, gaming, news, tasks,
+        and rule-based insights into a single, private interface — so the signal from
+        every part of your day lives in one place.
       </p>
 
       <div class="cta-row">
-        <a class="btn" href="/">Open the dashboard →</a>
-        <span class="btn-note">Sign-in required · access is invite-only</span>
+        <a class="btn" href="/api/auth/login/google">Sign in with Google →</a>
+        <a class="btn btn-secondary" href="/api/auth/demo">View the demo</a>
+        <span class="btn-note">Demo is read-only · no account needed</span>
       </div>
 
       <div class="grid">
@@ -119,6 +147,40 @@
         <div class="card">
           <h3>Gaming</h3>
           <p>Match results and ranked progress, correlated with your habits.</p>
+        </div>
+        <div class="card">
+          <h3>Tasks</h3>
+          <p>A native priorities list, triaged by importance and urgency.</p>
+        </div>
+        <div class="card">
+          <h3>Insights</h3>
+          <p>Rule-based observations and correlations from your own data.</p>
+        </div>
+        <div class="card">
+          <h3>News</h3>
+          <p>Headlines across basketball, tech, and League of Legends.</p>
+        </div>
+      </div>
+
+      <div class="cols">
+        <div class="stack" style="margin: 0;">
+          <h2>What's new — welcome to v1 🎉</h2>
+          <ul class="changelog">
+            <li><strong>Public release.</strong> Sign in with Google to get your own dashboard.</li>
+            <li><strong>Read-only demo.</strong> Explore with realistic sample data, no account needed.</li>
+            <li><strong>New pillars.</strong> Tasks and rule-based Insights joined the lineup.</li>
+            <li><strong>Richer cards.</strong> Resting-HR + 30-day performance trends, sunrise/sunset and a 5-day weather outlook.</li>
+            <li><strong>Open access.</strong> Moved off the invite-only Zero Trust gate to first-party Google sign-in.</li>
+          </ul>
+        </div>
+        <div class="stack" style="margin: 0;">
+          <h2>On the roadmap</h2>
+          <ul class="changelog">
+            <li>Wearable &amp; nutrition sync — Apple Health, Garmin, Fitbit, Oura, MyFitnessPal.</li>
+            <li>More games — Valorant on the same Riot connection.</li>
+            <li>AI daily briefing — a natural-language summary over the same signals.</li>
+            <li>External tasks — Linear, Jira, and Trello feeding the priorities list.</li>
+          </ul>
         </div>
       </div>
 

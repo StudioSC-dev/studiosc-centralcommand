@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { GeoCity } from "@central-command/types";
-import { useSetLocation } from "../lib/settings";
+import { useSetLocation, useSettings } from "../lib/settings";
 import { fetchReverseGeocode, useCitySearch } from "../lib/weather";
 
 /** The browser's IANA timezone — the user's own day boundary, used for scoring. */
@@ -26,6 +26,9 @@ function useDebounced<T>(value: T, ms: number): T {
  */
 export function LocationSetter({ onDone }: { onDone?: () => void }) {
   const setLocation = useSetLocation();
+  const { data: settings } = useSettings();
+  const current = settings?.settings;
+  const hasLocation = current?.homeLat != null && current?.homeLon != null;
   const [term, setTerm] = useState("");
   const [locating, setLocating] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
@@ -91,8 +94,14 @@ export function LocationSetter({ onDone }: { onDone?: () => void }) {
 
   return (
     <div className="location-setter">
+      {hasLocation && (
+        <p className="location-current">
+          <span aria-hidden="true">📍</span>{" "}
+          {current?.locationLabel ?? `${current?.homeLat}, ${current?.homeLon}`}
+        </p>
+      )}
       <button type="button" className="connect-link" onClick={useMyLocation} disabled={busy}>
-        {locating ? "Getting location…" : "Use my location"}
+        {locating ? "Getting location…" : hasLocation ? "Update my location" : "Use my location"}
       </button>
 
       <div className="city-search">

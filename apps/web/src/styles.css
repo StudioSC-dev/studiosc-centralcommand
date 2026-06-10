@@ -872,42 +872,54 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-/* Multi-day outlook rows. */
+/* Multi-day outlook — horizontal card strip (matches the hourly forecast row). */
 .weather-outlook {
   list-style: none;
   margin: 0.9rem 0 0;
   padding: 0;
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.5rem;
+  overflow-x: auto;
 }
 
 .weather-outlook li {
-  display: grid;
-  grid-template-columns: 3.5rem 22px 2.5rem 1fr;
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.6rem;
-  font-size: 0.82rem;
+  gap: 0.3rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 0.8rem;
 }
 
 .weather-outlook-day {
   color: var(--text-dim);
+  font-weight: 550;
 }
 
 .weather-pop-dry {
-  visibility: hidden;
+  color: var(--text-faint);
 }
 
 .weather-outlook-temp {
-  text-align: right;
   font-variant-numeric: tabular-nums;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .weather-outlook-min {
   color: var(--text-faint);
   font-weight: 400;
-  margin-left: 0.2rem;
+  margin-left: 0.25rem;
+}
+
+/* LocationSetter — currently-set location confirmation. */
+.location-current {
+  margin: 0 0 0.2rem;
+  font-size: 0.85rem;
+  font-weight: 550;
+  color: var(--text);
 }
 
 .weather-meta {

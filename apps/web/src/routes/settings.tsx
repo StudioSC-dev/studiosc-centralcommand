@@ -19,7 +19,6 @@ function SettingsPage() {
   const { theme, toggle } = useTheme();
 
   const units = data?.settings?.units === "imperial" ? "imperial" : "metric";
-  const label = data?.settings?.locationLabel ?? null;
 
   return (
     <div className="page">
@@ -57,7 +56,6 @@ function SettingsPage() {
 
       <section className="settings-block">
         <h2 className="settings-section-title">Home location</h2>
-        {label && <p className="settings-hint">Current: {label}</p>}
         <LocationSetter />
       </section>
 

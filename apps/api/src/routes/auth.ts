@@ -16,6 +16,7 @@ import { storeGoogleTokens } from "../services/google-token";
 import { getOrCreateUser } from "../services/users";
 import { isProfileComplete } from "../services/profile";
 import { getSession, issueSession, setSessionCookie, clearSessionCookie } from "../lib/session";
+import { DEMO_EMAIL, DEMO_USER_ID } from "../demo/constants";
 
 type Purpose = "login" | "connect";
 
@@ -96,6 +97,12 @@ export const authPublic = new Hono<AppEnv>()
   .post("/logout", (c) => {
     clearSessionCookie(c);
     return ok(c, { ok: true });
+  })
+  // Enter the public read-only demo: a session for the shared seeded demo user.
+  .get("/demo", async (c) => {
+    const token = await issueSession(c.env, { id: DEMO_USER_ID, email: DEMO_EMAIL }, true);
+    setSessionCookie(c, token);
+    return c.redirect("/");
   });
 
 /**
@@ -113,4 +120,7 @@ export const authGuarded = new Hono<AppEnv>()
       profileComplete,
     });
   })
-  .get("/google", (c) => startGoogle(c, "connect"));
+  .get("/google", (c) => {
+    if (c.get("isDemo")) return fail(c, "demo_read_only", "The demo can't connect accounts.", 403);
+    return startGoogle(c, "connect");
+  });

@@ -7,7 +7,9 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "build": "wrangler deploy --dry-run --outdir dist",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed:demo:local": "wrangler d1 execute central-command-db --local --file=../../packages/db/seed-demo.sql",
+    "seed:demo:remote": "wrangler d1 execute central-command-db --remote --file=../../packages/db/seed-demo.sql"
   },
   "dependencies": {
     "@central-command/db": "workspace:*",

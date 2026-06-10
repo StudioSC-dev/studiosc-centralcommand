@@ -16,6 +16,7 @@ import {
   searchCities,
 } from "../services/openweathermap";
 import { persistWeatherSnapshot } from "../services/weather";
+import { demoWeather } from "../demo/fixtures";
 
 // KV TTLs (seconds) per CLAUDE.md.
 const CURRENT_TTL = 30 * 60;
@@ -28,6 +29,7 @@ const round = (n: number) => Math.round(n * 100) / 100;
 export const weather = new Hono<AppEnv>()
   // GET /weather/search?q=… — city search for the location picker.
   .get("/search", async (c) => {
+    if (c.get("isDemo")) return ok(c, { results: [] as GeoCity[] });
     const query = c.req.query("q")?.trim();
     if (!query || query.length < 2) return ok(c, { results: [] as GeoCity[] });
 
@@ -41,6 +43,7 @@ export const weather = new Hono<AppEnv>()
   })
   // GET /weather/reverse?lat=&lon=… — resolve browser coordinates to a place.
   .get("/reverse", async (c) => {
+    if (c.get("isDemo")) return ok(c, { result: null });
     const lat = Number(c.req.query("lat"));
     const lon = Number(c.req.query("lon"));
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
@@ -57,6 +60,9 @@ export const weather = new Hono<AppEnv>()
   })
   // GET /weather — current conditions + forecast for the user's home location.
   .get("/", async (c) => {
+  // Demo: serve a fixture (no OpenWeatherMap call, no KV write).
+  if (c.get("isDemo")) return ok(c, demoWeather());
+
   const db = createDb(c.env.DB);
   const userId = c.get("userId");
   const settings = await getUserSettings(db, userId);

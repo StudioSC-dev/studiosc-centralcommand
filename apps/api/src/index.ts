@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv, Bindings } from "./env";
 import { sessionAuth } from "./middleware/auth";
+import { demoReadOnly } from "./middleware/demo";
 import { notFound, onError } from "./middleware/error";
 import { ok } from "./lib/response";
 import { runRiotRefresh } from "./workers/riot-cron";
@@ -34,6 +35,7 @@ app.route("/api/auth", authPublic);
 // Everything below requires an authenticated session (cookie, Access JWT, or dev).
 const api = new Hono<AppEnv>();
 api.use("*", sessionAuth);
+api.use("*", demoReadOnly); // demo sessions are read-only (blocks non-GET)
 api.route("/auth", authGuarded);
 api.route("/settings", settings);
 api.route("/profile", profile);

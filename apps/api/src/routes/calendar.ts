@@ -8,6 +8,7 @@ import { fetchUpcomingEvents } from "../services/google-calendar";
 import { getUserSettings } from "../services/users";
 import { getGoogleProvider, getValidGoogleAccessToken } from "../services/google-token";
 import { GoogleReauthRequiredError } from "../services/google-oauth";
+import { demoCalendar } from "../demo/fixtures";
 
 const CACHE_TTL = 5 * 60; // calendar TTL per CLAUDE.md
 const MS_PER_HOUR = 60 * 60 * 1000;
@@ -30,6 +31,9 @@ function todayBusyness(events: CalendarEvent[], start: number, end: number): num
 
 /** GET /calendar — upcoming events + today's busyness for the user. */
 export const calendar = new Hono<AppEnv>().get("/", async (c) => {
+  // Demo: serve a fixture (no Google call, no KV write).
+  if (c.get("isDemo")) return ok(c, demoCalendar());
+
   const db = createDb(c.env.DB);
   const userId = c.get("userId");
 

@@ -1,5 +1,12 @@
 import { eq } from "drizzle-orm";
-import { gamingSnapshots, performanceScores, sleepLogs, weatherSnapshots } from "@central-command/db";
+import {
+  fitnessLogs,
+  gamingSnapshots,
+  performanceScores,
+  sleepLogs,
+  tasks,
+  weatherSnapshots,
+} from "@central-command/db";
 import type { Insight } from "@central-command/types";
 import type { Database } from "../lib/db";
 
@@ -39,6 +46,16 @@ export async function computeInsights(db: Database, userId: string): Promise<Ins
     .select({ date: weatherSnapshots.date, rain1h: weatherSnapshots.rain1h })
     .from(weatherSnapshots)
     .where(eq(weatherSnapshots.userId, userId))
+    .all();
+  const fitnessRows = await db
+    .select({ activity: fitnessLogs.activity, loggedAt: fitnessLogs.loggedAt })
+    .from(fitnessLogs)
+    .where(eq(fitnessLogs.userId, userId))
+    .all();
+  const taskRows = await db
+    .select({ priority: tasks.priority, status: tasks.status, completedAt: tasks.completedAt })
+    .from(tasks)
+    .where(eq(tasks.userId, userId))
     .all();
 
   const scored = perfRows
@@ -134,5 +151,50 @@ export async function computeInsights(db: Database, userId: string): Promise<Ins
     });
   }
 
-  return out.slice(0, 4);
+  // Suggestion: it's dry out and you haven't run in a couple of days.
+  const latestWeather = [...weatherRows]
+    .filter((w) => w.date != null)
+    .sort((a, b) => (a.date as string).localeCompare(b.date as string))
+    .at(-1);
+  const dryOut = latestWeather != null && (latestWeather.rain1h == null || latestWeather.rain1h === 0);
+  const runs = fitnessRows.filter((f) => /run|jog|mile/i.test(f.activity ?? ""));
+  const lastRun = runs.length ? Math.max(...runs.map((r) => r.loggedAt)) : 0;
+  if (fitnessRows.length > 0 && dryOut && lastRun < now - 2 * DAY) {
+    out.push({
+      id: "run-suggestion",
+      title: "Good day to put in some miles",
+      detail: lastRun
+        ? "It's dry out and you haven't logged a run in a couple of days."
+        : "It's dry out — a good window to get a run in.",
+      tone: "neutral",
+    });
+  }
+
+  // Nudge: lots crossed off today → take a break.
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const doneToday = taskRows.filter(
+    (t) => t.status === "done" && t.completedAt != null && t.completedAt >= todayStart.getTime(),
+  ).length;
+  if (doneToday >= 4) {
+    out.push({
+      id: "tasks-done-today",
+      title: `${doneToday} tasks cleared today`,
+      detail: "Strong momentum — take a breather before the next push.",
+      tone: "good",
+    });
+  }
+
+  // Focus: several high-priority tasks still open → prioritize.
+  const openHigh = taskRows.filter((t) => t.status === "open" && t.priority === "high").length;
+  if (openHigh >= 3) {
+    out.push({
+      id: "prioritize-high",
+      title: `${openHigh} high-priority tasks open`,
+      detail: "Busy stretch — knock these out first.",
+      tone: "neutral",
+    });
+  }
+
+  return out.slice(0, 6);
 }

@@ -19,12 +19,17 @@ const toEntry = (r: SleepRow): SleepLogEntry => ({
   durationMin: r.durationMin ?? 0,
   quality: r.quality ?? undefined,
   hrv: r.hrv ?? undefined,
+  restingHr: r.restingHr ?? undefined,
   loggedAt: r.loggedAt,
 });
 
 /** Validate an HRV reading (ms). Returns the rounded value, or null if invalid/absent. */
 const cleanHrv = (v: unknown): number | null =>
   typeof v === "number" && Number.isFinite(v) && v > 0 && v <= 300 ? Math.round(v) : null;
+
+/** Validate a resting-HR reading (bpm). Returns the rounded value, or null if out of range. */
+const cleanRestingHr = (v: unknown): number | null =>
+  typeof v === "number" && Number.isFinite(v) && v >= 30 && v <= 220 ? Math.round(v) : null;
 
 /** GET /sleep, POST /sleep/log — manual sleep entries (Phase 1). */
 export const sleep = new Hono<AppEnv>()
@@ -50,6 +55,7 @@ export const sleep = new Hono<AppEnv>()
     const timeZone = (await getUserSettings(db, userId))?.timezone ?? undefined;
 
     const hrv = cleanHrv(body.hrv);
+    const restingHr = cleanRestingHr(body.restingHr);
     const entry: SleepLogEntry = {
       id: newId(),
       date:
@@ -59,6 +65,7 @@ export const sleep = new Hono<AppEnv>()
       durationMin: Math.round(body.durationMin),
       quality: typeof body.quality === "number" ? body.quality : undefined,
       hrv: hrv ?? undefined,
+      restingHr: restingHr ?? undefined,
       loggedAt: Date.now(),
     };
 
@@ -69,6 +76,7 @@ export const sleep = new Hono<AppEnv>()
       durationMin: entry.durationMin,
       quality: entry.quality ?? null,
       hrv,
+      restingHr,
       loggedAt: entry.loggedAt,
     });
 
@@ -97,6 +105,8 @@ export const sleep = new Hono<AppEnv>()
     else if (typeof body.quality === "number") patch.quality = body.quality;
     if (body.hrv === null) patch.hrv = null;
     else if (body.hrv !== undefined) patch.hrv = cleanHrv(body.hrv);
+    if (body.restingHr === null) patch.restingHr = null;
+    else if (body.restingHr !== undefined) patch.restingHr = cleanRestingHr(body.restingHr);
 
     await db.update(sleepLogs).set(patch).where(and(eq(sleepLogs.id, id), eq(sleepLogs.userId, userId)));
 

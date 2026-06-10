@@ -34,13 +34,18 @@ function toEvent(e: GoogleEvent): CalendarEvent {
   };
 }
 
-/** Fetch the user's upcoming events (from now), soonest first. */
+/**
+ * Fetch the user's events, soonest first. `timeMin` defaults to now; pass the
+ * start of the local day to also include earlier events from today (so the
+ * Today card can show what's already been crossed off).
+ */
 export async function fetchUpcomingEvents(
   accessToken: string,
-  maxResults = 10,
+  opts: { timeMin?: number; maxResults?: number } = {},
 ): Promise<CalendarEvent[]> {
+  const { timeMin = Date.now(), maxResults = 10 } = opts;
   const url = new URL(EVENTS_ENDPOINT);
-  url.searchParams.set("timeMin", new Date().toISOString());
+  url.searchParams.set("timeMin", new Date(timeMin).toISOString());
   url.searchParams.set("maxResults", String(maxResults));
   url.searchParams.set("singleEvents", "true");
   url.searchParams.set("orderBy", "startTime");

@@ -1,6 +1,8 @@
 import type {
   GeoCity,
   WeatherCurrent,
+  WeatherDailyEntry,
+  WeatherForecast,
   WeatherForecastEntry,
   WeatherUnits,
 } from "@central-command/types";
@@ -17,8 +19,10 @@ import type {
 const BASE = "https://api.openweathermap.org/data/2.5";
 const GEO_BASE = "https://api.openweathermap.org/geo/1.0";
 
-/** How many 3-hour forecast slots to surface (8 = next 24h). */
+/** How many 3-hour forecast slots to surface in the hourly strip (8 = next 24h). */
 const FORECAST_SLOTS = 8;
+/** How many days to surface in the multi-day outlook. */
+const OUTLOOK_DAYS = 5;
 
 // Minimal shapes of the OWM responses (only the fields we consume).
 interface OwmWeatherDesc {
@@ -26,16 +30,21 @@ interface OwmWeatherDesc {
   icon: string;
 }
 interface OwmCurrentResponse {
-  main: { temp: number; feels_like: number; humidity: number };
-  wind: { speed: number };
+  main: { temp: number; feels_like: number; humidity: number; pressure: number };
+  wind: { speed: number; deg: number; gust?: number };
+  clouds: { all: number };
+  visibility: number;
+  sys: { sunrise: number; sunset: number };
+  timezone: number; // seconds offset from UTC
   weather: OwmWeatherDesc[];
   rain?: { "1h"?: number };
   dt: number;
 }
 interface OwmForecastResponse {
+  city: { timezone: number }; // seconds offset from UTC
   list: Array<{
     dt: number;
-    main: { temp: number };
+    main: { temp: number; temp_min: number; temp_max: number };
     weather: OwmWeatherDesc[];
     pop?: number;
   }>;
@@ -77,6 +86,14 @@ export async function fetchCurrentWeather(opts: {
     feelsLike: data.main.feels_like,
     humidity: data.main.humidity,
     windSpeed: data.wind.speed,
+    windDeg: data.wind.deg,
+    windGust: data.wind.gust ?? null,
+    pressure: data.main.pressure,
+    clouds: data.clouds.all,
+    visibility: data.visibility,
+    sunrise: data.sys.sunrise * 1000,
+    sunset: data.sys.sunset * 1000,
+    timezoneOffsetSec: data.timezone,
     rain1h: data.rain?.["1h"] ?? null,
     description,
     icon,
@@ -89,7 +106,7 @@ export async function fetchForecast(opts: {
   lon: number;
   units: WeatherUnits;
   apiKey: string;
-}): Promise<WeatherForecastEntry[]> {
+}): Promise<WeatherForecast> {
   const url = new URL(`${BASE}/forecast`);
   url.searchParams.set("lat", String(opts.lat));
   url.searchParams.set("lon", String(opts.lon));
@@ -102,10 +119,63 @@ export async function fetchForecast(opts: {
   }
   const data = (await res.json()) as OwmForecastResponse;
 
-  return data.list.slice(0, FORECAST_SLOTS).map((entry) => {
+  const hourly: WeatherForecastEntry[] = data.list.slice(0, FORECAST_SLOTS).map((entry) => {
     const { description, icon } = describe(entry.weather);
     return { at: entry.dt * 1000, temp: entry.main.temp, pop: entry.pop ?? 0, description, icon };
   });
+
+  return { hourly, daily: buildDaily(data) };
+}
+
+/**
+ * Aggregate the 3-hour slots into a per-day outlook. Days are bucketed by the
+ * location's local calendar day (using the response's UTC offset). For each day
+ * we take the min/max temperature, the worst precip probability, and a midday
+ * slot's icon as the representative condition.
+ */
+function buildDaily(data: OwmForecastResponse): WeatherDailyEntry[] {
+  const offsetMs = data.city.timezone * 1000;
+  const byDay = new Map<
+    string,
+    { min: number; max: number; pop: number; iconByHour: Map<number, string> }
+  >();
+
+  for (const slot of data.list) {
+    const local = new Date(slot.dt * 1000 + offsetMs);
+    const date = local.toISOString().slice(0, 10);
+    const hour = local.getUTCHours(); // already shifted to local
+    let bucket = byDay.get(date);
+    if (!bucket) {
+      bucket = { min: Infinity, max: -Infinity, pop: 0, iconByHour: new Map() };
+      byDay.set(date, bucket);
+    }
+    bucket.min = Math.min(bucket.min, slot.main.temp_min);
+    bucket.max = Math.max(bucket.max, slot.main.temp_max);
+    bucket.pop = Math.max(bucket.pop, slot.pop ?? 0);
+    bucket.iconByHour.set(hour, describe(slot.weather).icon);
+  }
+
+  // Closest-to-noon icon best represents the day; fall back to any available.
+  const pickIcon = (icons: Map<number, string>): string => {
+    let best = "";
+    let bestDist = Infinity;
+    for (const [hour, icon] of icons) {
+      const dist = Math.abs(hour - 12);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = icon;
+      }
+    }
+    return best;
+  };
+
+  return [...byDay.entries()].slice(0, OUTLOOK_DAYS).map(([date, b]) => ({
+    date,
+    min: Math.round(b.min),
+    max: Math.round(b.max),
+    pop: b.pop,
+    icon: pickIcon(b.iconByHour),
+  }));
 }
 
 const toGeoCity = (g: OwmGeoResponse): GeoCity => ({

@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type {
   GeoCity,
   WeatherCurrent,
-  WeatherForecastEntry,
+  WeatherForecast,
   WeatherUnits,
 } from "@central-command/types";
 import type { AppEnv } from "../env";
@@ -91,8 +91,9 @@ export const weather = new Hono<AppEnv>()
     }
   }
 
-  const forecastKey = `weather:forecast:${loc}`;
-  let forecast = await c.env.CACHE.get<WeatherForecastEntry[]>(forecastKey, "json");
+  // v2 key: the cached shape changed from an array to { hourly, daily }.
+  const forecastKey = `weather:forecast:v2:${loc}`;
+  let forecast = await c.env.CACHE.get<WeatherForecast>(forecastKey, "json");
   if (!forecast) {
     forecast = await fetchForecast({ lat, lon, units, apiKey: c.env.OPENWEATHERMAP_API_KEY });
     await c.env.CACHE.put(forecastKey, JSON.stringify(forecast), { expirationTtl: FORECAST_TTL });
@@ -102,6 +103,7 @@ export const weather = new Hono<AppEnv>()
     location: { lat, lon, label: settings.locationLabel ?? null },
     units,
     current,
-    forecast,
+    forecast: forecast.hourly,
+    daily: forecast.daily,
   });
 });

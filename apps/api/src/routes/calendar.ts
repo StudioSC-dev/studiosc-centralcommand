@@ -40,10 +40,15 @@ export const calendar = new Hono<AppEnv>().get("/", async (c) => {
   const cached = await c.env.CACHE.get<CalendarData>(cacheKey, "json");
   if (cached) return ok(c, cached);
 
+  // Fetch from the start of the user's local day so today's already-finished
+  // events come back too (the Today card strikes them through), and pull a
+  // week-plus worth so the Calendar card's week view has enough to show.
+  const { start, end } = dayBounds((await getUserSettings(db, userId))?.timezone ?? undefined);
+
   let events: CalendarEvent[];
   try {
     const accessToken = await getValidGoogleAccessToken(db, c.env, userId);
-    events = await fetchUpcomingEvents(accessToken, 10);
+    events = await fetchUpcomingEvents(accessToken, { timeMin: start, maxResults: 20 });
   } catch (err) {
     // Expired/revoked credentials are a recoverable, user-actionable state —
     // prompt a reconnect instead of bubbling up to the generic 500 handler.
@@ -53,7 +58,6 @@ export const calendar = new Hono<AppEnv>().get("/", async (c) => {
     throw err;
   }
 
-  const { start, end } = dayBounds((await getUserSettings(db, userId))?.timezone ?? undefined);
   const data: CalendarData = {
     connected: true,
     events,

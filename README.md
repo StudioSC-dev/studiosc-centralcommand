@@ -148,6 +148,11 @@ cookies) are provided as Worker secrets and, for local dev, via an untracked
 # Seed (or refresh) the shared read-only demo user — relative dates, idempotent
 pnpm --filter @central-command/api run seed:demo:local    # local D1
 pnpm --filter @central-command/api run seed:demo:remote   # remote D1
+
+# One-shot local DB setup (apply migrations + seed demo). Run with `wrangler dev`
+# stopped — a force-killed dev server can roll the local SQLite (WAL) back to an
+# earlier checkpoint, so re-run this to restore local state when it looks empty.
+pnpm --filter @central-command/api run db:setup:local
 ```
 
 ---

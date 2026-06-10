@@ -8,8 +8,10 @@
     "deploy": "wrangler deploy",
     "build": "wrangler deploy --dry-run --outdir dist",
     "typecheck": "tsc --noEmit",
+    "db:migrate:local": "wrangler d1 migrations apply central-command-db --local",
     "seed:demo:local": "wrangler d1 execute central-command-db --local --file=../../packages/db/seed-demo.sql",
-    "seed:demo:remote": "wrangler d1 execute central-command-db --remote --file=../../packages/db/seed-demo.sql"
+    "seed:demo:remote": "wrangler d1 execute central-command-db --remote --file=../../packages/db/seed-demo.sql",
+    "db:setup:local": "pnpm run db:migrate:local && pnpm run seed:demo:local"
   },
   "dependencies": {
     "@central-command/db": "workspace:*",

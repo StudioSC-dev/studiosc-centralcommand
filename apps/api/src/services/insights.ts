@@ -64,6 +64,24 @@ export async function computeInsights(db: Database, userId: string): Promise<Ins
 
   const out: Insight[] = [];
 
+  // Always-on: today's weather observation. Depends only on a weather snapshot
+  // (location set), so there's at least one insight without Google/Riot. First
+  // in the list so it survives the cap below.
+  const latestSnapshot = [...weatherRows]
+    .filter((w) => w.date != null)
+    .sort((a, b) => (b.date as string).localeCompare(a.date as string))[0];
+  if (latestSnapshot) {
+    const wet = latestSnapshot.rain1h != null && latestSnapshot.rain1h > 0;
+    out.push({
+      id: "weather-today",
+      title: wet ? "Rain around today" : "Clear and dry today",
+      detail: wet
+        ? "Wet conditions — a good day for indoor focus."
+        : "Good conditions to get outside and move.",
+      tone: wet ? "neutral" : "good",
+    });
+  }
+
   // Correlation: sleep duration vs performance, joined by date.
   const perfByDate = new Map(
     perfRows.filter((p) => p.date != null && p.score != null).map((p) => [p.date, p.score as number]),

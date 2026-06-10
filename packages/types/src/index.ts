@@ -71,6 +71,47 @@ export interface User {
   createdAt: EpochMs;
 }
 
+// ─── Profile ───────────────────────────────────────────────────────────────────
+
+export type Sex = "male" | "female" | "other";
+export type ActivityLevel = "sedentary" | "light" | "moderate" | "active" | "very_active";
+
+export interface UserProfile {
+  userId: UserId;
+  displayName: string | null;
+  birthdate: string | null; // YYYY-MM-DD
+  sex: Sex | null;
+  /** Optional body metrics — edited on the profile page, not at onboarding. */
+  heightCm: number | null;
+  weightKg: number | null;
+  activityLevel: ActivityLevel | null;
+  createdAt: EpochMs;
+  updatedAt: EpochMs;
+}
+
+/** Body for PUT /profile. Onboarding sends the first three; profile page can send all. */
+export interface ProfileInput {
+  displayName?: string;
+  birthdate?: string | null;
+  sex?: Sex | null;
+  heightCm?: number | null;
+  weightKg?: number | null;
+  activityLevel?: ActivityLevel | null;
+}
+
+export interface ProfileResponse {
+  profile: UserProfile | null;
+}
+
+/** Current identity, from GET /api/auth/me. */
+export interface MeResponse {
+  id: UserId;
+  email: string;
+  demo: boolean;
+  /** True once displayName + birthdate + sex are set (onboarding done). */
+  profileComplete: boolean;
+}
+
 // ─── Gaming ──────────────────────────────────────────────────────────────────
 
 export type GamingProvider = "riot" | "steam";

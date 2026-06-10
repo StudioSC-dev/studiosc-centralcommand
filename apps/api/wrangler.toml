@@ -12,12 +12,6 @@ name = "centralcommand"
 main = "src/index.ts"
 compatibility_date = "2025-06-01"
 
-# Non-secret config consumed by the Cloudflare Access JWT verification
-# middleware. The AUD tag and team domain are identifiers, not credentials.
-[vars]
-CF_ACCESS_AUD = "bfc64a3d5d7c310c26a650f9fd950a6490f13b174db5f17d98bbef868c4e53dc"
-CF_ACCESS_TEAM_DOMAIN = "studiosc.cloudflareaccess.com"
-
 [observability]
 enabled = true
 

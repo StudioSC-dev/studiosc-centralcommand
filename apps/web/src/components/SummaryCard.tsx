@@ -48,7 +48,11 @@ export function SummaryCard() {
   }
 
   const next = data.events.find((e) => e.end > now) ?? null;
-  const todayCount = data.events.filter((e) => !e.allDay && isSameLocalDay(e.start, now)).length;
+  const todayEvents = data.events
+    .filter((e) => !e.allDay && isSameLocalDay(e.start, now))
+    .sort((a, b) => a.start - b.start);
+  const todayCount = todayEvents.length;
+  const doneCount = todayEvents.filter((e) => e.end <= now).length;
   const busyness = data.todayBusyness;
 
   return (
@@ -80,6 +84,32 @@ export function SummaryCard() {
           />
         </div>
       </div>
+
+      {todayCount > 0 && (
+        <div className="today-events">
+          <div className="today-events-head">
+            <span>Today's schedule</span>
+            <span className="today-events-progress">
+              {doneCount}/{todayCount} done
+            </span>
+          </div>
+          <ul className="today-event-list">
+            {todayEvents.map((e) => {
+              const done = e.end <= now;
+              const live = e.start <= now && now < e.end;
+              return (
+                <li key={e.id} className={`today-event${done ? " done" : ""}${live ? " live" : ""}`}>
+                  <span className="today-event-time">
+                    {new Date(e.start).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                  </span>
+                  <span className="today-event-title">{e.title}</span>
+                  {live && <span className="today-event-tag">Now</span>}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </Card>
   );
 }

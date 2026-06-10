@@ -437,9 +437,127 @@ button {
   line-height: 1;
 }
 
+.weather-headside {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
 .weather-desc {
   text-transform: capitalize;
   color: var(--text-dim);
+}
+
+.weather-hilo {
+  font-size: 0.78rem;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sunrise → sunset arc with the sun positioned by current daylight fraction. */
+.weather-sun {
+  margin: 0.85rem 0 0.2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.sun-arc {
+  width: 150px;
+  height: auto;
+}
+
+.sun-arc-track {
+  fill: none;
+  stroke: var(--border-strong);
+  stroke-width: 2;
+  stroke-dasharray: 3 5;
+  stroke-linecap: round;
+}
+
+.sun-dot {
+  fill: #f5b54e;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, #f5b54e 60%, transparent));
+}
+
+.sun-dot.night {
+  fill: var(--text-faint);
+  filter: none;
+}
+
+.weather-sun-times {
+  display: flex;
+  justify-content: space-between;
+  width: 150px;
+  margin-top: -0.35rem;
+  font-size: 0.74rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Atmospheric detail grid. */
+.weather-details {
+  margin-top: 0.7rem;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem 0.75rem;
+}
+
+.weather-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+
+.weather-detail-label {
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+}
+
+.weather-detail-value {
+  font-size: 0.85rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Multi-day outlook rows. */
+.weather-outlook {
+  list-style: none;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.weather-outlook li {
+  display: grid;
+  grid-template-columns: 3.5rem 22px 2.5rem 1fr;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.82rem;
+}
+
+.weather-outlook-day {
+  color: var(--text-dim);
+}
+
+.weather-pop-dry {
+  visibility: hidden;
+}
+
+.weather-outlook-temp {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.weather-outlook-min {
+  color: var(--text-faint);
+  font-weight: 400;
+  margin-left: 0.2rem;
 }
 
 .weather-meta {
@@ -805,6 +923,87 @@ button {
   text-overflow: ellipsis;
 }
 
+/* ─── Calendar week agenda ──────────────────────────────────────────────────── */
+
+.cal-week {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.cal-event {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+
+.cal-event-when {
+  flex: 0 0 7.5rem;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-event-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.cal-event-title {
+  font-weight: 500;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.cal-event.live .cal-event-title {
+  color: var(--accent);
+}
+
+.cal-event-tag {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.cal-event-loc {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-divider {
+  margin: 0.25rem 0;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.cal-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
 /* ─── News ──────────────────────────────────────────────────────────────────── */
 
 .news-tabs {
@@ -1009,19 +1208,116 @@ button {
   color: var(--text-dim);
 }
 
-.perf-history {
-  margin-top: 0.85rem;
+/* Resting-HR weekly stat + trend vs 30-day baseline. */
+.perf-vitals {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
   display: flex;
-  align-items: flex-end;
-  gap: 3px;
-  height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
-.perf-spark {
-  flex: 1;
-  background: var(--accent);
-  opacity: 0.5;
-  border-radius: 2px 2px 0 0;
+.perf-vital {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.perf-vital-value {
+  font-size: 1.5rem;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.perf-vital-unit {
+  font-size: 0.8rem;
+  color: var(--text-faint);
+}
+
+.perf-vital-label {
+  flex-basis: 100%;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+}
+
+.perf-trend {
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.perf-trend.good { color: var(--good); }
+.perf-trend.bad { color: var(--bad); }
+.perf-trend.flat { color: var(--text-dim); }
+
+/* Score-history chart + window toggle. */
+.perf-trend-block {
+  margin-top: 1rem;
+}
+
+.perf-trend-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+
+.perf-trend-title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+}
+
+.perf-toggle {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+.perf-toggle-btn {
+  padding: 0.15rem 0.6rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.perf-toggle-btn.active {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: var(--shadow);
+}
+
+.perf-chart {
+  width: 100%;
+  height: 72px;
+  display: block;
+  overflow: visible;
+}
+
+.perf-chart-area {
+  fill: var(--accent-soft);
+}
+
+.perf-chart-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
 }
 
 /* ─── Gaming ────────────────────────────────────────────────────────────────── */
@@ -1171,6 +1467,80 @@ button {
   height: 100%;
   border-radius: 999px;
   transition: width 0.4s ease;
+}
+
+/* Today's schedule — past events struck through to show what's crossed off. */
+.today-events {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
+}
+
+.today-events-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  margin-bottom: 0.5rem;
+}
+
+.today-events-progress {
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.today-event-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.today-event {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+}
+
+.today-event-time {
+  flex: 0 0 4rem;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.today-event-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-event.done .today-event-time,
+.today-event.done .today-event-title {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+.today-event.live .today-event-title {
+  color: var(--accent);
+  font-weight: 550;
+}
+
+.today-event-tag {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 /* ─── Health (sleep / fitness / nutrition) ──────────────────────────────────── */

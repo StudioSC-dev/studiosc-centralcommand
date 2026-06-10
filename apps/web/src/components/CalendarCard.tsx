@@ -1,15 +1,42 @@
 import { Card } from "./Card";
 import { useCalendar } from "../lib/calendar";
 import { isSameLocalDay, useNow } from "../lib/time";
+import type { CalendarEvent } from "@central-command/types";
 
-const fmtTime = (ms: number) =>
-  new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** Total upcoming events to surface across the week (+ overflow). */
+const MAX_EVENTS = 10;
 
-/** How far ahead to show timed events (next-few-hours day view). */
-const HORIZON_MS = 12 * 60 * 60 * 1000;
-const MAX_TIMED = 6;
+/** "3:00 PM" for today, else "Mon, Jun 12 · 3:00 PM"; all-day shows the date. */
+function fmtWhen(e: CalendarEvent, now: number): string {
+  const d = new Date(e.start);
+  const today = isSameLocalDay(e.start, now);
+  if (e.allDay) {
+    return today ? "All day" : d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+  }
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (today) return time;
+  return `${d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} · ${time}`;
+}
 
-/** Calendar as a next-few-hours timeline rather than a flat list. */
+function EventRow({ e, now }: { e: CalendarEvent; now: number }) {
+  const live = !e.allDay && e.start <= now && now < e.end;
+  return (
+    <li className={`cal-event${live ? " live" : ""}`}>
+      <span className="cal-event-when">{fmtWhen(e, now)}</span>
+      <span className="cal-event-body">
+        <span className="cal-event-title">
+          {e.title}
+          {live && <span className="cal-event-tag">Now</span>}
+        </span>
+        {e.location && <span className="cal-event-loc">{e.location}</span>}
+      </span>
+    </li>
+  );
+}
+
+/** Calendar as an upcoming-week agenda: events for the next 7 days (up to 10),
+ * with a divider for anything that spills past this week. */
 export function CalendarCard() {
   const { data, isPending, isError, error } = useCalendar();
   const now = useNow();
@@ -30,47 +57,35 @@ export function CalendarCard() {
     );
   }
 
-  const allDay = data.events.filter((e) => e.allDay && isSameLocalDay(e.start, now));
-  const timed = data.events
-    .filter((e) => !e.allDay && e.end > now && e.start - now < HORIZON_MS)
-    .sort((a, b) => a.start - b.start)
-    .slice(0, MAX_TIMED);
+  // Upcoming only (drop today's already-finished events — the Today card owns those).
+  const upcoming = data.events.filter((e) => e.end > now).sort((a, b) => a.start - b.start);
+  const weekEnd = now + 7 * DAY_MS;
+  const thisWeek = upcoming.filter((e) => e.start < weekEnd).slice(0, MAX_EVENTS);
+  const after = upcoming.filter((e) => e.start >= weekEnd).slice(0, MAX_EVENTS - thisWeek.length);
+
+  if (thisWeek.length === 0 && after.length === 0) {
+    return (
+      <Card title="Calendar" pillar="calendar">
+        <p className="news-empty">Nothing on the calendar in the week ahead.</p>
+      </Card>
+    );
+  }
 
   return (
     <Card title="Calendar" pillar="calendar">
-      {allDay.length > 0 && (
-        <div className="cal-allday">
-          {allDay.map((e) => (
-            <span key={e.id}>{e.title}</span>
-          ))}
-        </div>
-      )}
-
-      {timed.length === 0 ? (
-        <p className="news-empty">Nothing scheduled for the next few hours.</p>
-      ) : (
-        <ul className="timeline">
-          {timed.map((e) => {
-            const live = e.start <= now && now < e.end;
-            return (
-              <li key={e.id} className={`timeline-item${live ? " live" : ""}`}>
-                <div className="timeline-time">
-                  <span>{fmtTime(e.start)}</span>
-                  <span className="timeline-dash">{fmtTime(e.end)}</span>
-                </div>
-                <div className="timeline-marker" />
-                <div className="timeline-body">
-                  <span className="timeline-title">
-                    {e.title}
-                    {live && <span className="timeline-live-tag">Now</span>}
-                  </span>
-                  {e.location && <span className="timeline-loc">{e.location}</span>}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <ul className="cal-week">
+        {thisWeek.map((e) => (
+          <EventRow key={e.id} e={e} now={now} />
+        ))}
+        {after.length > 0 && (
+          <>
+            <li className="cal-divider">events after this week</li>
+            {after.map((e) => (
+              <EventRow key={e.id} e={e} now={now} />
+            ))}
+          </>
+        )}
+      </ul>
     </Card>
   );
 }

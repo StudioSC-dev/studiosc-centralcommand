@@ -3,12 +3,13 @@ import { busynessScore, dayBounds } from "@central-command/utils";
 import type { CalendarData, CalendarEvent } from "@central-command/types";
 import type { AppEnv } from "../env";
 import { createDb } from "../lib/db";
-import { ok } from "../lib/response";
+import { ok, fail } from "../lib/response";
 import { fetchUpcomingEvents } from "../services/google-calendar";
 import { getUserSettings } from "../services/users";
 import { getGoogleProvider, getValidGoogleAccessToken } from "../services/google-token";
 import { GoogleReauthRequiredError } from "../services/google-oauth";
 import { demoCalendar } from "../demo/fixtures";
+import { allowGlobalDaily, allowUserDaily } from "../services/rate-limit";
 
 const CACHE_TTL = 5 * 60; // calendar TTL per CLAUDE.md
 const MS_PER_HOUR = 60 * 60 * 1000;
@@ -48,6 +49,10 @@ export const calendar = new Hono<AppEnv>().get("/", async (c) => {
   // events come back too (the Today card strikes them through), and pull a
   // week-plus worth so the Calendar card's week view has enough to show.
   const { start, end } = dayBounds((await getUserSettings(db, userId))?.timezone ?? undefined);
+
+  const u = await allowUserDaily(c.env, userId, "calendar");
+  const g = await allowGlobalDaily(c.env, "google");
+  if (!u.allowed || !g.allowed) return fail(c, "rate_limited", "Calendar refresh limit reached. Try later.", 429);
 
   let events: CalendarEvent[];
   try {

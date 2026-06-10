@@ -17,6 +17,7 @@ import {
 } from "../services/openweathermap";
 import { persistWeatherSnapshot } from "../services/weather";
 import { demoWeather } from "../demo/fixtures";
+import { allowGlobalDaily, allowUserDaily } from "../services/rate-limit";
 
 // KV TTLs (seconds) per CLAUDE.md.
 const CURRENT_TTL = 30 * 60;
@@ -36,6 +37,9 @@ export const weather = new Hono<AppEnv>()
     const cacheKey = `geo:search:${query.toLowerCase()}`;
     let results = await c.env.CACHE.get<GeoCity[]>(cacheKey, "json");
     if (!results) {
+      const u = await allowUserDaily(c.env, c.get("userId"), "geocode");
+      const g = await allowGlobalDaily(c.env, "owm-geo");
+      if (!u.allowed || !g.allowed) return fail(c, "rate_limited", "Search limit reached. Try later.", 429);
       results = await searchCities({ query, apiKey: c.env.OPENWEATHERMAP_API_KEY });
       await c.env.CACHE.put(cacheKey, JSON.stringify(results), { expirationTtl: GEO_TTL });
     }
@@ -53,6 +57,9 @@ export const weather = new Hono<AppEnv>()
     const cacheKey = `geo:reverse:${round(lat)}:${round(lon)}`;
     let result = await c.env.CACHE.get<GeoCity | null>(cacheKey, "json");
     if (result === null) {
+      const u = await allowUserDaily(c.env, c.get("userId"), "geocode");
+      const g = await allowGlobalDaily(c.env, "owm-geo");
+      if (!u.allowed || !g.allowed) return fail(c, "rate_limited", "Lookup limit reached. Try later.", 429);
       result = await reverseGeocode({ lat, lon, apiKey: c.env.OPENWEATHERMAP_API_KEY });
       await c.env.CACHE.put(cacheKey, JSON.stringify(result), { expirationTtl: GEO_TTL });
     }
@@ -87,6 +94,9 @@ export const weather = new Hono<AppEnv>()
   const currentKey = `weather:current:${loc}`;
   let current = await c.env.CACHE.get<WeatherCurrent>(currentKey, "json");
   if (!current) {
+    const u = await allowUserDaily(c.env, userId, "weather");
+    const g = await allowGlobalDaily(c.env, "owm");
+    if (!u.allowed || !g.allowed) return fail(c, "rate_limited", "Weather refresh limit reached. Try later.", 429);
     current = await fetchCurrentWeather({ lat, lon, units, apiKey: c.env.OPENWEATHERMAP_API_KEY });
     await c.env.CACHE.put(currentKey, JSON.stringify(current), { expirationTtl: CURRENT_TTL });
     // Record one snapshot per local day for the correlation insight (best-effort).
@@ -101,6 +111,8 @@ export const weather = new Hono<AppEnv>()
   const forecastKey = `weather:forecast:v2:${loc}`;
   let forecast = await c.env.CACHE.get<WeatherForecast>(forecastKey, "json");
   if (!forecast) {
+    const g = await allowGlobalDaily(c.env, "owm");
+    if (!g.allowed) return fail(c, "rate_limited", "Weather refresh limit reached. Try later.", 429);
     forecast = await fetchForecast({ lat, lon, units, apiKey: c.env.OPENWEATHERMAP_API_KEY });
     await c.env.CACHE.put(forecastKey, JSON.stringify(forecast), { expirationTtl: FORECAST_TTL });
   }

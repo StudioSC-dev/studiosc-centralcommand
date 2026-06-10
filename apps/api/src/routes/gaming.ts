@@ -16,6 +16,7 @@ import { ok, fail } from "../lib/response";
 import { newId } from "../lib/ids";
 import { RiotError, getAccountByRiotId, resolveRegion } from "../services/riot";
 import { refreshRiot } from "../services/riot-sync";
+import { allowGlobalDaily, allowUserDaily } from "../services/rate-limit";
 
 const PROVIDER = "riot";
 const GAME = "league";
@@ -142,6 +143,14 @@ export const gaming = new Hono<AppEnv>()
 
     const db = createDb(c.env.DB);
     const userId = c.get("userId");
+
+    // Connect backfills ~21 Riot calls — gate per-user and against the global key cap.
+    const u = await allowUserDaily(c.env, userId, "gaming-connect");
+    const g = await allowGlobalDaily(c.env, "riot");
+    if (!u.allowed || !g.allowed) {
+      return fail(c, "rate_limited", "Connect limit reached. Try again tomorrow.", 429);
+    }
+
     try {
       const account = await getAccountByRiotId(gameName, tagLine, region.account, c.env.RIOT_API_KEY);
 
@@ -190,6 +199,12 @@ export const gaming = new Hono<AppEnv>()
     const provider = await getProvider(db, userId);
     if (!provider || !provider.puuid || !provider.region) {
       return fail(c, "not_connected", "No Riot account connected.", 400);
+    }
+
+    const u = await allowUserDaily(c.env, userId, "gaming-refresh");
+    const g = await allowGlobalDaily(c.env, "riot");
+    if (!u.allowed || !g.allowed) {
+      return fail(c, "rate_limited", "Refresh limit reached. Try later.", 429);
     }
 
     try {

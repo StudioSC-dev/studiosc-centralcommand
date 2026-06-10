@@ -1,9 +1,11 @@
 import { createMiddleware } from "hono/factory";
 import { createRemoteJWKSet, jwtVerify } from "jose";
+import type { Context, Next } from "hono";
 import type { AppEnv } from "../env";
 import { createDb } from "../lib/db";
 import { getOrCreateUser } from "../services/users";
 import { getSession } from "../lib/session";
+import { allowUserDaily } from "../services/rate-limit";
 import { fail } from "../lib/response";
 
 /**
@@ -37,7 +39,7 @@ export const sessionAuth = createMiddleware<AppEnv>(async (c, next) => {
     c.set("userId", session.userId);
     c.set("userEmail", session.email);
     c.set("isDemo", session.demo);
-    return next();
+    return backstopThenNext(c, next, session.userId, session.demo);
   }
 
   // 2/3. Resolve an email from the Access JWT (transitional) or the dev fallback.
@@ -67,5 +69,23 @@ export const sessionAuth = createMiddleware<AppEnv>(async (c, next) => {
   c.set("userId", user.id);
   c.set("userEmail", user.email);
   c.set("isDemo", false);
-  await next();
+  return backstopThenNext(c, next, user.id, false);
 });
+
+/**
+ * Coarse per-user daily request ceiling — protects Workers/D1 from a single
+ * abusive session. Skipped for demo (its user id is shared across all demo
+ * visitors, so one abuser must not be able to lock everyone out).
+ */
+async function backstopThenNext(
+  c: Context<AppEnv>,
+  next: Next,
+  userId: string,
+  isDemo: boolean,
+) {
+  if (!isDemo) {
+    const rl = await allowUserDaily(c.env, userId, "requests");
+    if (!rl.allowed) return fail(c, "rate_limited", "Daily request limit reached.", 429);
+  }
+  await next();
+}

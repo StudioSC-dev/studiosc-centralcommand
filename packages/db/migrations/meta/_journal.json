@@ -64,6 +64,13 @@
       "when": 1781091139397,
       "tag": "0008_mighty_domino",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1781096730427,
+      "tag": "0009_wild_rawhide_kid",
+      "breakpoints": true
     }
   ]
 }

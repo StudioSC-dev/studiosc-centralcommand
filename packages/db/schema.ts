@@ -45,6 +45,24 @@ export const authCredentials = sqliteTable("auth_credentials", {
   updatedAt: integer("updated_at").notNull(),
 });
 
+// ─── Per-user profile ─────────────────────────────────────────────────────────
+
+// Collected at onboarding (displayName/birthdate/sex) plus optional body metrics
+// editable later on the profile page. Feeds age/sex-aware insights.
+export const userProfiles = sqliteTable("user_profiles", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id),
+  displayName: text("display_name"),
+  birthdate: text("birthdate"), // YYYY-MM-DD
+  sex: text("sex"), // 'male' | 'female' | 'other'
+  heightCm: integer("height_cm"), // optional
+  weightKg: real("weight_kg"), // optional
+  activityLevel: text("activity_level"), // optional: 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active'
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
 // ─── Per-user settings ───────────────────────────────────────────────────────
 
 // One row per user. Location is defaulted from Cloudflare edge geo at sign-up

@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { meQueryOptions } from "../lib/auth";
 import { WeatherCard } from "../components/WeatherCard";
 import { SummaryCard } from "../components/SummaryCard";
 import { PerformanceCard } from "../components/PerformanceCard";
@@ -10,6 +11,11 @@ import { GamingCard } from "../components/GamingCard";
 import { InsightsCard } from "../components/InsightsCard";
 
 export const Route = createFileRoute("/")({
+  // Gate: must have a session (cookie, Access JWT, or dev) — else go to /login.
+  beforeLoad: async ({ context }) => {
+    const me = await context.queryClient.ensureQueryData(meQueryOptions).catch(() => null);
+    if (!me) throw redirect({ to: "/login" });
+  },
   component: Dashboard,
 });
 

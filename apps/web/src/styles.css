@@ -191,6 +191,40 @@ button {
   gap: 0.7rem;
 }
 
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-left: 0.7rem;
+  border-left: 1px solid var(--border);
+}
+
+.header-email {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  max-width: 16ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-demo-badge {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+@media (max-width: 560px) {
+  .header-email {
+    display: none;
+  }
+}
+
 .header-clock {
   font-size: 0.95rem;
   font-weight: 550;
@@ -237,6 +271,102 @@ button {
 .app-main {
   flex: 1;
   padding: 1.25rem;
+}
+
+/* ─── Login screen ──────────────────────────────────────────────────────────── */
+
+.login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.4rem;
+  padding: 2.5rem 2rem;
+  border-radius: var(--radius);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow), inset 0 1px 0 var(--glass-highlight);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+}
+
+.login-mark {
+  width: 44px;
+  height: 44px;
+  margin-bottom: 0.4rem;
+}
+
+.login-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.login-sub {
+  margin: 0 0 1.4rem;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.login-google {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.login-google:hover {
+  border-color: var(--accent);
+}
+
+.login-google-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.login-demo {
+  margin-top: 0.8rem;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.88rem;
+}
+
+.login-demo:hover {
+  text-decoration: underline;
+}
+
+.login-fineprint {
+  margin: 1.4rem 0 0;
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  line-height: 1.4;
+}
+
+.login-fineprint a {
+  color: var(--text-dim);
 }
 
 /* ─── Dashboard grid ────────────────────────────────────────────────────────── */

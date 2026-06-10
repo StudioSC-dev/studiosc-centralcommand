@@ -1,5 +1,6 @@
 import { useTheme } from "../lib/theme";
 import { useNow } from "../lib/clock";
+import { useLogout, useMe } from "../lib/auth";
 
 /** Time-of-day greeting. Name-less until real auth provides a display name. */
 function greetingFor(hour: number): string {
@@ -32,8 +33,36 @@ export function AppHeader() {
           {now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
         </time>
         <ThemeToggle />
+        <UserMenu />
       </div>
     </header>
+  );
+}
+
+/** Identity + sign-out, shown only once a session exists. */
+function UserMenu() {
+  const { data: me } = useMe();
+  const logout = useLogout();
+  if (!me) return null;
+
+  return (
+    <div className="header-user">
+      {me.demo ? (
+        <span className="header-demo-badge">Demo</span>
+      ) : (
+        <span className="header-email" title={me.email}>
+          {me.email}
+        </span>
+      )}
+      <button
+        type="button"
+        className="link-button"
+        onClick={() => logout.mutate()}
+        disabled={logout.isPending}
+      >
+        {me.demo ? "Exit demo" : "Sign out"}
+      </button>
+    </div>
   );
 }
 

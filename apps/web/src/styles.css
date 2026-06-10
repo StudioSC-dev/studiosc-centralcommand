@@ -560,6 +560,35 @@ button {
   box-shadow: var(--shadow);
 }
 
+/* ─── Demo banner ───────────────────────────────────────────────────────────── */
+
+.demo-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+  margin: 0 auto 1.25rem;
+  max-width: 1600px;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.demo-banner-cta {
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.demo-banner-cta:hover {
+  text-decoration: underline;
+}
+
 /* ─── Dashboard grid ────────────────────────────────────────────────────────── */
 
 .dashboard {

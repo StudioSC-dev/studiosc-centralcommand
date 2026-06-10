@@ -23,6 +23,7 @@ import {
   useUpdateSleep,
 } from "../lib/logs";
 import { isSameLocalDay } from "../lib/time";
+import { useIsDemo } from "../lib/auth";
 
 type Section = "sleep" | "fitness" | "nutrition";
 
@@ -86,21 +87,27 @@ function LogRow({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const demo = useIsDemo();
   if (editForm) return <li className="log-item log-item-editing">{editForm}</li>;
   return (
     <li className="log-item">
       <span className="log-text">{text}</span>
-      <button type="button" className="log-edit" onClick={onEdit} aria-label="Edit entry" title="Edit">
-        ✎
-      </button>
-      <button type="button" className="log-del" onClick={onDelete} aria-label="Delete entry">
-        ×
-      </button>
+      {!demo && (
+        <>
+          <button type="button" className="log-edit" onClick={onEdit} aria-label="Edit entry" title="Edit">
+            ✎
+          </button>
+          <button type="button" className="log-del" onClick={onDelete} aria-label="Delete entry">
+            ×
+          </button>
+        </>
+      )}
     </li>
   );
 }
 
 function SleepSection() {
+  const demo = useIsDemo();
   const { data } = useSleep();
   const log = useLogSleep();
   const update = useUpdateSleep();
@@ -140,13 +147,15 @@ function SleepSection() {
   return (
     <div className="health-section">
       <TodayStat value={todayMin ? fmtDuration(todayMin) : "—"} label="slept today" />
-      <form className="log-form" onSubmit={submit}>
-        <input type="number" min="0" step="0.5" placeholder="hours" value={hours} onChange={(e) => setHours(e.target.value)} />
-        <input type="number" min="1" max="5" placeholder="1-5" value={quality} onChange={(e) => setQuality(e.target.value)} />
-        <input type="number" min="1" max="300" placeholder="HRV ms" value={hrv} onChange={(e) => setHrv(e.target.value)} />
-        <input type="number" min="30" max="220" placeholder="RHR bpm" value={restingHr} onChange={(e) => setRestingHr(e.target.value)} />
-        <button type="submit" disabled={log.isPending}>Log</button>
-      </form>
+      {!demo && (
+        <form className="log-form" onSubmit={submit}>
+          <input type="number" min="0" step="0.5" placeholder="hours" value={hours} onChange={(e) => setHours(e.target.value)} />
+          <input type="number" min="1" max="5" placeholder="1-5" value={quality} onChange={(e) => setQuality(e.target.value)} />
+          <input type="number" min="1" max="300" placeholder="HRV ms" value={hrv} onChange={(e) => setHrv(e.target.value)} />
+          <input type="number" min="30" max="220" placeholder="RHR bpm" value={restingHr} onChange={(e) => setRestingHr(e.target.value)} />
+          <button type="submit" disabled={log.isPending}>Log</button>
+        </form>
+      )}
       {log.isError && <p className="log-error">{log.error.message}</p>}
       <ul className="log-list">
         {entries.slice(0, 4).map((entry) => (
@@ -220,6 +229,7 @@ function SleepRow({
 }
 
 function FitnessSection() {
+  const demo = useIsDemo();
   const { data } = useFitness();
   const log = useLogFitness();
   const update = useUpdateFitness();
@@ -254,12 +264,14 @@ function FitnessSection() {
         value={today.length ? `${today.length}× · ${todayMin}m` : "—"}
         label="trained today"
       />
-      <form className="log-form" onSubmit={submit}>
-        <input placeholder="activity" value={activity} onChange={(e) => setActivity(e.target.value)} />
-        <input type="number" min="1" placeholder="min" value={durationMin} onChange={(e) => setDurationMin(e.target.value)} />
-        <input type="number" min="1" max="5" placeholder="1-5" value={intensity} onChange={(e) => setIntensity(e.target.value)} />
-        <button type="submit" disabled={log.isPending}>Log</button>
-      </form>
+      {!demo && (
+        <form className="log-form" onSubmit={submit}>
+          <input placeholder="activity" value={activity} onChange={(e) => setActivity(e.target.value)} />
+          <input type="number" min="1" placeholder="min" value={durationMin} onChange={(e) => setDurationMin(e.target.value)} />
+          <input type="number" min="1" max="5" placeholder="1-5" value={intensity} onChange={(e) => setIntensity(e.target.value)} />
+          <button type="submit" disabled={log.isPending}>Log</button>
+        </form>
+      )}
       {log.isError && <p className="log-error">{log.error.message}</p>}
       <ul className="log-list">
         {entries.slice(0, 4).map((entry) => (
@@ -324,6 +336,7 @@ function FitnessRow({
 }
 
 function NutritionSection() {
+  const demo = useIsDemo();
   const { data } = useNutrition();
   const log = useLogNutrition();
   const update = useUpdateNutrition();
@@ -356,12 +369,14 @@ function NutritionSection() {
   return (
     <div className="health-section">
       <TodayStat value={todayKcal ? `${todayKcal} kcal` : "—"} label="eaten today" />
-      <form className="log-form" onSubmit={submit}>
-        <input placeholder="meal" value={meal} onChange={(e) => setMeal(e.target.value)} />
-        <input type="number" min="1" placeholder="kcal" value={calories} onChange={(e) => setCalories(e.target.value)} />
-        <input type="number" min="0" placeholder="protein g" value={protein} onChange={(e) => setProtein(e.target.value)} />
-        <button type="submit" disabled={log.isPending}>Log</button>
-      </form>
+      {!demo && (
+        <form className="log-form" onSubmit={submit}>
+          <input placeholder="meal" value={meal} onChange={(e) => setMeal(e.target.value)} />
+          <input type="number" min="1" placeholder="kcal" value={calories} onChange={(e) => setCalories(e.target.value)} />
+          <input type="number" min="0" placeholder="protein g" value={protein} onChange={(e) => setProtein(e.target.value)} />
+          <button type="submit" disabled={log.isPending}>Log</button>
+        </form>
+      )}
       {log.isError && <p className="log-error">{log.error.message}</p>}
       <ul className="log-list">
         {entries.slice(0, 4).map((entry) => (

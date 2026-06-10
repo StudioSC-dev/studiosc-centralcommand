@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { GamingData, RankInfo } from "@central-command/types";
 import { Card } from "./Card";
 import { useConnectRiot, useGaming, useRefreshRiot } from "../lib/gaming";
+import { useIsDemo } from "../lib/auth";
 
 const REGIONS = ["sg2", "na1", "euw1", "eun1", "kr", "jp1", "br1", "oc1"];
 
@@ -39,13 +40,16 @@ function ConnectForm() {
 
 function Connected({ data }: { data: GamingData }) {
   const refresh = useRefreshRiot();
+  const demo = useIsDemo();
   return (
     <>
       <div className="gaming-head">
         <span className="gaming-id">{data.riotId}</span>
-        <button onClick={() => refresh.mutate()} disabled={refresh.isPending}>
-          {refresh.isPending ? "…" : "Refresh"}
-        </button>
+        {!demo && (
+          <button onClick={() => refresh.mutate()} disabled={refresh.isPending}>
+            {refresh.isPending ? "…" : "Refresh"}
+          </button>
+        )}
       </div>
       <div className="gaming-ranks">
         {data.ranks.length === 0 && <span className="perf-note">Unranked</span>}
@@ -78,12 +82,14 @@ function Connected({ data }: { data: GamingData }) {
 
 export function GamingCard() {
   const { data, isPending, isError, error } = useGaming();
+  const demo = useIsDemo();
 
   return (
     <Card title="Gaming" pillar="gaming">
       {isPending && <p>Loading…</p>}
       {isError && <p className="log-error">{error.message}</p>}
-      {data && !data.connected && <ConnectForm />}
+      {data && !data.connected &&
+        (demo ? <p className="perf-note">Sign in to connect a Riot account.</p> : <ConnectForm />)}
       {data && data.connected && <Connected data={data} />}
     </Card>
   );

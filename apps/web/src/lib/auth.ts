@@ -19,6 +19,11 @@ export function useMe() {
   return useQuery(meQueryOptions);
 }
 
+/** True when the current session is the public read-only demo. */
+export function useIsDemo(): boolean {
+  return useMe().data?.demo ?? false;
+}
+
 /** Clear the session server-side, drop cached data, and return to /login. */
 export function useLogout() {
   const qc = useQueryClient();

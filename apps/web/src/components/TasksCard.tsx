@@ -4,6 +4,7 @@ import type { Task, TaskPriority, TaskUpdateInput } from "@central-command/types
 import { useNow } from "../lib/clock";
 import { isSameLocalDay } from "../lib/time";
 import { useCreateTask, useDeleteTask, useTasks, useUpdateTask } from "../lib/tasks";
+import { useIsDemo } from "../lib/auth";
 
 const PRIORITY_LABEL: Record<TaskPriority, string> = { high: "High", med: "Medium", low: "Low" };
 
@@ -40,6 +41,7 @@ export function TasksCard() {
   const update = useUpdateTask();
   const remove = useDeleteTask();
 
+  const demo = useIsDemo();
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("med");
   const [deadline, setDeadline] = useState("");
@@ -75,25 +77,27 @@ export function TasksCard() {
 
   return (
     <Card title="Tasks" pillar="tasks">
-      <form className="log-form" onSubmit={submit}>
-        <input
-          placeholder="Add a priority…"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-        <select value={priority} onChange={(e) => setPriority(e.target.value as TaskPriority)}>
-          <option value="high">High</option>
-          <option value="med">Medium</option>
-          <option value="low">Low</option>
-        </select>
-        <input
-          type="date"
-          aria-label="Deadline (optional)"
-          value={deadline}
-          onChange={(e) => setDeadline(e.target.value)}
-        />
-        <button type="submit" disabled={create.isPending}>Add</button>
-      </form>
+      {!demo && (
+        <form className="log-form" onSubmit={submit}>
+          <input
+            placeholder="Add a priority…"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <select value={priority} onChange={(e) => setPriority(e.target.value as TaskPriority)}>
+            <option value="high">High</option>
+            <option value="med">Medium</option>
+            <option value="low">Low</option>
+          </select>
+          <input
+            type="date"
+            aria-label="Deadline (optional)"
+            value={deadline}
+            onChange={(e) => setDeadline(e.target.value)}
+          />
+          <button type="submit" disabled={create.isPending}>Add</button>
+        </form>
+      )}
 
       {visible.length === 0 ? (
         <p className="news-empty">No open tasks. Add a priority above.</p>
@@ -145,6 +149,7 @@ function TaskRow({
   onSave: (patch: TaskUpdateInput & { id: string }) => void;
   onDelete: () => void;
 }) {
+  const demo = useIsDemo();
   const done = task.status === "done";
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(task.title);
@@ -194,24 +199,34 @@ function TaskRow({
 
   return (
     <li className={`task-item${done ? " task-item-done" : ""}`}>
-      <button
-        type="button"
-        className={`task-check${done ? " done" : ""}`}
-        onClick={onToggle}
-        aria-label={done ? `Reopen "${task.title}"` : `Complete "${task.title}"`}
-        title={done ? "Mark open" : "Mark done"}
-      >
-        {done ? "✓" : ""}
-      </button>
+      {demo ? (
+        <span className={`task-check${done ? " done" : ""}`} aria-hidden="true">
+          {done ? "✓" : ""}
+        </span>
+      ) : (
+        <button
+          type="button"
+          className={`task-check${done ? " done" : ""}`}
+          onClick={onToggle}
+          aria-label={done ? `Reopen "${task.title}"` : `Complete "${task.title}"`}
+          title={done ? "Mark open" : "Mark done"}
+        >
+          {done ? "✓" : ""}
+        </button>
+      )}
       <span className={`task-dot prio-${task.priority}`} title={PRIORITY_LABEL[task.priority]} />
       <span className="task-title">{task.title}</span>
       {!done && task.deadline != null && <Deadline deadline={task.deadline} />}
-      <button type="button" className="task-edit" onClick={startEdit} aria-label="Edit task" title="Edit">
-        ✎
-      </button>
-      <button type="button" className="task-del" onClick={onDelete} aria-label="Delete task">
-        ×
-      </button>
+      {!demo && (
+        <>
+          <button type="button" className="task-edit" onClick={startEdit} aria-label="Edit task" title="Edit">
+            ✎
+          </button>
+          <button type="button" className="task-del" onClick={onDelete} aria-label="Delete task">
+            ×
+          </button>
+        </>
+      )}
     </li>
   );
 }

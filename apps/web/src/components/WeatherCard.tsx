@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import type { WeatherCurrent, WeatherData, WeatherDailyEntry } from "@central-command/types";
 import { useSetUnits, useWeather } from "../lib/weather";
+import { useIsDemo } from "../lib/auth";
 import { LocationSetter } from "./LocationSetter";
 import { WeatherGlyph, weatherGroup } from "./WeatherGlyph";
 
@@ -67,6 +68,7 @@ function Detail({ label, value }: { label: string; value: string }) {
 export function WeatherCard() {
   const { data, isPending, isError, error } = useWeather();
   const setUnits = useSetUnits();
+  const demo = useIsDemo();
   const [editing, setEditing] = useState(false);
 
   if (isPending) return <Card>Loading weather…</Card>;
@@ -104,20 +106,26 @@ export function WeatherCard() {
       <div className="weather-meta">
         {location.label ?? `${location.lat}, ${location.lon}`} · feels{" "}
         {fmtTemp(current.feelsLike, units)}
-        {current.rain1h != null && ` · ${current.rain1h}mm rain`} ·{" "}
-        <button
-          type="button"
-          className="link-button"
-          disabled={setUnits.isPending}
-          onClick={() => setUnits.mutate(units === "imperial" ? "metric" : "imperial")}
-          title="Toggle units"
-        >
-          {units === "imperial" ? "°C" : "°F"}
-        </button>{" "}
-        ·{" "}
-        <button type="button" className="link-button" onClick={() => setEditing((v) => !v)}>
-          {editing ? "Cancel" : "Change"}
-        </button>
+        {current.rain1h != null && ` · ${current.rain1h}mm rain`}
+        {!demo && (
+          <>
+            {" "}
+            ·{" "}
+            <button
+              type="button"
+              className="link-button"
+              disabled={setUnits.isPending}
+              onClick={() => setUnits.mutate(units === "imperial" ? "metric" : "imperial")}
+              title="Toggle units"
+            >
+              {units === "imperial" ? "°C" : "°F"}
+            </button>{" "}
+            ·{" "}
+            <button type="button" className="link-button" onClick={() => setEditing((v) => !v)}>
+              {editing ? "Cancel" : "Change"}
+            </button>
+          </>
+        )}
       </div>
       {editing && <LocationSetter onDone={() => setEditing(false)} />}
 

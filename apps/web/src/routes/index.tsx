@@ -1,5 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { meQueryOptions } from "../lib/auth";
+import { DemoBanner } from "../components/DemoBanner";
 import { WeatherCard } from "../components/WeatherCard";
 import { SummaryCard } from "../components/SummaryCard";
 import { PerformanceCard } from "../components/PerformanceCard";
@@ -22,16 +23,19 @@ export const Route = createFileRoute("/")({
 
 function Dashboard() {
   return (
-    <section className="dashboard">
-      <WeatherCard />
+    <>
+      <DemoBanner />
+      <section className="dashboard">
+        <WeatherCard />
       <SummaryCard />
       <PerformanceCard />
       <CalendarCard />
       <TasksCard />
       <HealthCard />
       <GamingCard />
-      <InsightsCard />
-      <NewsCard />
-    </section>
+        <InsightsCard />
+        <NewsCard />
+      </section>
+    </>
   );
 }

@@ -1,17 +1,24 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import type { AppEnv } from "../env";
 import { createDb } from "../lib/db";
-import { fail } from "../lib/response";
+import { ok, fail } from "../lib/response";
 import {
   buildAuthorizeUrl,
+  CALENDAR_SCOPES,
   exchangeCode,
   generatePkce,
+  LOGIN_SCOPES,
   randomState,
   verifyGoogleIdToken,
 } from "../services/google-oauth";
 import { storeGoogleTokens } from "../services/google-token";
+import { getOrCreateUser } from "../services/users";
+import { getSession, issueSession, setSessionCookie, clearSessionCookie } from "../lib/session";
 
-/** Where the PKCE verifier is parked between redirect and callback. */
+type Purpose = "login" | "connect";
+
+/** Where the PKCE verifier + purpose are parked between redirect and callback. */
 const stateKey = (state: string) => `oauth:google:${state}`;
 
 /** Derive the registered redirect URI from the current request's origin. */
@@ -19,26 +26,32 @@ function callbackUrl(reqUrl: string): string {
   return `${new URL(reqUrl).origin}/api/auth/google/callback`;
 }
 
-export const auth = new Hono<AppEnv>()
-  // Begin the Google OAuth connect flow.
-  .get("/google", async (c) => {
-    const { verifier, challenge } = await generatePkce();
-    const state = randomState();
+/** Begin a Google OAuth flow for the given purpose (login vs calendar connect). */
+async function startGoogle(c: Context<AppEnv>, purpose: Purpose) {
+  const { verifier, challenge } = await generatePkce();
+  const state = randomState();
+  await c.env.CACHE.put(stateKey(state), JSON.stringify({ verifier, purpose }), {
+    expirationTtl: 600,
+  });
+  const url = buildAuthorizeUrl({
+    clientId: c.env.GOOGLE_OAUTH_CLIENT_ID,
+    redirectUri: callbackUrl(c.req.url),
+    state,
+    challenge,
+    scopes: purpose === "login" ? LOGIN_SCOPES : CALENDAR_SCOPES,
+    offline: purpose === "connect", // a refresh token is only needed for Calendar
+  });
+  return c.redirect(url);
+}
 
-    // Park the verifier server-side (KV), keyed by the opaque state value.
-    await c.env.CACHE.put(stateKey(state), JSON.stringify({ verifier }), {
-      expirationTtl: 600,
-    });
-
-    const url = buildAuthorizeUrl({
-      clientId: c.env.GOOGLE_OAUTH_CLIENT_ID,
-      redirectUri: callbackUrl(c.req.url),
-      state,
-      challenge,
-    });
-    return c.redirect(url);
-  })
-  // Google redirects back here with the authorization code.
+/**
+ * Public auth routes — no session required (sign-in starts/ends here).
+ *   GET  /api/auth/login/google      → begin sign-in (minimal scopes)
+ *   GET  /api/auth/google/callback   → shared callback (login | connect)
+ *   POST /api/auth/logout            → clear the session cookie
+ */
+export const authPublic = new Hono<AppEnv>()
+  .get("/login/google", (c) => startGoogle(c, "login"))
   .get("/google/callback", async (c) => {
     const error = c.req.query("error");
     if (error) return fail(c, "oauth_error", `Google returned: ${error}`, 400);
@@ -50,7 +63,7 @@ export const auth = new Hono<AppEnv>()
     const stored = await c.env.CACHE.get(stateKey(state));
     if (!stored) return fail(c, "oauth_error", "Invalid or expired state.", 400);
     await c.env.CACHE.delete(stateKey(state));
-    const { verifier } = JSON.parse(stored) as { verifier: string };
+    const { verifier, purpose } = JSON.parse(stored) as { verifier: string; purpose: Purpose };
 
     const tokens = await exchangeCode({
       code,
@@ -59,17 +72,36 @@ export const auth = new Hono<AppEnv>()
       clientId: c.env.GOOGLE_OAUTH_CLIENT_ID,
       clientSecret: c.env.GOOGLE_OAUTH_CLIENT_SECRET,
     });
+    const { sub, email } = await verifyGoogleIdToken(tokens.id_token, c.env.GOOGLE_OAUTH_CLIENT_ID);
 
-    // Verify the id_token and associate the connection with the already-
-    // authenticated user (resolved by accessAuth from the Access identity).
-    const { sub } = await verifyGoogleIdToken(tokens.id_token, c.env.GOOGLE_OAUTH_CLIENT_ID);
+    if (purpose === "login") {
+      // Google sign-in IS the authentication: resolve our user and start a session.
+      const user = await getOrCreateUser(createDb(c.env.DB), email);
+      const token = await issueSession(c.env, user);
+      setSessionCookie(c, token);
+      return c.redirect("/");
+    }
 
-    await storeGoogleTokens(createDb(c.env.DB), c.env, c.get("userId"), sub, {
+    // Calendar connect: attach the tokens to the already-signed-in user.
+    const session = await getSession(c);
+    if (!session) return fail(c, "unauthorized", "Sign in before connecting Calendar.", 401);
+    await storeGoogleTokens(createDb(c.env.DB), c.env, session.userId, sub, {
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
       expiresAt: Date.now() + tokens.expires_in * 1000,
     });
-
-    // Back to the dashboard. (Frontend lives at the site root in production.)
     return c.redirect("/?connected=google");
+  })
+  .post("/logout", (c) => {
+    clearSessionCookie(c);
+    return ok(c, { ok: true });
   });
+
+/**
+ * Session-guarded auth routes (mounted behind `sessionAuth`).
+ *   GET /api/auth/me        → current identity
+ *   GET /api/auth/google    → begin Calendar connect (incremental consent)
+ */
+export const authGuarded = new Hono<AppEnv>()
+  .get("/me", (c) => ok(c, { id: c.get("userId"), email: c.get("userEmail"), demo: c.get("isDemo") }))
+  .get("/google", (c) => startGoogle(c, "connect"));

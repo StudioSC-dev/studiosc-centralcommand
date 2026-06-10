@@ -21,6 +21,8 @@ export interface Bindings {
   GOOGLE_OAUTH_CLIENT_ID: string;
   GOOGLE_OAUTH_CLIENT_SECRET: string;
   TOKEN_ENCRYPTION_KEY: string;
+  /** HMAC key (base64 of 32 bytes) for signing app session JWTs. */
+  SESSION_SECRET: string;
 
   // Local dev only — never set in production. When present and no Access JWT
   // is provided, the auth middleware treats this email as the verified identity.
@@ -33,6 +35,8 @@ export interface Variables {
   userId: string;
   /** Authenticated user email. */
   userEmail: string;
+  /** True for the public read-only demo session (blocks writes / third-party calls). */
+  isDemo: boolean;
 }
 
 /** Hono generics for the whole app. */

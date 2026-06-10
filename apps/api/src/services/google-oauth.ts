@@ -11,12 +11,10 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 const AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 
-const SCOPES = [
-  "openid",
-  "email",
-  "profile",
-  "https://www.googleapis.com/auth/calendar.readonly",
-];
+/** Minimal scopes for sign-in (no offline access needed). */
+export const LOGIN_SCOPES = ["openid", "email", "profile"];
+/** Incremental scopes when connecting Calendar (adds read-only calendar + offline). */
+export const CALENDAR_SCOPES = [...LOGIN_SCOPES, "https://www.googleapis.com/auth/calendar.readonly"];
 
 // Google's id_token signing keys; jose caches the fetched JWKS internally.
 const googleJwks = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
@@ -39,23 +37,31 @@ export async function generatePkce(): Promise<{ verifier: string; challenge: str
   return { verifier, challenge: base64UrlEncode(new Uint8Array(digest)) };
 }
 
-/** Build the Google consent-screen URL the browser is redirected to. */
+/**
+ * Build the Google consent-screen URL the browser is redirected to. `scopes`
+ * selects login (minimal) vs calendar-connect (incremental). `offline` requests
+ * a refresh token — only needed for the calendar connect, not for sign-in.
+ */
 export function buildAuthorizeUrl(opts: {
   clientId: string;
   redirectUri: string;
   state: string;
   challenge: string;
+  scopes: string[];
+  offline: boolean;
 }): string {
   const url = new URL(AUTH_ENDPOINT);
   url.searchParams.set("client_id", opts.clientId);
   url.searchParams.set("redirect_uri", opts.redirectUri);
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", SCOPES.join(" "));
+  url.searchParams.set("scope", opts.scopes.join(" "));
   url.searchParams.set("state", opts.state);
   url.searchParams.set("code_challenge", opts.challenge);
   url.searchParams.set("code_challenge_method", "S256");
-  url.searchParams.set("access_type", "offline"); // request a refresh token
-  url.searchParams.set("prompt", "consent"); // ensure a refresh token is returned
+  if (opts.offline) {
+    url.searchParams.set("access_type", "offline"); // request a refresh token
+    url.searchParams.set("prompt", "consent"); // ensure a refresh token is returned
+  }
   return url.toString();
 }
 

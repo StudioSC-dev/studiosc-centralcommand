@@ -1,11 +1,11 @@
 import { Hono } from "hono";
 import type { AppEnv, Bindings } from "./env";
-import { accessAuth } from "./middleware/auth";
+import { sessionAuth } from "./middleware/auth";
 import { notFound, onError } from "./middleware/error";
 import { ok } from "./lib/response";
 import { runRiotRefresh } from "./workers/riot-cron";
 
-import { auth } from "./routes/auth";
+import { authPublic, authGuarded } from "./routes/auth";
 import { settings } from "./routes/settings";
 import { summary } from "./routes/summary";
 import { calendar } from "./routes/calendar";
@@ -27,10 +27,13 @@ app.notFound(notFound);
 // Public, unauthenticated health check (reachable in prod via the /api/* route).
 app.get("/api/health", (c) => ok(c, { service: "centralcommand", status: "ok" }));
 
-// All pillar routes require a verified Cloudflare Access identity.
+// Public auth routes — sign-in begins/ends here, so they sit OUTSIDE the guard.
+app.route("/api/auth", authPublic);
+
+// Everything below requires an authenticated session (cookie, Access JWT, or dev).
 const api = new Hono<AppEnv>();
-api.use("*", accessAuth);
-api.route("/auth", auth);
+api.use("*", sessionAuth);
+api.route("/auth", authGuarded);
 api.route("/settings", settings);
 api.route("/summary", summary);
 api.route("/calendar", calendar);

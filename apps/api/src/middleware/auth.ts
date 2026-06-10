@@ -3,14 +3,19 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { AppEnv } from "../env";
 import { createDb } from "../lib/db";
 import { getOrCreateUser } from "../services/users";
+import { getSession } from "../lib/session";
 import { fail } from "../lib/response";
 
 /**
- * `accessAuth` guards user-facing routes. Browser traffic is fronted by
- * Cloudflare Access, which injects a signed `Cf-Access-Jwt-Assertion`. We verify
- * it against the team JWKS, then resolve the email to our user. (A bearer-token
- * `serviceAuth` for programmatic callers will return when a service endpoint
- * needs it — `API_BEARER_TOKEN` is reserved for that.)
+ * `sessionAuth` guards user-facing routes. Identity is resolved in priority order:
+ *
+ *   1. App session cookie (`cc_session`) — the primary path once Google sign-in
+ *      (or the demo entry) has issued one. Carries the userId directly, plus the
+ *      demo flag, so no DB lookup is needed for it.
+ *   2. Cloudflare Access JWT (`Cf-Access-Jwt-Assertion`) — TRANSITIONAL fallback
+ *      so production keeps working while Access still fronts the site. Removed in
+ *      Stage 3 once the Access apps are deleted.
+ *   3. `DEV_AUTH_EMAIL` — local dev only (never set in prod).
  */
 
 // JWKS sets are cached per team domain (jose caches the fetched keys internally).
@@ -25,10 +30,20 @@ function getJwks(teamDomain: string) {
   return jwks;
 }
 
-export const accessAuth = createMiddleware<AppEnv>(async (c, next) => {
-  const token = c.req.header("Cf-Access-Jwt-Assertion");
+export const sessionAuth = createMiddleware<AppEnv>(async (c, next) => {
+  // 1. App session cookie — preferred. Carries userId + demo flag directly.
+  const session = await getSession(c);
+  if (session) {
+    c.set("userId", session.userId);
+    c.set("userEmail", session.email);
+    c.set("isDemo", session.demo);
+    return next();
+  }
+
+  // 2/3. Resolve an email from the Access JWT (transitional) or the dev fallback.
   let email: string | undefined;
 
+  const token = c.req.header("Cf-Access-Jwt-Assertion");
   if (token) {
     try {
       const { payload } = await jwtVerify(token, getJwks(c.env.CF_ACCESS_TEAM_DOMAIN), {
@@ -40,8 +55,7 @@ export const accessAuth = createMiddleware<AppEnv>(async (c, next) => {
       return fail(c, "unauthorized", "Invalid Access token.", 401);
     }
   } else if (c.env.DEV_AUTH_EMAIL) {
-    // Local dev: no Access in front, so fall back to the configured email.
-    // DEV_AUTH_EMAIL is never set in production, so this is not a prod bypass.
+    // Local dev: no session and no Access in front, so trust the configured email.
     email = c.env.DEV_AUTH_EMAIL;
   }
 
@@ -52,5 +66,6 @@ export const accessAuth = createMiddleware<AppEnv>(async (c, next) => {
   const user = await getOrCreateUser(createDb(c.env.DB), email);
   c.set("userId", user.id);
   c.set("userEmail", user.email);
+  c.set("isDemo", false);
   await next();
 });

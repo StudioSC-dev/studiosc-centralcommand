@@ -11,10 +11,11 @@ import { GamingCard } from "../components/GamingCard";
 import { InsightsCard } from "../components/InsightsCard";
 
 export const Route = createFileRoute("/")({
-  // Gate: must have a session (cookie, Access JWT, or dev) — else go to /login.
+  // Gate: must have a session (else /login) and a completed profile (else /onboarding).
   beforeLoad: async ({ context }) => {
     const me = await context.queryClient.ensureQueryData(meQueryOptions).catch(() => null);
     if (!me) throw redirect({ to: "/login" });
+    if (!me.profileComplete) throw redirect({ to: "/onboarding" });
   },
   component: Dashboard,
 });

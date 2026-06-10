@@ -206,6 +206,17 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-decoration: none;
+}
+
+.header-email:hover {
+  color: var(--text);
+}
+
+/* The gear is a stroked icon; opt it out of the icon-button fill-path rule. */
+.icon-button .gear-icon path {
+  fill: none;
+  stroke: currentColor;
 }
 
 .header-demo-badge {
@@ -367,6 +378,186 @@ button {
 
 .login-fineprint a {
   color: var(--text-dim);
+}
+
+/* ─── Onboarding / settings / profile pages ─────────────────────────────────── */
+
+.page {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.page-title {
+  margin: 0.5rem 0 1.5rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.9rem;
+}
+
+.field-label {
+  font-size: 0.78rem;
+  font-weight: 550;
+  color: var(--text-dim);
+}
+
+.field input,
+.field select {
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: inherit;
+  font: inherit;
+}
+
+.field input:focus,
+.field select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.onboard-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+}
+
+.onboard-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 2rem;
+  border-radius: var(--radius);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow), inset 0 1px 0 var(--glass-highlight);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+}
+
+.onboard-title {
+  margin: 0 0 0.3rem;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.onboard-sub {
+  margin: 0 0 1.5rem;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.onboard-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.onboard-submit {
+  margin-top: 0.4rem;
+  padding: 0.6rem 1rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.onboard-submit:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.onboard-submit:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.onboard-location {
+  margin-top: 1.6rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--border);
+}
+
+.settings-block {
+  margin-bottom: 1.6rem;
+  padding-bottom: 1.4rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-section-title {
+  margin: 0 0 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.settings-hint {
+  margin: 0 0 0.7rem;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-top: 0.4rem;
+}
+
+.settings-saved {
+  color: var(--good);
+  font-size: 0.85rem;
+}
+
+.settings-disabled {
+  opacity: 0.6;
+}
+
+.seg {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+.seg-btn {
+  padding: 0.35rem 0.9rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.seg-btn.active {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: var(--shadow);
 }
 
 /* ─── Dashboard grid ────────────────────────────────────────────────────────── */

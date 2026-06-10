@@ -1,12 +1,8 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { MeResponse } from "@central-command/types";
 import { apiGet, apiPost } from "./api";
 
-/** Current authenticated identity, from GET /api/auth/me. */
-export interface Me {
-  id: string;
-  email: string;
-  demo: boolean;
-}
+export type Me = MeResponse;
 
 /**
  * Session probe. `retry: false` so a 401 resolves immediately to "not signed
@@ -14,7 +10,7 @@ export interface Me {
  */
 export const meQueryOptions = queryOptions({
   queryKey: ["me"],
-  queryFn: () => apiGet<Me>("/api/auth/me"),
+  queryFn: () => apiGet<MeResponse>("/api/auth/me"),
   retry: false,
   staleTime: 5 * 60 * 1000,
 });

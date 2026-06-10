@@ -57,6 +57,13 @@
       "when": 1780576588994,
       "tag": "0007_aberrant_tana_nile",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1781091139397,
+      "tag": "0008_mighty_domino",
+      "breakpoints": true
     }
   ]
 }

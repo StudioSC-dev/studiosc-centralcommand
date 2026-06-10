@@ -127,6 +127,7 @@ export const sleepLogs = sqliteTable("sleep_logs", {
   durationMin: integer("duration_min"),
   quality: integer("quality"), // 1–5
   hrv: integer("hrv"), // overnight/morning HRV reading (ms); displayed, not yet scored
+  restingHr: integer("resting_hr"), // overnight/morning resting heart rate (bpm)
   loggedAt: integer("logged_at").notNull(),
 });
 

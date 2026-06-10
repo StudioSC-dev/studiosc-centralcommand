@@ -1,0 +1,1 @@
+ALTER TABLE `sleep_logs` ADD `resting_hr` integer;

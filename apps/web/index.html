@@ -4,20 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Central Command</title>
-    <script>
-      // Apply the saved/system theme before paint to avoid a flash of the wrong palette.
-      (function () {
-        try {
-          var s = localStorage.getItem("cc-theme");
-          var t = s === "light" || s === "dark"
-            ? s
-            : window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-          document.documentElement.dataset.theme = t;
-        } catch (e) {
-          document.documentElement.dataset.theme = "dark";
-        }
-      })();
-    </script>
+    <!-- External (not inline) so the CSP can stay strict: script-src 'self'. -->
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

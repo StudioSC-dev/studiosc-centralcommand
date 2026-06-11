@@ -1,0 +1,27 @@
+# Security headers for the Central Command SPA on Cloudflare Pages.
+#
+# Pages only serves this file on deployed builds (production + preview), which
+# are always HTTPS — so Strict-Transport-Security and upgrade-insecure-requests
+# are safe here. The local dev loop runs `vite dev`, which does NOT read this
+# file, so WebKit/Safari never sees HSTS against http://localhost (the known
+# gotcha where it rewrites localhost requests to https and breaks dev).
+#
+# CSP allow-list notes (every source is something the app actually loads):
+#   script-src 'self'      theme-init.js + the Vite bundle are same-origin; the
+#                          theme bootstrap was moved out of index.html to keep
+#                          this strict (no 'unsafe-inline').
+#   style-src  'unsafe-inline'  React/SVG set style via element attributes;
+#                          there is no inline <style> or CSS-in-JS to nonce.
+#   img-src    https:      news thumbnails come from arbitrary RSS image hosts
+#                          (ESPN, Hacker News, TechCrunch, PCGamesN, Dexerto).
+#   connect-src 'self'     the API is same-origin (/api/* on the same host;
+#                          Vite proxies /api in dev). No cross-origin fetches.
+
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Cross-Origin-Opener-Policy: same-origin
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self'; upgrade-insecure-requests
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload

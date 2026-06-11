@@ -154,6 +154,8 @@ button {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  text-decoration: none;
+  color: inherit;
 }
 
 .header-greeting {
@@ -201,22 +203,8 @@ button {
   border-left: 1px solid var(--border);
 }
 
-.header-email {
-  font-size: 0.85rem;
-  color: var(--text-dim);
-  max-width: 16ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-decoration: none;
-}
-
-.header-email:hover {
-  color: var(--text);
-}
-
-/* The gear is a stroked icon; opt it out of the icon-button fill-path rule. */
-.icon-button .gear-icon path {
+/* The profile glyph is fully stroked; opt its path out of the fill-path rule. */
+.icon-button .profile-icon path {
   fill: none;
   stroke: currentColor;
 }
@@ -230,12 +218,6 @@ button {
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent);
-}
-
-@media (max-width: 560px) {
-  .header-email {
-    display: none;
-  }
 }
 
 .header-clock {
@@ -390,8 +372,21 @@ button {
   margin: 0 auto;
 }
 
+.page-back {
+  display: inline-block;
+  margin: 0.5rem 0 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 550;
+  color: var(--text-dim);
+  text-decoration: none;
+}
+
+.page-back:hover {
+  color: var(--text);
+}
+
 .page-title {
-  margin: 0.5rem 0 1.5rem;
+  margin: 0 0 1.5rem;
   font-size: 1.5rem;
   font-weight: 700;
 }

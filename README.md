@@ -157,6 +157,63 @@ pnpm --filter @central-command/api run db:setup:local
 
 ---
 
+## Security
+
+Hardening is split across the two surfaces this app actually exposes — the Hono
+Worker (JSON API) and the static SPA on Cloudflare Pages — rather than copied
+from a single-server template.
+
+**Dependency hygiene.** `pnpm audit` is clean. Two advisories were closed:
+
+- `drizzle-orm` bumped to `^0.45.2` (fixes a high-severity SQL-injection via
+  improperly escaped identifiers, GHSA-gpj5-g38j-94v9).
+- `esbuild` forced to `>=0.25.4` via a `pnpm-workspace.yaml` override. The
+  vulnerable copy (dev-server SSRF, GHSA-67mh-4wv8-2f99) is nested under
+  `drizzle-kit`'s deprecated `@esbuild-kit/*` chain; even the latest
+  `drizzle-kit` still pulls it, so the parent can't be upgraded out of it — the
+  override patches the transitive dependency directly. Dev-only tooling, never
+  shipped to the Worker.
+
+**Security headers & CSP.** Applied at both edges:
+
+- **API Worker** — [`hono/secure-headers`](apps/api/src/middleware/security.ts)
+  sets the headers on every response. The API serves only JSON and redirects, so
+  its CSP is locked all the way to `default-src 'none'`. `X-Frame-Options: DENY`,
+  `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`,
+  and a `Permissions-Policy` denying camera/microphone/geolocation are always on.
+- **Web SPA** — [`apps/web/public/_headers`](apps/web/public/_headers) carries the
+  browser-facing CSP: `default-src 'self'`, `frame-ancestors 'none'`,
+  `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`. The theme
+  bootstrap was moved out of `index.html` into a same-origin file so
+  `script-src` can stay a strict `'self'` with no inline allowance. `img-src`
+  additionally allows `https:` because news thumbnails come from arbitrary RSS
+  image hosts (ESPN, Hacker News, TechCrunch, PCGamesN, Dexerto); `style-src`
+  allows `'unsafe-inline'` for React/SVG style attributes (there is no inline
+  `<style>` or CSS-in-JS to nonce). `connect-src 'self'` — the API is same-origin.
+
+**HSTS is production-only.** `Strict-Transport-Security` and
+`upgrade-insecure-requests` ship only in production. WebKit/Safari honor both
+even against `http://localhost` and rewrite requests to `https`, which breaks
+local dev and WebKit test runs. The Worker can't detect production by hostname —
+with a `[[routes]]` pattern, `wrangler dev` makes it see the production host too —
+so it gates on `DEV_AUTH_EMAIL`, the project's existing local-dev marker (set
+only in `.dev.vars`, never deployed). The SPA's `_headers` only ship on Pages
+builds, which are always HTTPS; the `vite dev` loop never reads them. Verified
+with `curl -sD -` against `wrangler dev` (no HSTS) vs. the production header set.
+
+**Public-endpoint abuse protection.** The only unauthenticated surface is the
+auth group (sign-in start, OAuth callback, demo entry, logout) — there are **no
+public forms** (sign-in is a Google OAuth redirect, not a POST), so the
+portfolio site's honeypot field has nothing to guard here and was omitted. Those
+routes instead sit behind a [per-IP limiter](apps/api/src/middleware/rate-limit.ts)
+(20 requests / 10 min, keyed on the unspoofable `CF-Connecting-IP`, returning
+`429` with `Retry-After`). It's KV-backed, reusing the existing rate-limit
+service — **not** Upstash/Redis, which is Vercel/Node-oriented, off-platform, and
+an unjustified dependency here. KV's eventual consistency makes this a safety
+ceiling, not an exact quota; Durable Objects are the atomic Phase-2 path.
+
+---
+
 ## Architectural notes
 
 A few deliberate tradeoffs, documented for the accompanying blog post:

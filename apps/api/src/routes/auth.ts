@@ -16,6 +16,7 @@ import { storeGoogleTokens } from "../services/google-token";
 import { getOrCreateUser } from "../services/users";
 import { isProfileComplete } from "../services/profile";
 import { getSession, issueSession, setSessionCookie, clearSessionCookie } from "../lib/session";
+import { publicAuthRateLimit } from "../middleware/rate-limit";
 import { DEMO_EMAIL, DEMO_USER_ID } from "../demo/constants";
 
 type Purpose = "login" | "connect";
@@ -53,6 +54,7 @@ async function startGoogle(c: Context<AppEnv>, purpose: Purpose) {
  *   POST /api/auth/logout            → clear the session cookie
  */
 export const authPublic = new Hono<AppEnv>()
+  .use("*", publicAuthRateLimit)
   .get("/login/google", (c) => startGoogle(c, "login"))
   .get("/google/callback", async (c) => {
     const error = c.req.query("error");

@@ -3,6 +3,7 @@ import type { AppEnv, Bindings } from "./env";
 import { sessionAuth } from "./middleware/auth";
 import { demoReadOnly } from "./middleware/demo";
 import { notFound, onError } from "./middleware/error";
+import { securityHeaders } from "./middleware/security";
 import { ok } from "./lib/response";
 import { runRiotRefresh } from "./workers/riot-cron";
 
@@ -26,10 +27,15 @@ const app = new Hono<AppEnv>();
 app.onError(onError);
 app.notFound(notFound);
 
+// Security headers on every response (HSTS/upgrade-insecure-requests gated to
+// production inside the middleware). Must run first so it covers errors too.
+app.use("*", securityHeaders);
+
 // Public, unauthenticated health check (reachable in prod via the /api/* route).
 app.get("/api/health", (c) => ok(c, { service: "centralcommand", status: "ok" }));
 
-// Public auth routes — sign-in begins/ends here, so they sit OUTSIDE the guard.
+// Public auth routes — sign-in begins/ends here, so they sit OUTSIDE the session
+// guard. A per-IP limiter is applied inside the group (see routes/auth.ts).
 app.route("/api/auth", authPublic);
 
 // Everything below requires an authenticated session (cookie, Access JWT, or dev).

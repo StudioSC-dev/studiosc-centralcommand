@@ -8,7 +8,6 @@ import { WeatherGlyph, weatherGroup } from "./WeatherGlyph";
 type Units = WeatherData["units"];
 
 const fmtTemp = (t: number, units: Units) => `${Math.round(t)}°${units === "imperial" ? "F" : "C"}`;
-const fmtHour = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: "numeric" });
 
 /** Format an absolute (UTC) instant in the *location's* local time via its offset. */
 const fmtClock = (ms: number, offsetSec: number) =>
@@ -79,7 +78,7 @@ export function WeatherCard() {
     );
   }
 
-  const { current, forecast, daily, units, location } = data;
+  const { current, daily, units, location } = data;
   const today: WeatherDailyEntry | undefined = daily[0];
 
   return (
@@ -132,17 +131,6 @@ export function WeatherCard() {
         <Detail label="Pressure" value={`${current.pressure} hPa`} />
         <Detail label="Visibility" value={fmtVisibility(current.visibility, units)} />
       </div>
-
-      <ul className="weather-forecast">
-        {forecast.map((entry) => (
-          <li key={entry.at}>
-            <span>{fmtHour(entry.at)}</span>
-            <WeatherGlyph icon={entry.icon} size={22} />
-            <span>{fmtTemp(entry.temp, units)}</span>
-            {entry.pop > 0 && <span className="weather-pop">{Math.round(entry.pop * 100)}%</span>}
-          </li>
-        ))}
-      </ul>
 
       {daily.length > 1 && (
         <ul className="weather-outlook">

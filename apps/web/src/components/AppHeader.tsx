@@ -2,8 +2,9 @@ import { Link } from "@tanstack/react-router";
 import { useTheme } from "../lib/theme";
 import { useNow } from "../lib/clock";
 import { useLogout, useMe } from "../lib/auth";
+import { useProfile } from "../lib/profile";
 
-/** Time-of-day greeting. Name-less until real auth provides a display name. */
+/** Time-of-day greeting prefix. */
 function greetingFor(hour: number): string {
   if (hour < 12) return "Good morning";
   if (hour < 18) return "Good afternoon";
@@ -13,6 +14,9 @@ function greetingFor(hour: number): string {
 /** Top bar: brand + greeting on the left, live clock + theme toggle on the right. */
 export function AppHeader() {
   const now = useNow();
+  const { data: profileData } = useProfile();
+  // Greet by first name only; hidden entirely when no name is set.
+  const firstName = profileData?.profile?.displayName?.trim().split(/\s+/)[0] || null;
   return (
     <header className="app-header">
       <div className="header-left">
@@ -27,7 +31,11 @@ export function AppHeader() {
           </svg>
           <span className="brand-name">Central Command</span>
         </div>
-        <span className="header-greeting">{greetingFor(now.getHours())}</span>
+        {firstName && (
+          <span className="header-greeting">
+            {greetingFor(now.getHours())}, {firstName}
+          </span>
+        )}
       </div>
       <div className="header-tools">
         <time className="header-clock">

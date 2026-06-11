@@ -45,8 +45,10 @@
 
   --radius: 14px;
   --radius-sm: 8px;
-  --gap: 1.15rem;
-  /* Uniform widget height — every card is this tall; overflow scrolls inside. */
+  /* Tighter gaps reclaim width for the cards themselves. */
+  --gap: 0.85rem;
+  /* Card height for the stacked (2-col / 1-col) layouts. The full 3-col layout
+     instead fills the viewport — see `.dashboard`. */
   --card-h: 440px;
 
   color-scheme: dark;
@@ -281,7 +283,8 @@ button {
 
 .app-main {
   flex: 1;
-  padding: 1.25rem;
+  /* Slimmer page gutters give the grid more room. */
+  padding: 0.9rem;
 }
 
 /* ─── Login screen ──────────────────────────────────────────────────────────── */
@@ -594,13 +597,25 @@ button {
 .dashboard {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  /* Uniform 3×3: identical column widths and fixed row heights → every card the
-     same size. Cards stretch to fill; spillover scrolls inside the card body. */
-  grid-auto-rows: var(--card-h);
+  /* Wall-display layout: three equal rows that fill the viewport height, so the
+     whole 3×3 grid fits on screen with NO page scroll and each card grows as
+     tall as the monitor allows. Overflow scrolls inside individual cards
+     (expected for News and a busy Calendar). The 8px trims sub-pixel rounding +
+     the header border so it never tips into a page scrollbar. */
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  height: calc(100vh - 56px - 1.8rem - 8px);
   gap: var(--gap);
   align-items: stretch;
-  max-width: 1600px;
+  /* Wider ceiling so cards keep growing on large displays instead of capping. */
+  max-width: 1920px;
   margin: 0 auto;
+}
+
+/* On very large displays, let the grid widen further so cards keep growing. */
+@media (min-width: 2200px) {
+  .dashboard {
+    max-width: 2280px;
+  }
 }
 
 /* Cards that benefit from extra width (e.g. news thumbnails). */
@@ -608,10 +623,14 @@ button {
   grid-column: span 2;
 }
 
-/* Narrower screens step down to 2, then 1 column. */
+/* Narrower screens step down to 2, then 1 column. Below the 3-col wall layout we
+   drop the viewport-fill and let cards keep a fixed height and scroll the page. */
 @media (max-width: 1100px) {
   .dashboard {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none;
+    grid-auto-rows: var(--card-h);
+    height: auto;
   }
 }
 

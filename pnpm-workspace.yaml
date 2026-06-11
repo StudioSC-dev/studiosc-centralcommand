@@ -1,6 +1,11 @@
 packages:
   - "apps/*"
   - "packages/*"
+# Force a patched esbuild everywhere. drizzle-kit still pulls the deprecated
+# @esbuild-kit/* chain, which nests esbuild <=0.24.2 (GHSA-67mh-4wv8-2f99 — dev
+# server SSRF). The parent can't be upgraded out of it, so override directly.
+overrides:
+  esbuild: ">=0.25.4"
 allowBuilds:
   esbuild: true
   sharp: true

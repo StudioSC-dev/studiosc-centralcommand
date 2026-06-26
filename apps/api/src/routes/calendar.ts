@@ -11,7 +11,7 @@ import { GoogleReauthRequiredError } from "../services/google-oauth";
 import { demoCalendar } from "../demo/fixtures";
 import { allowGlobalDaily, allowUserDaily } from "../services/rate-limit";
 
-const CACHE_TTL = 5 * 60; // calendar TTL per CLAUDE.md
+const CACHE_TTL = 3 * 60; // calendar TTL (3 min — pairs with the 3-min client poll)
 const MS_PER_HOUR = 60 * 60 * 1000;
 
 /**

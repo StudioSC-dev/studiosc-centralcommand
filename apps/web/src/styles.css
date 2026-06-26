@@ -1231,18 +1231,22 @@ button {
   border-color: var(--accent);
 }
 
+/* Quiet "ghost" submit — the accent-filled button read too loud next to the
+   glass. Shared by Tasks + the Health (sleep/fitness/nutrition) log forms. */
 .log-form button {
   padding: 0.4rem 1rem;
-  border: 1px solid transparent;
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: #fff;
+  background: var(--surface-2);
+  color: var(--text-dim);
   font-weight: 550;
   cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
 
 .log-form button:hover:not(:disabled) {
-  filter: brightness(1.08);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .log-form button:disabled {
@@ -1287,7 +1291,7 @@ button {
   white-space: nowrap;
 }
 
-.log-edit,
+/* Subtle hover-revealed delete (no edit icon — fields edit in place). */
 .log-del {
   flex: 0 0 auto;
   border: none;
@@ -1300,57 +1304,54 @@ button {
   transition: opacity 0.15s, color 0.15s;
 }
 
-.log-item:hover .log-edit,
 .log-item:hover .log-del {
   opacity: 1;
-}
-
-.log-edit:hover {
-  color: var(--accent);
 }
 
 .log-del:hover {
   color: var(--bad);
 }
 
-/* Inline log editor — reuses the compact log-form field styling. */
-.log-item-editing {
-  display: block;
-  background: var(--surface-2);
-}
-
-.log-edit-form {
+/* Inline-editable stat fields — click a value to edit (commit on blur/Enter). */
+.log-fields {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
   align-items: center;
-  padding: 0.35rem 0.3rem;
+  gap: 0.1rem 0.3rem;
 }
 
-.log-edit-form input {
-  flex: 1 1 4rem;
-  min-width: 0;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: inherit;
-  font: inherit;
+.log-date {
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
 }
 
-.log-edit-form input:focus {
-  outline: none;
-  border-color: var(--accent);
+.inline-input.log-num {
+  width: 3.4rem;
 }
 
-.log-edit-form button[type="submit"] {
-  padding: 0.35rem 0.8rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: #fff;
-  font-weight: 550;
-  cursor: pointer;
+.inline-input.log-textf {
+  width: 8rem;
+  max-width: 100%;
+}
+
+/* Faint "add optional value" affordance (＋ HRV, ＋ protein, …). */
+.inline-add {
+  color: var(--text-faint);
+  opacity: 0.65;
+}
+
+.inline-add:hover {
+  opacity: 1;
+  color: var(--text-dim);
+}
+
+.log-older {
+  margin: 0.5rem 0 0;
+  font-size: 0.72rem;
+  color: var(--text-faint);
 }
 
 /* ─── Calendar timeline ─────────────────────────────────────────────────────── */
@@ -2201,23 +2202,29 @@ button {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+  /* Shared column tracks so every row's columns align (rows opt in via subgrid). */
+  display: grid;
+  grid-template-columns: 1fr auto auto auto auto;
+  column-gap: 0.4rem;
+  row-gap: 0.1rem;
 }
 
+/* Row = three borderless columns + a trailing done-circle:
+   [ title (flex) ] [ priority ] [ deadline ] [ delete (hover) ] [ ◯ done ] */
 .task-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.4rem 0.3rem;
+  padding: 0.3rem 0.3rem;
   border-radius: var(--radius-sm);
 }
 
 .task-item:hover {
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
 }
 
+/* Trailing mark-done circle. */
 .task-check {
   flex: 0 0 auto;
   width: 18px;
@@ -2247,54 +2254,102 @@ button {
   line-height: 1;
 }
 
-.task-item-done .task-title {
+.task-item-done .task-title,
+.task-item-done .task-deadline {
   color: var(--text-faint);
   text-decoration: line-through;
 }
 
-/* Mute the priority dot once done so finished items recede. */
-.task-item-done .task-dot {
-  opacity: 0.4;
-}
-
-.task-dot {
-  flex: 0 0 auto;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.task-dot.prio-high {
-  background: var(--bad);
-}
-
-.task-dot.prio-med {
-  background: var(--warn);
-}
-
-.task-dot.prio-low {
-  background: var(--text-faint);
-}
-
+/* Title — click-to-edit (inline-text/-input carry the shared affordance). */
 .task-title {
-  flex: 1;
   min-width: 0;
+  width: 100%;
   font-size: 0.92rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Deadline cues — undated tasks show nothing; urgency surfaces as a tinted pill. */
+/* Priority chip = a styled native select (click opens the 3-way picker). */
+.task-prio {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid transparent;
+  background: none;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+
+.task-prio:hover {
+  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+}
+
+.task-prio:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.task-prio.prio-high { color: var(--bad); }
+.task-prio.prio-med { color: var(--warn); }
+.task-prio.prio-low { color: var(--text-faint); }
+
+.task-item-done .task-prio {
+  opacity: 0.45;
+}
+
+/* Deadline column — empty by default; "＋ date" invites on row hover. */
+.task-deadline-btn,
+.task-add-date {
+  border: 1px solid transparent;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-sm);
+  color: inherit;
+}
+
+.task-deadline-btn:hover,
+.task-add-date:hover {
+  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+}
+
+.task-add-date {
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.task-item:hover .task-add-date {
+  opacity: 0.8;
+}
+
+.task-deadline-input {
+  font: inherit;
+  font-size: 0.78rem;
+  color: inherit;
+  background: var(--surface-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.1rem 0.25rem;
+  outline: none;
+}
+
+/* Deadline display — plain date, or urgency pill for soon/overdue. */
 .task-deadline {
-  flex: 0 0 auto;
   font-size: 0.72rem;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
 
 .task-badge {
-  flex: 0 0 auto;
   padding: 0.1rem 0.45rem;
   border-radius: 999px;
   font-size: 0.68rem;
@@ -2312,9 +2367,8 @@ button {
   background: color-mix(in srgb, var(--warn) 16%, transparent);
 }
 
-.task-edit,
+/* Subtle hover-revealed delete (sits just before the done circle). */
 .task-del {
-  flex: 0 0 auto;
   border: none;
   background: none;
   color: var(--text-faint);
@@ -2325,75 +2379,51 @@ button {
   transition: opacity 0.15s, color 0.15s;
 }
 
-.task-item:hover .task-edit,
 .task-item:hover .task-del {
   opacity: 1;
-}
-
-.task-edit:hover {
-  color: var(--accent);
 }
 
 .task-del:hover {
   color: var(--bad);
 }
 
-/* Inline task editor — title on its own line, controls below. */
-.task-item-editing {
-  display: block;
+/* Demo placeholder so the grid keeps the done circle flush-right. */
+.task-row-spacer {
+  display: inline-block;
 }
 
-.task-edit-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.3rem 0;
+.task-done-count {
+  margin: 0.7rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-faint);
 }
 
-.task-edit-title {
-  width: 100%;
-  padding: 0.4rem 0.55rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  color: inherit;
-  font: inherit;
-}
-
-.task-edit-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  align-items: center;
-}
-
-.task-edit-row select,
-.task-edit-row input[type="date"] {
-  flex: 1 1 6rem;
-  min-width: 0;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  color: inherit;
-  font: inherit;
-}
-
-.task-edit-row button[type="submit"] {
-  padding: 0.35rem 0.8rem;
+/* ─── Inline edit primitive (shared by Tasks + Health rows) ──────────────────── */
+/* Display reads as text until clicked; then becomes an input (commit on
+   blur/Enter, revert on Esc). */
+.inline-text {
   border: 1px solid transparent;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: text;
+  padding: 0.12rem 0.3rem;
   border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: #fff;
-  font-weight: 550;
-  cursor: pointer;
 }
 
-.task-edit-title:focus,
-.task-edit-row select:focus,
-.task-edit-row input:focus {
+.inline-text:hover {
+  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+}
+
+.inline-input {
+  font: inherit;
+  color: inherit;
+  background: var(--surface-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.12rem 0.3rem;
   outline: none;
-  border-color: var(--accent);
 }
 
 .task-done-count {

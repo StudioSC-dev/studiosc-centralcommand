@@ -9,6 +9,11 @@ import "./styles.css";
 const router = createRouter({
   routeTree,
   context: { queryClient },
+  // Preload a route's chunk + loader on link hover/focus so navigation feels
+  // instant. defaultPreloadStaleTime: 0 lets React Query own data caching
+  // (the loaders prefetch into the query cache) instead of the router caching it.
+  defaultPreload: "intent",
+  defaultPreloadStaleTime: 0,
 });
 
 declare module "@tanstack/react-router" {

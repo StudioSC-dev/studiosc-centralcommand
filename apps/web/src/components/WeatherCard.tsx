@@ -155,7 +155,10 @@ export function WeatherCard() {
 function Card({ children }: { children: ReactNode }) {
   return (
     <section className="card weather-card pillar-weather">
-      <h2 className="card-title">Weather</h2>
+      <h2 className="card-title">
+        <span className="card-dot" aria-hidden="true" />
+        Weather
+      </h2>
       <div className="card-body">{children}</div>
     </section>
   );

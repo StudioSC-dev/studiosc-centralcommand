@@ -123,6 +123,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Build web
+        # VITE_* vars are inlined into the static bundle at build time. They are
+        # public (not secrets), so they come from repo/environment Variables, not
+        # Secrets. Unset -> empty -> the Settings About links simply don't render.
+        env:
+          VITE_PORTFOLIO_URL: ${{ vars.VITE_PORTFOLIO_URL }}
+          VITE_CONTACT_EMAIL: ${{ vars.VITE_CONTACT_EMAIL }}
         run: pnpm --filter @central-command/web build
       - name: Deploy to Pages
         run: pnpm --filter @central-command/web exec wrangler pages deploy dist --project-name=centralcommand --branch=main

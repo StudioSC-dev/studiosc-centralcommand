@@ -4,6 +4,16 @@
    The inline boot script in index.html sets data-theme before first paint.
    ──────────────────────────────────────────────────────────────────────────── */
 
+/* Display face — Manrope (variable, self-hosted). Smooth, minimalist; used for
+   the wordmark, card titles, and big numeric readouts; body stays on system-ui. */
+@font-face {
+  font-family: "Manrope";
+  src: url("/fonts/manrope-var.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   /* Dark (default) */
   --bg: #0d0f14;
@@ -20,17 +30,31 @@
   --good: #4ec77f;
   --bad: #f6685e;
   --warn: #f0b34e;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 8px rgba(0, 0, 0, 0.18);
+  /* Layered ambient + key shadow, tinted toward the cool backdrop (not flat black). */
+  --shadow: 0 1px 2px rgba(5, 8, 15, 0.5), 0 6px 20px rgba(5, 8, 15, 0.28);
+  --shadow-lift: 0 6px 16px rgba(5, 8, 15, 0.5), 0 18px 44px rgba(5, 8, 15, 0.36);
 
-  /* Liquid-glass surfaces — translucent + blurred over the tinted backdrop. */
-  --glass-bg: rgba(22, 26, 34, 0.55);
-  --glass-border: rgba(255, 255, 255, 0.06);
-  --glass-blur: 16px;
-  --glass-highlight: rgba(255, 255, 255, 0.05);
+  /* Liquid-glass surfaces — translucent + blurred + saturated over the tinted
+     backdrop, with directional lighting (bright top rim, dark bottom edge for
+     thickness, and a soft diagonal surface sheen). */
+  --glass-bg: rgba(22, 26, 34, 0.5);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-blur: 20px;
+  --glass-saturate: 165%;
+  --glass-highlight: rgba(255, 255, 255, 0.08);
+  --glass-rim-top: rgba(255, 255, 255, 0.16);
+  --glass-rim-bottom: rgba(0, 0, 0, 0.22);
+  --glass-sheen: rgba(255, 255, 255, 0.1);
 
-  /* Ambient backdrop washes (cool + warm) layered behind everything. */
-  --wash-cool: rgba(91, 157, 255, 0.1);
-  --wash-warm: rgba(244, 130, 110, 0.07);
+  /* Ambient backdrop washes (cool + warm + violet) layered behind everything —
+     richer now so the saturated glass has vivid color to refract. */
+  --wash-cool: rgba(91, 157, 255, 0.16);
+  --wash-warm: rgba(244, 130, 110, 0.1);
+  --wash-violet: rgba(139, 124, 246, 0.12);
+
+  /* Fine grain to break up flat gradient banding (the #1 flat-CSS tell). */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --grain-opacity: 0.05;
 
   /* Per-pillar accent hues — kept muted for a restrained, portfolio look. */
   --pillar-weather: #5bb8ff;
@@ -43,7 +67,9 @@
   --pillar-insights: #ffa94e;
   --pillar-news: #7f9bd0;
 
-  --radius: 14px;
+  --radius: 18px;
+  /* Inner radius for nested glass panels — keeps corners visually concentric. */
+  --radius-inner: 12px;
   --radius-sm: 8px;
   /* Tighter gaps reclaim width for the cards themselves. */
   --gap: 0.85rem;
@@ -53,6 +79,8 @@
 
   color-scheme: dark;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Display stack for headings + numerics (system-ui fallback before swap). */
+  --font-display: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   /* Base size drives every rem — bumped for an always-on screen viewed at distance. */
   font-size: 17.5px;
 }
@@ -72,15 +100,23 @@
   --good: #2e9e5b;
   --bad: #d64545;
   --warn: #c98a1f;
-  --shadow: 0 1px 2px rgba(20, 24, 33, 0.06), 0 1px 8px rgba(20, 24, 33, 0.06);
+  --shadow: 0 1px 2px rgba(20, 24, 33, 0.08), 0 6px 20px rgba(20, 24, 33, 0.1);
+  --shadow-lift: 0 6px 16px rgba(20, 24, 33, 0.12), 0 18px 44px rgba(20, 24, 33, 0.14);
 
-  --glass-bg: rgba(255, 255, 255, 0.6);
-  --glass-border: rgba(255, 255, 255, 0.45);
-  --glass-blur: 16px;
-  --glass-highlight: rgba(255, 255, 255, 0.5);
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-blur: 20px;
+  --glass-saturate: 140%;
+  --glass-highlight: rgba(255, 255, 255, 0.6);
+  --glass-rim-top: rgba(255, 255, 255, 0.7);
+  --glass-rim-bottom: rgba(20, 24, 33, 0.08);
+  --glass-sheen: rgba(255, 255, 255, 0.45);
 
-  --wash-cool: rgba(47, 111, 237, 0.08);
-  --wash-warm: rgba(214, 69, 69, 0.05);
+  --wash-cool: rgba(47, 111, 237, 0.12);
+  --wash-warm: rgba(214, 69, 69, 0.07);
+  --wash-violet: rgba(123, 90, 214, 0.08);
+
+  --grain-opacity: 0.03;
 
   --pillar-weather: #2f8fed;
   --pillar-summary: #5b66e0;
@@ -106,18 +142,49 @@ body {
 }
 
 body {
-  /* Two soft color washes over the base — gives the glass cards something to refract. */
+  /* Three soft color washes over the base — gives the saturated glass cards
+     vivid color to refract. */
   background:
     radial-gradient(1200px 800px at 12% -8%, var(--wash-cool), transparent 60%),
     radial-gradient(1000px 700px at 100% 0%, var(--wash-warm), transparent 55%),
+    radial-gradient(1100px 900px at 50% 115%, var(--wash-violet), transparent 60%),
     var(--bg);
   background-attachment: fixed;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
 
+/* Fine grain over the washes — sits above the backdrop, below all content
+   (negative z-index). Blended so it reads as texture, not a gray film. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--grain);
+  background-size: 140px 140px;
+  opacity: var(--grain-opacity);
+  mix-blend-mode: overlay;
+}
+
 button {
   font-family: inherit;
+}
+
+/* Display face on the wordmark, titles, and big numeric readouts — gives the
+   type real impact while body/labels stay on fast system-ui. */
+.brand-name,
+.card-title,
+.login-title,
+.onboard-title,
+.page-title,
+.weather-temp,
+.perf-score,
+.perf-vital-value,
+.health-stat-value,
+.today-next-title {
+  font-family: var(--font-display);
 }
 
 /* ─── App shell ─────────────────────────────────────────────────────────────── */
@@ -533,6 +600,13 @@ button {
   opacity: 0.6;
 }
 
+.about-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+}
+
 .seg {
   display: flex;
   gap: 2px;
@@ -645,24 +719,70 @@ button {
   /* Default accent; pillar-* classes override --card-accent per card. */
   --card-accent: var(--accent);
   position: relative;
+  /* Own stacking context so the sheen's negative z-index stays inside the card. */
+  isolation: isolate;
   background:
     radial-gradient(
       150% 130% at 100% 0%,
-      color-mix(in srgb, var(--card-accent) 9%, transparent),
-      transparent 60%
+      color-mix(in srgb, var(--card-accent) 12%, transparent),
+      transparent 58%
     ),
     var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius);
   padding: 1.35rem 1.5rem;
-  box-shadow: var(--shadow), inset 0 1px 0 var(--glass-highlight);
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  backdrop-filter: blur(var(--glass-blur));
+  /* Outer depth + bright top rim + dark bottom edge (glass thickness). */
+  box-shadow:
+    var(--shadow),
+    inset 0 1px 0 var(--glass-rim-top),
+    inset 0 -1px 0 var(--glass-rim-bottom);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   display: flex;
   flex-direction: column;
   min-width: 0;
   /* Fixed-size tile: clip the rounded corners; the body scrolls, the title doesn't. */
   overflow: hidden;
+}
+
+/* Specular sheen — a soft top-left light sweep. Sits above the card's own
+   background fills but below the content (negative z-index inside the isolate). */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    var(--glass-sheen) 0%,
+    transparent 42%,
+    transparent 100%
+  );
+}
+
+/* Browsers without backdrop-filter, or users who reduce transparency, get a
+   solid surface instead of see-through glass (keeps text legible). */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .card,
+  .login-card,
+  .onboard-card {
+    background: var(--surface);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .card,
+  .login-card,
+  .onboard-card {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--surface);
+  }
+  body::after {
+    display: none;
+  }
 }
 
 /* Scrollable content region — keeps the title pinned while overflow scrolls. */
@@ -678,6 +798,9 @@ button {
 }
 
 .card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
   margin: 0 0 0.85rem;
   font-size: 0.72rem;
   font-weight: 600;
@@ -685,6 +808,19 @@ button {
   text-transform: uppercase;
   /* Just a hint of the pillar accent — kept close to the faint label color. */
   color: color-mix(in srgb, var(--card-accent) 35%, var(--text-faint));
+}
+
+/* Luminous pillar identity dot — carries the per-card accent so each card reads
+   distinctly instead of every title looking interchangeable. */
+.card-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--card-accent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--card-accent) 30%, transparent),
+    0 0 9px color-mix(in srgb, var(--card-accent) 70%, transparent);
 }
 
 /* ─── Per-pillar accent tints ───────────────────────────────────────────────── */
@@ -698,6 +834,28 @@ button {
 .pillar-gaming { --card-accent: var(--pillar-gaming); }
 .pillar-insights { --card-accent: var(--pillar-insights); }
 .pillar-news { --card-accent: var(--pillar-news); }
+
+/* ─── Glass sub-surface primitives ──────────────────────────────────────────── */
+/* Reusable translucent panels for content *inside* a card. (backdrop-filter does
+   not re-blur through a parent that already has it, so these read as tinted
+   recessed/raised surfaces rather than re-frosting the page.) Radii are the
+   concentric --radius-inner so nested corners stay visually aligned. */
+
+/* Recessed sub-surface — stat tiles, list rows, forecast cells. */
+.glass-inset {
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-inner);
+  box-shadow: inset 0 1px 1px var(--glass-rim-bottom);
+}
+
+/* Raised translucent panel — hero strips, callouts that should sit "above". */
+.glass-panel {
+  background: color-mix(in srgb, var(--surface) 45%, transparent);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-inner);
+  box-shadow: var(--shadow), inset 0 1px 0 var(--glass-rim-top);
+}
 
 .connect-link {
   display: inline-block;
@@ -738,14 +896,20 @@ button {
   display: flex;
   align-items: center;
   gap: 0.9rem;
-  padding: 0.6rem 0.75rem;
-  margin: 0 -0.25rem 0.2rem;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(
-    120deg,
-    color-mix(in srgb, currentColor 20%, transparent),
-    transparent 70%
-  );
+  padding: 0.7rem 0.85rem;
+  margin: 0 -0.25rem 0.4rem;
+  border-radius: var(--radius-inner);
+  border: 1px solid var(--glass-border);
+  /* Gentle raised glass panel washed with a soft condition-tinted glow behind
+     the glyph (long falloff — ambient light, not a hard rectangle). */
+  background:
+    radial-gradient(
+      150% 170% at 6% 50%,
+      color-mix(in srgb, currentColor 15%, transparent),
+      transparent 72%
+    ),
+    color-mix(in srgb, var(--surface) 32%, transparent);
+  box-shadow: inset 0 1px 0 var(--glass-rim-top);
 }
 
 .weather-glyph {
@@ -797,8 +961,9 @@ button {
 }
 
 .weather-temp {
-  font-size: 2.4rem;
-  font-weight: 650;
+  font-size: 2.85rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   line-height: 1;
 }
 
@@ -862,16 +1027,22 @@ button {
 
 /* Atmospheric detail grid. */
 .weather-details {
-  margin-top: 0.7rem;
+  margin-top: 0.8rem;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem 0.75rem;
+  gap: 0.5rem;
 }
 
+/* Recessed glass stat tiles (instrument-like). */
 .weather-detail {
   display: flex;
   flex-direction: column;
-  gap: 0.05rem;
+  gap: 0.1rem;
+  padding: 0.5rem 0.6rem;
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 1px 1px var(--glass-rim-bottom);
 }
 
 .weather-detail-label {
@@ -903,10 +1074,19 @@ button {
   flex-direction: column;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.5rem 0.65rem;
+  /* Less top, more bottom — nudges content up so the hi/lo line isn't crowding
+     the bottom edge. */
+  padding: 0.35rem 0.65rem 0.95rem;
   border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 1px var(--glass-rim-bottom);
   font-size: 0.8rem;
+}
+
+/* Highlight the "Today" cell with the weather accent rim. */
+.weather-outlook li:first-child {
+  border-color: color-mix(in srgb, var(--card-accent) 45%, transparent);
 }
 
 .weather-outlook-day {
@@ -1058,18 +1238,22 @@ button {
   border-color: var(--accent);
 }
 
+/* Quiet "ghost" submit — the accent-filled button read too loud next to the
+   glass. Shared by Tasks + the Health (sleep/fitness/nutrition) log forms. */
 .log-form button {
   padding: 0.4rem 1rem;
-  border: 1px solid transparent;
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: #fff;
+  background: var(--surface-2);
+  color: var(--text-dim);
   font-weight: 550;
   cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
 
 .log-form button:hover:not(:disabled) {
-  filter: brightness(1.08);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .log-form button:disabled {
@@ -1114,7 +1298,7 @@ button {
   white-space: nowrap;
 }
 
-.log-edit,
+/* Subtle hover-revealed delete (no edit icon — fields edit in place). */
 .log-del {
   flex: 0 0 auto;
   border: none;
@@ -1127,57 +1311,54 @@ button {
   transition: opacity 0.15s, color 0.15s;
 }
 
-.log-item:hover .log-edit,
 .log-item:hover .log-del {
   opacity: 1;
-}
-
-.log-edit:hover {
-  color: var(--accent);
 }
 
 .log-del:hover {
   color: var(--bad);
 }
 
-/* Inline log editor — reuses the compact log-form field styling. */
-.log-item-editing {
-  display: block;
-  background: var(--surface-2);
-}
-
-.log-edit-form {
+/* Inline-editable stat fields — click a value to edit (commit on blur/Enter). */
+.log-fields {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
   align-items: center;
-  padding: 0.35rem 0.3rem;
+  gap: 0.1rem 0.3rem;
 }
 
-.log-edit-form input {
-  flex: 1 1 4rem;
-  min-width: 0;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: inherit;
-  font: inherit;
+.log-date {
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
 }
 
-.log-edit-form input:focus {
-  outline: none;
-  border-color: var(--accent);
+.inline-input.log-num {
+  width: 3.4rem;
 }
 
-.log-edit-form button[type="submit"] {
-  padding: 0.35rem 0.8rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: #fff;
-  font-weight: 550;
-  cursor: pointer;
+.inline-input.log-textf {
+  width: 8rem;
+  max-width: 100%;
+}
+
+/* Faint "add optional value" affordance (＋ HRV, ＋ protein, …). */
+.inline-add {
+  color: var(--text-faint);
+  opacity: 0.65;
+}
+
+.inline-add:hover {
+  opacity: 1;
+  color: var(--text-dim);
+}
+
+.log-older {
+  margin: 0.5rem 0 0;
+  font-size: 0.72rem;
+  color: var(--text-faint);
 }
 
 /* ─── Calendar timeline ─────────────────────────────────────────────────────── */
@@ -1522,8 +1703,9 @@ button {
 }
 
 .perf-score {
-  font-size: 2.6rem;
+  font-size: 2.8rem;
   font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1;
 }
 
@@ -2027,23 +2209,29 @@ button {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+  /* Shared column tracks so every row's columns align (rows opt in via subgrid). */
+  display: grid;
+  grid-template-columns: 1fr auto auto auto auto;
+  column-gap: 0.4rem;
+  row-gap: 0.1rem;
 }
 
+/* Row = three borderless columns + a trailing done-circle:
+   [ title (flex) ] [ priority ] [ deadline ] [ delete (hover) ] [ ◯ done ] */
 .task-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.4rem 0.3rem;
+  padding: 0.3rem 0.3rem;
   border-radius: var(--radius-sm);
 }
 
 .task-item:hover {
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
 }
 
+/* Trailing mark-done circle. */
 .task-check {
   flex: 0 0 auto;
   width: 18px;
@@ -2073,54 +2261,102 @@ button {
   line-height: 1;
 }
 
-.task-item-done .task-title {
+.task-item-done .task-title,
+.task-item-done .task-deadline {
   color: var(--text-faint);
   text-decoration: line-through;
 }
 
-/* Mute the priority dot once done so finished items recede. */
-.task-item-done .task-dot {
-  opacity: 0.4;
-}
-
-.task-dot {
-  flex: 0 0 auto;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.task-dot.prio-high {
-  background: var(--bad);
-}
-
-.task-dot.prio-med {
-  background: var(--warn);
-}
-
-.task-dot.prio-low {
-  background: var(--text-faint);
-}
-
+/* Title — click-to-edit (inline-text/-input carry the shared affordance). */
 .task-title {
-  flex: 1;
   min-width: 0;
+  width: 100%;
   font-size: 0.92rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Deadline cues — undated tasks show nothing; urgency surfaces as a tinted pill. */
+/* Priority chip = a styled native select (click opens the 3-way picker). */
+.task-prio {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid transparent;
+  background: none;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+
+.task-prio:hover {
+  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+}
+
+.task-prio:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.task-prio.prio-high { color: var(--bad); }
+.task-prio.prio-med { color: var(--warn); }
+.task-prio.prio-low { color: var(--text-faint); }
+
+.task-item-done .task-prio {
+  opacity: 0.45;
+}
+
+/* Deadline column — empty by default; "＋ date" invites on row hover. */
+.task-deadline-btn,
+.task-add-date {
+  border: 1px solid transparent;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-sm);
+  color: inherit;
+}
+
+.task-deadline-btn:hover,
+.task-add-date:hover {
+  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+}
+
+.task-add-date {
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.task-item:hover .task-add-date {
+  opacity: 0.8;
+}
+
+.task-deadline-input {
+  font: inherit;
+  font-size: 0.78rem;
+  color: inherit;
+  background: var(--surface-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.1rem 0.25rem;
+  outline: none;
+}
+
+/* Deadline display — plain date, or urgency pill for soon/overdue. */
 .task-deadline {
-  flex: 0 0 auto;
   font-size: 0.72rem;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
 
 .task-badge {
-  flex: 0 0 auto;
   padding: 0.1rem 0.45rem;
   border-radius: 999px;
   font-size: 0.68rem;
@@ -2138,9 +2374,8 @@ button {
   background: color-mix(in srgb, var(--warn) 16%, transparent);
 }
 
-.task-edit,
+/* Subtle hover-revealed delete (sits just before the done circle). */
 .task-del {
-  flex: 0 0 auto;
   border: none;
   background: none;
   color: var(--text-faint);
@@ -2151,75 +2386,51 @@ button {
   transition: opacity 0.15s, color 0.15s;
 }
 
-.task-item:hover .task-edit,
 .task-item:hover .task-del {
   opacity: 1;
-}
-
-.task-edit:hover {
-  color: var(--accent);
 }
 
 .task-del:hover {
   color: var(--bad);
 }
 
-/* Inline task editor — title on its own line, controls below. */
-.task-item-editing {
-  display: block;
+/* Demo placeholder so the grid keeps the done circle flush-right. */
+.task-row-spacer {
+  display: inline-block;
 }
 
-.task-edit-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.3rem 0;
+.task-done-count {
+  margin: 0.7rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-faint);
 }
 
-.task-edit-title {
-  width: 100%;
-  padding: 0.4rem 0.55rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  color: inherit;
-  font: inherit;
-}
-
-.task-edit-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  align-items: center;
-}
-
-.task-edit-row select,
-.task-edit-row input[type="date"] {
-  flex: 1 1 6rem;
-  min-width: 0;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  color: inherit;
-  font: inherit;
-}
-
-.task-edit-row button[type="submit"] {
-  padding: 0.35rem 0.8rem;
+/* ─── Inline edit primitive (shared by Tasks + Health rows) ──────────────────── */
+/* Display reads as text until clicked; then becomes an input (commit on
+   blur/Enter, revert on Esc). */
+.inline-text {
   border: 1px solid transparent;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: text;
+  padding: 0.12rem 0.3rem;
   border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: #fff;
-  font-weight: 550;
-  cursor: pointer;
 }
 
-.task-edit-title:focus,
-.task-edit-row select:focus,
-.task-edit-row input:focus {
+.inline-text:hover {
+  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+}
+
+.inline-input {
+  font: inherit;
+  color: inherit;
+  background: var(--surface-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.12rem 0.3rem;
   outline: none;
-  border-color: var(--accent);
 }
 
 .task-done-count {

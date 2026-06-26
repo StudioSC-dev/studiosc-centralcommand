@@ -12,7 +12,10 @@ export function Card({ title, children, pillar }: CardProps) {
   const className = ["card", pillar && `pillar-${pillar}`].filter(Boolean).join(" ");
   return (
     <section className={className}>
-      <h2 className="card-title">{title}</h2>
+      <h2 className="card-title">
+        <span className="card-dot" aria-hidden="true" />
+        {title}
+      </h2>
       <div className="card-body">{children}</div>
     </section>
   );

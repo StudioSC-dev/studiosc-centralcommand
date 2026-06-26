@@ -1,13 +1,17 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ProfileInput, ProfileResponse } from "@central-command/types";
 import { apiGet, apiPut } from "./api";
 
-/** The authenticated user's profile (null until onboarded). */
+/** The authenticated user's profile (null until onboarded). Shared options so
+ * routes can prefetch it (on link hover) via the query cache. */
+export const profileQueryOptions = queryOptions({
+  queryKey: ["profile"],
+  queryFn: () => apiGet<ProfileResponse>("/api/profile"),
+  staleTime: 5 * 60 * 1000,
+});
+
 export function useProfile() {
-  return useQuery({
-    queryKey: ["profile"],
-    queryFn: () => apiGet<ProfileResponse>("/api/profile"),
-  });
+  return useQuery(profileQueryOptions);
 }
 
 /**

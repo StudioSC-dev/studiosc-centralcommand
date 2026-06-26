@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Card } from "./Card";
+import { InlineText } from "./inline";
 import type { Task, TaskPriority, TaskUpdateInput } from "@central-command/types";
 import { useNow } from "../lib/clock";
 import { isSameLocalDay } from "../lib/time";
 import { useCreateTask, useDeleteTask, useTasks, useUpdateTask } from "../lib/tasks";
 import { useIsDemo } from "../lib/auth";
 
-const PRIORITY_LABEL: Record<TaskPriority, string> = { high: "High", med: "Medium", low: "Low" };
+const PRIORITY_SHORT: Record<TaskPriority, string> = { high: "High", med: "Med", low: "Low" };
 
 const startOfDay = (ms: number) => {
   const d = new Date(ms);
@@ -34,7 +35,8 @@ const msToDateInput = (ms: number | null): string => {
   return `${d.getFullYear()}-${m}-${day}`;
 };
 
-/** Native task list — current priorities, triaged by importance (priority) + urgency (deadline). */
+/** Native task list — current priorities. Rows edit in place (click the title,
+ * priority, or deadline; commit immediately; no Save/Cancel). */
 export function TasksCard() {
   const { data, isPending, isError, error } = useTasks();
   const create = useCreateTask();
@@ -43,22 +45,17 @@ export function TasksCard() {
 
   const demo = useIsDemo();
   const [title, setTitle] = useState("");
-  const [priority, setPriority] = useState<TaskPriority>("med");
-  const [deadline, setDeadline] = useState("");
   // Minute-level tick so completed-today tasks drop off at local midnight.
   const now = useNow(60_000);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
+    // Textbox-only create: new tasks default to med priority / undated; the
+    // user sets those after the fact by clicking the chips in the row.
     create.mutate(
-      { title: title.trim(), priority, deadline: dateInputToMs(deadline) },
-      {
-        onSuccess: () => {
-          setTitle("");
-          setDeadline("");
-        },
-      },
+      { title: title.trim(), priority: "med", deadline: null },
+      { onSuccess: () => setTitle("") },
     );
   };
 
@@ -66,8 +63,8 @@ export function TasksCard() {
   if (isError) return <Card title="Tasks" pillar="tasks">Tasks unavailable: {error.message}</Card>;
 
   const nowMs = now.getTime();
-  // Open tasks plus anything crossed off *today* — completed items linger until the
-  // local day ends so the day's progress stays visible and reversible.
+  // Open tasks plus anything crossed off *today* — completed items linger until
+  // the local day ends so the day's progress stays visible and reversible.
   const visible = data.tasks.filter(
     (t) =>
       t.status === "open" ||
@@ -83,17 +80,6 @@ export function TasksCard() {
             placeholder="Add a priority…"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-          />
-          <select value={priority} onChange={(e) => setPriority(e.target.value as TaskPriority)}>
-            <option value="high">High</option>
-            <option value="med">Medium</option>
-            <option value="low">Low</option>
-          </select>
-          <input
-            type="date"
-            aria-label="Deadline (optional)"
-            value={deadline}
-            onChange={(e) => setDeadline(e.target.value)}
           />
           <button type="submit" disabled={create.isPending}>Add</button>
         </form>
@@ -117,13 +103,12 @@ export function TasksCard() {
         </ul>
       )}
 
-      {doneTodayCount > 0 && (
-        <p className="task-done-count">{doneTodayCount} done today</p>
-      )}
+      {doneTodayCount > 0 && <p className="task-done-count">{doneTodayCount} done today</p>}
     </Card>
   );
 }
 
+/** Relative deadline display — urgency pill for soon/overdue, plain date else. */
 function Deadline({ deadline }: { deadline: number }) {
   const now = useNow(60_000).getTime();
   const days = daysUntil(deadline, now);
@@ -136,6 +121,78 @@ function Deadline({ deadline }: { deadline: number }) {
     return <span className="task-badge soon">{label}</span>;
   }
   return <span className="task-deadline">{fmtDeadline(deadline)}</span>;
+}
+
+/** Color-coded priority chip that doubles as its own editor (native picker,
+ * commits on change). */
+function PrioritySelect({
+  value,
+  onChange,
+}: {
+  value: TaskPriority;
+  onChange: (p: TaskPriority) => void;
+}) {
+  return (
+    <select
+      className={`task-prio prio-${value}`}
+      value={value}
+      aria-label="Priority"
+      onChange={(e) => onChange(e.target.value as TaskPriority)}
+    >
+      <option value="high">High</option>
+      <option value="med">Med</option>
+      <option value="low">Low</option>
+    </select>
+  );
+}
+
+/** Deadline column: empty by default ("＋ date" on hover), click reveals a date
+ * input that commits on change; clearing it sets the deadline back to null. */
+function DeadlineCell({
+  deadline,
+  done,
+  onChange,
+}: {
+  deadline: number | null;
+  done: boolean;
+  onChange: (ms: number | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+
+  if (editing) {
+    return (
+      <input
+        type="date"
+        className="task-deadline-input"
+        autoFocus
+        defaultValue={msToDateInput(deadline)}
+        aria-label="Deadline"
+        onChange={(e) => onChange(dateInputToMs(e.target.value))}
+        onBlur={() => setEditing(false)}
+      />
+    );
+  }
+  if (deadline == null) {
+    return (
+      <button type="button" className="task-add-date" onClick={() => setEditing(true)}>
+        ＋ date
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="task-deadline-btn"
+      onClick={() => setEditing(true)}
+      aria-label="Edit deadline"
+    >
+      {done ? (
+        <span className="task-deadline">{fmtDeadline(deadline)}</span>
+      ) : (
+        <Deadline deadline={deadline} />
+      )}
+    </button>
+  );
 }
 
 function TaskRow({
@@ -151,82 +208,50 @@ function TaskRow({
 }) {
   const demo = useIsDemo();
   const done = task.status === "done";
-  const [editing, setEditing] = useState(false);
-  const [title, setTitle] = useState(task.title);
-  const [priority, setPriority] = useState<TaskPriority>(task.priority);
-  const [deadline, setDeadline] = useState(msToDateInput(task.deadline));
 
-  const startEdit = () => {
-    setTitle(task.title);
-    setPriority(task.priority);
-    setDeadline(msToDateInput(task.deadline));
-    setEditing(true);
-  };
-
-  const save = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return;
-    onSave({ id: task.id, title: title.trim(), priority, deadline: dateInputToMs(deadline) });
-    setEditing(false);
-  };
-
-  if (editing) {
+  // Read-only demo: render plain, non-interactive cells.
+  if (demo) {
     return (
-      <li className="task-item task-item-editing">
-        <form className="task-edit-form" onSubmit={save}>
-          <input
-            className="task-edit-title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            autoFocus
-          />
-          <div className="task-edit-row">
-            <select value={priority} onChange={(e) => setPriority(e.target.value as TaskPriority)}>
-              <option value="high">High</option>
-              <option value="med">Medium</option>
-              <option value="low">Low</option>
-            </select>
-            <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
-            <button type="submit">Save</button>
-            <button type="button" className="link-button" onClick={() => setEditing(false)}>
-              Cancel
-            </button>
-          </div>
-        </form>
+      <li className={`task-item${done ? " task-item-done" : ""}`}>
+        <span className="task-title">{task.title}</span>
+        <span className={`task-prio prio-${task.priority}`}>{PRIORITY_SHORT[task.priority]}</span>
+        <span className="task-deadline-cell">
+          {task.deadline != null && <Deadline deadline={task.deadline} />}
+        </span>
+        <span className="task-row-spacer" aria-hidden="true" />
+        <span className={`task-check${done ? " done" : ""}`} aria-hidden="true">
+          {done ? "✓" : ""}
+        </span>
       </li>
     );
   }
 
   return (
     <li className={`task-item${done ? " task-item-done" : ""}`}>
-      {demo ? (
-        <span className={`task-check${done ? " done" : ""}`} aria-hidden="true">
-          {done ? "✓" : ""}
-        </span>
-      ) : (
-        <button
-          type="button"
-          className={`task-check${done ? " done" : ""}`}
-          onClick={onToggle}
-          aria-label={done ? `Reopen "${task.title}"` : `Complete "${task.title}"`}
-          title={done ? "Mark open" : "Mark done"}
-        >
-          {done ? "✓" : ""}
-        </button>
-      )}
-      <span className={`task-dot prio-${task.priority}`} title={PRIORITY_LABEL[task.priority]} />
-      <span className="task-title">{task.title}</span>
-      {!done && task.deadline != null && <Deadline deadline={task.deadline} />}
-      {!demo && (
-        <>
-          <button type="button" className="task-edit" onClick={startEdit} aria-label="Edit task" title="Edit">
-            ✎
-          </button>
-          <button type="button" className="task-del" onClick={onDelete} aria-label="Delete task">
-            ×
-          </button>
-        </>
-      )}
+      <InlineText
+        className="task-title"
+        value={task.title}
+        ariaLabel="Task name"
+        onCommit={(title) => onSave({ id: task.id, title })}
+      />
+      <PrioritySelect value={task.priority} onChange={(priority) => onSave({ id: task.id, priority })} />
+      <DeadlineCell
+        deadline={task.deadline}
+        done={done}
+        onChange={(deadline) => onSave({ id: task.id, deadline })}
+      />
+      <button type="button" className="task-del" onClick={onDelete} aria-label="Delete task" title="Delete">
+        ×
+      </button>
+      <button
+        type="button"
+        className={`task-check${done ? " done" : ""}`}
+        onClick={onToggle}
+        aria-label={done ? `Reopen "${task.title}"` : `Complete "${task.title}"`}
+        title={done ? "Mark open" : "Mark done"}
+      >
+        {done ? "✓" : ""}
+      </button>
     </li>
   );
 }

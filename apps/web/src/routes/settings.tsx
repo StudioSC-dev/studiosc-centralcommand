@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, createFileRoute, redirect } from "@tanstack/react-router";
 import type { ActivityLevel, ProfileInput, Sex } from "@central-command/types";
 import { meQueryOptions } from "../lib/auth";
-import { useProfile, useSaveProfile } from "../lib/profile";
-import { useSettings } from "../lib/settings";
+import { profileQueryOptions, useProfile, useSaveProfile } from "../lib/profile";
+import { settingsQueryOptions, useSettings } from "../lib/settings";
 import { useSetUnits } from "../lib/weather";
 import { useTheme } from "../lib/theme";
 import { LocationSetter } from "../components/LocationSetter";
@@ -12,6 +12,13 @@ export const Route = createFileRoute("/settings")({
   beforeLoad: async ({ context }) => {
     const me = await context.queryClient.ensureQueryData(meQueryOptions).catch(() => null);
     if (!me) throw redirect({ to: "/login" });
+  },
+  // Warm the page's data into the query cache. With defaultPreload: "intent"
+  // this runs on link hover, so the page's data is usually ready before the
+  // click. Fire-and-forget (not awaited) so navigation is never blocked.
+  loader: ({ context }) => {
+    void context.queryClient.ensureQueryData(profileQueryOptions);
+    void context.queryClient.ensureQueryData(settingsQueryOptions);
   },
   component: SettingsPage,
 });

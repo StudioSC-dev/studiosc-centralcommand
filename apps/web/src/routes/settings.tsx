@@ -39,7 +39,40 @@ function SettingsPage() {
 
       <ProfileSection />
       <PreferencesSection />
+      <AboutSection />
     </div>
+  );
+}
+
+/** About — what the app is, plus links back to the portfolio + a contact method.
+ * URL/email come from env (VITE_PORTFOLIO_URL / VITE_CONTACT_EMAIL) so no contact
+ * address is hard-coded in source. */
+function AboutSection() {
+  const portfolioUrl = import.meta.env.VITE_PORTFOLIO_URL;
+  const contactEmail = import.meta.env.VITE_CONTACT_EMAIL;
+
+  return (
+    <section className="settings-block">
+      <h2 className="settings-section-title">About</h2>
+      <p className="settings-hint">
+        Central Command is a personal performance dashboard — a Cloudflare-native
+        aggregator for calendar, weather, fitness, gaming, and more.
+      </p>
+      {(portfolioUrl || contactEmail) && (
+        <div className="about-links">
+          {portfolioUrl && (
+            <a className="connect-link" href={portfolioUrl} target="_blank" rel="noreferrer">
+              Portfolio ↗
+            </a>
+          )}
+          {contactEmail && (
+            <a className="connect-link" href={`mailto:${contactEmail}`}>
+              Contact
+            </a>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 

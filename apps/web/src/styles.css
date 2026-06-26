@@ -889,16 +889,20 @@ button {
   display: flex;
   align-items: center;
   gap: 0.9rem;
-  padding: 0.6rem 0.75rem;
-  margin: 0 -0.25rem 0.2rem;
+  padding: 0.7rem 0.85rem;
+  margin: 0 -0.25rem 0.4rem;
   border-radius: var(--radius-inner);
-  /* Soft condition-tinted glow anchored behind the glyph — long falloff so it
-     reads as ambient light, not a hard tinted rectangle. */
-  background: radial-gradient(
-    150% 170% at 6% 50%,
-    color-mix(in srgb, currentColor 13%, transparent),
-    transparent 72%
-  );
+  border: 1px solid var(--glass-border);
+  /* Gentle raised glass panel washed with a soft condition-tinted glow behind
+     the glyph (long falloff — ambient light, not a hard rectangle). */
+  background:
+    radial-gradient(
+      150% 170% at 6% 50%,
+      color-mix(in srgb, currentColor 15%, transparent),
+      transparent 72%
+    ),
+    color-mix(in srgb, var(--surface) 32%, transparent);
+  box-shadow: inset 0 1px 0 var(--glass-rim-top);
 }
 
 .weather-glyph {
@@ -1016,16 +1020,22 @@ button {
 
 /* Atmospheric detail grid. */
 .weather-details {
-  margin-top: 0.7rem;
+  margin-top: 0.8rem;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem 0.75rem;
+  gap: 0.5rem;
 }
 
+/* Recessed glass stat tiles (instrument-like). */
 .weather-detail {
   display: flex;
   flex-direction: column;
-  gap: 0.05rem;
+  gap: 0.1rem;
+  padding: 0.5rem 0.6rem;
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 1px 1px var(--glass-rim-bottom);
 }
 
 .weather-detail-label {
@@ -1057,10 +1067,19 @@ button {
   flex-direction: column;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.5rem 0.65rem;
+  /* Less top, more bottom — nudges content up so the hi/lo line isn't crowding
+     the bottom edge. */
+  padding: 0.35rem 0.65rem 0.95rem;
   border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 1px var(--glass-rim-bottom);
   font-size: 0.8rem;
+}
+
+/* Highlight the "Today" cell with the weather accent rim. */
+.weather-outlook li:first-child {
+  border-color: color-mix(in srgb, var(--card-accent) 45%, transparent);
 }
 
 .weather-outlook-day {

@@ -4,6 +4,16 @@
    The inline boot script in index.html sets data-theme before first paint.
    ──────────────────────────────────────────────────────────────────────────── */
 
+/* Display face — Manrope (variable, self-hosted). Smooth, minimalist; used for
+   the wordmark, card titles, and big numeric readouts; body stays on system-ui. */
+@font-face {
+  font-family: "Manrope";
+  src: url("/fonts/manrope-var.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   /* Dark (default) */
   --bg: #0d0f14;
@@ -20,17 +30,31 @@
   --good: #4ec77f;
   --bad: #f6685e;
   --warn: #f0b34e;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 8px rgba(0, 0, 0, 0.18);
+  /* Layered ambient + key shadow, tinted toward the cool backdrop (not flat black). */
+  --shadow: 0 1px 2px rgba(5, 8, 15, 0.5), 0 6px 20px rgba(5, 8, 15, 0.28);
+  --shadow-lift: 0 6px 16px rgba(5, 8, 15, 0.5), 0 18px 44px rgba(5, 8, 15, 0.36);
 
-  /* Liquid-glass surfaces — translucent + blurred over the tinted backdrop. */
-  --glass-bg: rgba(22, 26, 34, 0.55);
-  --glass-border: rgba(255, 255, 255, 0.06);
-  --glass-blur: 16px;
-  --glass-highlight: rgba(255, 255, 255, 0.05);
+  /* Liquid-glass surfaces — translucent + blurred + saturated over the tinted
+     backdrop, with directional lighting (bright top rim, dark bottom edge for
+     thickness, and a soft diagonal surface sheen). */
+  --glass-bg: rgba(22, 26, 34, 0.5);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-blur: 20px;
+  --glass-saturate: 165%;
+  --glass-highlight: rgba(255, 255, 255, 0.08);
+  --glass-rim-top: rgba(255, 255, 255, 0.16);
+  --glass-rim-bottom: rgba(0, 0, 0, 0.22);
+  --glass-sheen: rgba(255, 255, 255, 0.1);
 
-  /* Ambient backdrop washes (cool + warm) layered behind everything. */
-  --wash-cool: rgba(91, 157, 255, 0.1);
-  --wash-warm: rgba(244, 130, 110, 0.07);
+  /* Ambient backdrop washes (cool + warm + violet) layered behind everything —
+     richer now so the saturated glass has vivid color to refract. */
+  --wash-cool: rgba(91, 157, 255, 0.16);
+  --wash-warm: rgba(244, 130, 110, 0.1);
+  --wash-violet: rgba(139, 124, 246, 0.12);
+
+  /* Fine grain to break up flat gradient banding (the #1 flat-CSS tell). */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --grain-opacity: 0.05;
 
   /* Per-pillar accent hues — kept muted for a restrained, portfolio look. */
   --pillar-weather: #5bb8ff;
@@ -43,7 +67,9 @@
   --pillar-insights: #ffa94e;
   --pillar-news: #7f9bd0;
 
-  --radius: 14px;
+  --radius: 18px;
+  /* Inner radius for nested glass panels — keeps corners visually concentric. */
+  --radius-inner: 12px;
   --radius-sm: 8px;
   /* Tighter gaps reclaim width for the cards themselves. */
   --gap: 0.85rem;
@@ -53,6 +79,8 @@
 
   color-scheme: dark;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Display stack for headings + numerics (system-ui fallback before swap). */
+  --font-display: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   /* Base size drives every rem — bumped for an always-on screen viewed at distance. */
   font-size: 17.5px;
 }
@@ -72,15 +100,23 @@
   --good: #2e9e5b;
   --bad: #d64545;
   --warn: #c98a1f;
-  --shadow: 0 1px 2px rgba(20, 24, 33, 0.06), 0 1px 8px rgba(20, 24, 33, 0.06);
+  --shadow: 0 1px 2px rgba(20, 24, 33, 0.08), 0 6px 20px rgba(20, 24, 33, 0.1);
+  --shadow-lift: 0 6px 16px rgba(20, 24, 33, 0.12), 0 18px 44px rgba(20, 24, 33, 0.14);
 
-  --glass-bg: rgba(255, 255, 255, 0.6);
-  --glass-border: rgba(255, 255, 255, 0.45);
-  --glass-blur: 16px;
-  --glass-highlight: rgba(255, 255, 255, 0.5);
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-blur: 20px;
+  --glass-saturate: 140%;
+  --glass-highlight: rgba(255, 255, 255, 0.6);
+  --glass-rim-top: rgba(255, 255, 255, 0.7);
+  --glass-rim-bottom: rgba(20, 24, 33, 0.08);
+  --glass-sheen: rgba(255, 255, 255, 0.45);
 
-  --wash-cool: rgba(47, 111, 237, 0.08);
-  --wash-warm: rgba(214, 69, 69, 0.05);
+  --wash-cool: rgba(47, 111, 237, 0.12);
+  --wash-warm: rgba(214, 69, 69, 0.07);
+  --wash-violet: rgba(123, 90, 214, 0.08);
+
+  --grain-opacity: 0.03;
 
   --pillar-weather: #2f8fed;
   --pillar-summary: #5b66e0;
@@ -106,18 +142,49 @@ body {
 }
 
 body {
-  /* Two soft color washes over the base — gives the glass cards something to refract. */
+  /* Three soft color washes over the base — gives the saturated glass cards
+     vivid color to refract. */
   background:
     radial-gradient(1200px 800px at 12% -8%, var(--wash-cool), transparent 60%),
     radial-gradient(1000px 700px at 100% 0%, var(--wash-warm), transparent 55%),
+    radial-gradient(1100px 900px at 50% 115%, var(--wash-violet), transparent 60%),
     var(--bg);
   background-attachment: fixed;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
 
+/* Fine grain over the washes — sits above the backdrop, below all content
+   (negative z-index). Blended so it reads as texture, not a gray film. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--grain);
+  background-size: 140px 140px;
+  opacity: var(--grain-opacity);
+  mix-blend-mode: overlay;
+}
+
 button {
   font-family: inherit;
+}
+
+/* Display face on the wordmark, titles, and big numeric readouts — gives the
+   type real impact while body/labels stay on fast system-ui. */
+.brand-name,
+.card-title,
+.login-title,
+.onboard-title,
+.page-title,
+.weather-temp,
+.perf-score,
+.perf-vital-value,
+.health-stat-value,
+.today-next-title {
+  font-family: var(--font-display);
 }
 
 /* ─── App shell ─────────────────────────────────────────────────────────────── */
@@ -645,24 +712,70 @@ button {
   /* Default accent; pillar-* classes override --card-accent per card. */
   --card-accent: var(--accent);
   position: relative;
+  /* Own stacking context so the sheen's negative z-index stays inside the card. */
+  isolation: isolate;
   background:
     radial-gradient(
       150% 130% at 100% 0%,
-      color-mix(in srgb, var(--card-accent) 9%, transparent),
-      transparent 60%
+      color-mix(in srgb, var(--card-accent) 12%, transparent),
+      transparent 58%
     ),
     var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius);
   padding: 1.35rem 1.5rem;
-  box-shadow: var(--shadow), inset 0 1px 0 var(--glass-highlight);
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  backdrop-filter: blur(var(--glass-blur));
+  /* Outer depth + bright top rim + dark bottom edge (glass thickness). */
+  box-shadow:
+    var(--shadow),
+    inset 0 1px 0 var(--glass-rim-top),
+    inset 0 -1px 0 var(--glass-rim-bottom);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   display: flex;
   flex-direction: column;
   min-width: 0;
   /* Fixed-size tile: clip the rounded corners; the body scrolls, the title doesn't. */
   overflow: hidden;
+}
+
+/* Specular sheen — a soft top-left light sweep. Sits above the card's own
+   background fills but below the content (negative z-index inside the isolate). */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    var(--glass-sheen) 0%,
+    transparent 42%,
+    transparent 100%
+  );
+}
+
+/* Browsers without backdrop-filter, or users who reduce transparency, get a
+   solid surface instead of see-through glass (keeps text legible). */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .card,
+  .login-card,
+  .onboard-card {
+    background: var(--surface);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .card,
+  .login-card,
+  .onboard-card {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--surface);
+  }
+  body::after {
+    display: none;
+  }
 }
 
 /* Scrollable content region — keeps the title pinned while overflow scrolls. */
@@ -740,11 +853,13 @@ button {
   gap: 0.9rem;
   padding: 0.6rem 0.75rem;
   margin: 0 -0.25rem 0.2rem;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(
-    120deg,
-    color-mix(in srgb, currentColor 20%, transparent),
-    transparent 70%
+  border-radius: var(--radius-inner);
+  /* Soft condition-tinted glow anchored behind the glyph — long falloff so it
+     reads as ambient light, not a hard tinted rectangle. */
+  background: radial-gradient(
+    150% 170% at 6% 50%,
+    color-mix(in srgb, currentColor 13%, transparent),
+    transparent 72%
   );
 }
 
@@ -797,8 +912,9 @@ button {
 }
 
 .weather-temp {
-  font-size: 2.4rem;
-  font-weight: 650;
+  font-size: 2.85rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   line-height: 1;
 }
 
@@ -1522,8 +1638,9 @@ button {
 }
 
 .perf-score {
-  font-size: 2.6rem;
+  font-size: 2.8rem;
   font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1;
 }
 

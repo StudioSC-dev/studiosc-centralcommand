@@ -109,7 +109,8 @@ SELECT
   'DEMO_NA1_' || n,
   CASE n % 5 WHEN 0 THEN 'Ahri' WHEN 1 THEN 'Lee Sin' WHEN 2 THEN 'Jinx' WHEN 3 THEN 'Thresh' ELSE 'Garen' END,
   CASE n % 5 WHEN 0 THEN 'MIDDLE' WHEN 1 THEN 'JUNGLE' WHEN 2 THEN 'BOTTOM' WHEN 3 THEN 'UTILITY' ELSE 'TOP' END,
-  420,
+  -- Spread across queues so the demo populates all four tabs (420 solo · 440 flex · 450 aram · 400 normal).
+  CASE n % 6 WHEN 4 THEN 440 WHEN 5 THEN 450 WHEN 3 THEN 400 ELSE 420 END,
   (n + 1) % 2,
   4 + (n * 3) % 9,
   2 + (n * 2) % 7,

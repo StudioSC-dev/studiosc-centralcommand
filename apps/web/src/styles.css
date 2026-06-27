@@ -1374,7 +1374,9 @@ button {
   font-size: 0.74rem;
   padding: 0.2rem 0.55rem;
   border-radius: 999px;
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 1px var(--glass-rim-bottom);
   color: var(--text-dim);
 }
 
@@ -1620,7 +1622,8 @@ button {
   height: 48px;
   border-radius: var(--radius-sm);
   object-fit: cover;
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  box-shadow: inset 0 1px 1px var(--glass-rim-bottom);
 }
 
 .news-thumb-empty {
@@ -1675,9 +1678,10 @@ button {
   justify-content: center;
   width: 28px;
   height: 28px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  box-shadow: inset 0 1px 1px var(--glass-rim-bottom);
   color: var(--text);
   font-size: 1.1rem;
   line-height: 1;
@@ -1742,7 +1746,8 @@ button {
   flex: 1;
   height: 0.5rem;
   border-radius: 999px;
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  box-shadow: inset 0 1px 1px var(--glass-rim-bottom);
   overflow: hidden;
 }
 
@@ -1839,7 +1844,8 @@ button {
   gap: 2px;
   padding: 2px;
   border-radius: 999px;
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  box-shadow: inset 0 1px 1px var(--glass-rim-bottom);
 }
 
 .perf-toggle-btn {
@@ -1894,9 +1900,10 @@ button {
 
 .gaming-head button {
   padding: 0.3rem 0.75rem;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  box-shadow: inset 0 1px 1px var(--glass-rim-bottom);
   color: inherit;
   cursor: pointer;
   font-size: 0.8rem;
@@ -1933,9 +1940,11 @@ button {
   gap: 0.6rem;
   font-size: 0.85rem;
   padding: 0.25rem 0.5rem;
-  border-radius: 6px;
+  border-radius: var(--radius-inner);
+  border: 1px solid var(--glass-border);
   border-left: 3px solid transparent;
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  box-shadow: inset 0 1px 1px var(--glass-rim-bottom);
 }
 
 .gaming-matches li.win {
@@ -1955,6 +1964,179 @@ button {
   flex: 0 0 2rem;
   text-align: right;
   font-weight: 600;
+}
+
+/* Portioned layout: header · rank panel · recent matches — fits without scroll. */
+.gaming {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  height: 100%;
+  min-height: 0;
+}
+
+/* Ranked standing — one queue at a time (solo default, flex via the toggle). */
+.gaming-rank {
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Queue tabs — Solo/Duo · Flex · ARAM · Normals (filter rank panel + matches). */
+.gaming-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  box-shadow: inset 0 1px 1px var(--glass-rim-bottom);
+}
+
+.gaming-tab {
+  flex: 1;
+  text-align: center;
+  padding: 0.3rem 0.4rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.gaming-tab:hover {
+  color: var(--text);
+}
+
+.gaming-tab.active {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: var(--shadow);
+}
+
+/* "In game" badge with a pulsing dot + live timer. */
+.gaming-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--good);
+  font-variant-numeric: tabular-nums;
+}
+
+.gaming-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--good);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--good) 30%, transparent),
+    0 0 8px color-mix(in srgb, var(--good) 70%, transparent);
+  animation: gaming-live-pulse 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gaming-live-dot {
+    animation: none;
+  }
+}
+
+@keyframes gaming-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.gaming-rank-detail {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.gaming-rank-main {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.gaming-rank-tier {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 650;
+  text-transform: capitalize;
+}
+
+.gaming-rank-lp {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.gaming-rank-record {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Recent matches occupy the remaining space; the list scrolls if it must. */
+.gaming-matches-block {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.gaming-matches-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+.gaming-form {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.gaming-matches-block .gaming-matches {
+  margin: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.gaming-match-champ {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gaming-match-dur {
+  color: var(--text-faint);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.gaming-rank-unranked {
+  font-size: 0.95rem;
+  color: var(--text-dim);
 }
 
 /* ─── Today (calendar anchor) ───────────────────────────────────────────────── */
@@ -2017,7 +2199,8 @@ button {
 .today-gauge-track {
   height: 0.5rem;
   border-radius: 999px;
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  box-shadow: inset 0 1px 1px var(--glass-rim-bottom);
   overflow: hidden;
 }
 
@@ -2176,9 +2359,11 @@ button {
   flex-direction: column;
   gap: 0.1rem;
   padding: 0.55rem 0.75rem;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  border-radius: var(--radius-inner);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  border: 1px solid var(--glass-border);
   border-left: 3px solid var(--text-faint);
+  box-shadow: inset 0 1px 1px var(--glass-rim-bottom);
 }
 
 .insight.tone-good {

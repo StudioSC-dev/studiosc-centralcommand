@@ -13,6 +13,8 @@ const toProfile = (r: ProfileRow): UserProfile => ({
   heightCm: r.heightCm ?? null,
   weightKg: r.weightKg ?? null,
   activityLevel: (r.activityLevel as UserProfile["activityLevel"]) ?? null,
+  riotId: r.riotId ?? null,
+  riotRegion: r.riotRegion ?? null,
   createdAt: r.createdAt,
   updatedAt: r.updatedAt,
 });
@@ -44,6 +46,8 @@ export async function upsertProfile(
   if (input.heightCm !== undefined) fields.heightCm = input.heightCm;
   if (input.weightKg !== undefined) fields.weightKg = input.weightKg;
   if (input.activityLevel !== undefined) fields.activityLevel = input.activityLevel;
+  if (input.riotId !== undefined) fields.riotId = input.riotId;
+  if (input.riotRegion !== undefined) fields.riotRegion = input.riotRegion;
 
   await db
     .insert(userProfiles)
@@ -55,6 +59,8 @@ export async function upsertProfile(
       heightCm: input.heightCm ?? null,
       weightKg: input.weightKg ?? null,
       activityLevel: input.activityLevel ?? null,
+      riotId: input.riotId ?? null,
+      riotRegion: input.riotRegion ?? null,
       createdAt: now,
       updatedAt: now,
     })

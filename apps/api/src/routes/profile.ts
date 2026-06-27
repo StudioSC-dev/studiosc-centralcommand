@@ -51,6 +51,25 @@ function clean(body: Record<string, unknown>): ProfileInput | string {
     }
     out.activityLevel = body.activityLevel as ActivityLevel | null;
   }
+  if (body.riotId !== undefined) {
+    if (body.riotId === null) out.riotId = null;
+    else if (typeof body.riotId !== "string") return "riotId must be a string.";
+    else {
+      const id = body.riotId.trim();
+      // "gameName#tagLine" with non-empty parts; region is validated at connect.
+      if (!id.includes("#") || !id.split("#")[0]?.trim() || !id.split("#").pop()?.trim()) {
+        return "riotId must be 'Name#Tag'.";
+      }
+      if (id.length > 50) return "riotId is too long.";
+      out.riotId = id;
+    }
+  }
+  if (body.riotRegion !== undefined) {
+    if (body.riotRegion === null) out.riotRegion = null;
+    else if (typeof body.riotRegion !== "string" || !body.riotRegion.trim() || body.riotRegion.length > 8) {
+      return "riotRegion is invalid.";
+    } else out.riotRegion = body.riotRegion.trim();
+  }
 
   return out;
 }

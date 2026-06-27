@@ -85,6 +85,9 @@ export interface UserProfile {
   heightCm: number | null;
   weightKg: number | null;
   activityLevel: ActivityLevel | null;
+  /** Saved League/Riot identity — drives auto-connect of the gaming pillar. */
+  riotId: string | null; // "gameName#tagLine"
+  riotRegion: string | null; // platform id, e.g. "sg2"
   createdAt: EpochMs;
   updatedAt: EpochMs;
 }
@@ -97,6 +100,8 @@ export interface ProfileInput {
   heightCm?: number | null;
   weightKg?: number | null;
   activityLevel?: ActivityLevel | null;
+  riotId?: string | null;
+  riotRegion?: string | null;
 }
 
 export interface ProfileResponse {
@@ -133,10 +138,15 @@ export interface RankInfo {
   losses: number;
 }
 
+/** Coarse queue category for filtering match history by queue tab. */
+export type MatchQueue = "solo" | "flex" | "aram" | "normal" | "other";
+
 export interface MatchSummary {
   matchId: string;
   champion: string;
   position: string;
+  /** Queue category derived from the Riot queueId (drives the queue tabs). */
+  queue: MatchQueue;
   win: boolean;
   kills: number;
   deaths: number;
@@ -148,6 +158,14 @@ export interface MatchSummary {
   playedAt: EpochMs;
 }
 
+/** Live game, when the player is currently in a match (spectator-v5). */
+export interface LiveGame {
+  /** Estimated game start (now − elapsed) so the client can tick the timer. */
+  startedAt: EpochMs;
+  queue: MatchQueue;
+  championId: number;
+}
+
 export interface GamingData {
   connected: true;
   riotId: string;
@@ -157,6 +175,8 @@ export interface GamingData {
   /** Win rate over the rolling window, 0–1, or null if no games. */
   winRate7d: number | null;
   winRate30d: number | null;
+  /** Present when the player is currently in a game, else null. */
+  live: LiveGame | null;
 }
 
 export interface GamingNotConnected {

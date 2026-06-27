@@ -59,6 +59,10 @@ export const userProfiles = sqliteTable("user_profiles", {
   heightCm: integer("height_cm"), // optional
   weightKg: real("weight_kg"), // optional
   activityLevel: text("activity_level"), // optional: 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active'
+  // Saved League/Riot identity — drives auto-connect of the gaming pillar from
+  // the user's profile (the in-card connect form remains as a fallback).
+  riotId: text("riot_id"), // user-provided "gameName#tagLine"; never hardcoded
+  riotRegion: text("riot_region"), // platform id, e.g. 'sg2' | 'na1' | 'euw1'
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });

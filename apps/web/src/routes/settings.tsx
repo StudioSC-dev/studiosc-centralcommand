@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, createFileRoute, redirect } from "@tanstack/react-router";
 import type { ActivityLevel, ProfileInput, Sex } from "@central-command/types";
-import { meQueryOptions } from "../lib/auth";
+import { meQueryOptions, useIsDemo } from "../lib/auth";
 import { profileQueryOptions, useProfile, useSaveProfile } from "../lib/profile";
 import { settingsQueryOptions, useSettings } from "../lib/settings";
+import { RIOT_REGIONS, useConnectRiot, useGaming } from "../lib/gaming";
 import { useSetUnits } from "../lib/weather";
 import { useTheme } from "../lib/theme";
 import { LocationSetter } from "../components/LocationSetter";
@@ -45,6 +46,7 @@ function SettingsPage() {
       <h1 className="page-title">Settings</h1>
 
       <ProfileSection />
+      <GameConnectionSection />
       <PreferencesSection />
       <AboutSection />
     </div>
@@ -173,6 +175,86 @@ function ProfileSection() {
         {save.isSuccess && !save.isPending && <span className="settings-saved">Saved ✓</span>}
       </div>
     </form>
+  );
+}
+
+/** Game connection — save a Riot ID to the profile and connect the gaming pillar
+ * from it in one step (the dashboard card keeps its own quick-connect form too). */
+function GameConnectionSection() {
+  const demo = useIsDemo();
+  const { data: profileData } = useProfile();
+  const { data: gaming } = useGaming();
+  const save = useSaveProfile();
+  const connect = useConnectRiot();
+
+  const [riotId, setRiotId] = useState("");
+  const [region, setRegion] = useState("sg2");
+
+  // Prefill from the saved profile tag once it loads.
+  useEffect(() => {
+    const p = profileData?.profile;
+    if (!p) return;
+    if (p.riotId) setRiotId(p.riotId);
+    if (p.riotRegion) setRegion(p.riotRegion);
+  }, [profileData]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const id = riotId.trim();
+    // Persist the tag to the profile, then connect the gaming pillar from it.
+    await save.mutateAsync({ riotId: id || null, riotRegion: id ? region : null });
+    if (id.includes("#")) connect.mutate({ riotId: id, region });
+  };
+
+  return (
+    <section className="settings-block">
+      <h2 className="settings-section-title">Game connection</h2>
+      {gaming && gaming.connected && (
+        <p className="settings-hint">
+          Connected as <strong>{gaming.riotId}</strong> ({gaming.region}).
+        </p>
+      )}
+      {demo ? (
+        <p className="settings-hint">Sign in to connect a Riot account.</p>
+      ) : (
+        <form className="settings-form" onSubmit={submit}>
+          <label className="field">
+            <span className="field-label">Riot ID (League of Legends)</span>
+            <input
+              type="text"
+              value={riotId}
+              placeholder="Name#TAG"
+              maxLength={50}
+              onChange={(e) => setRiotId(e.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">Region</span>
+            <select value={region} onChange={(e) => setRegion(e.target.value)}>
+              {RIOT_REGIONS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </label>
+          {connect.isError && <p className="log-error">Couldn’t connect: {connect.error.message}</p>}
+          {save.isError && <p className="log-error">Couldn’t save: {save.error.message}</p>}
+          <div className="settings-actions">
+            <button
+              type="submit"
+              className="onboard-submit"
+              disabled={save.isPending || connect.isPending}
+            >
+              {save.isPending || connect.isPending ? "Connecting…" : "Save & connect"}
+            </button>
+            {connect.isSuccess && !connect.isPending && (
+              <span className="settings-saved">Connected ✓</span>
+            )}
+          </div>
+        </form>
+      )}
+    </section>
   );
 }
 

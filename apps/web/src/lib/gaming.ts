@@ -2,6 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { GamingConnectInput, GamingResponse } from "@central-command/types";
 import { apiGet, apiPost } from "./api";
 
+/** Riot platform regions offered in the connect UI (card + settings). */
+export const RIOT_REGIONS = ["sg2", "na1", "euw1", "eun1", "kr", "jp1", "br1", "oc1"];
+
 export function useGaming() {
   return useQuery({
     queryKey: ["gaming"],

@@ -1,18 +1,19 @@
 import { useState } from "react";
 import type { GamingData, RankInfo } from "@central-command/types";
 import { Card } from "./Card";
-import { useConnectRiot, useGaming, useRefreshRiot } from "../lib/gaming";
+import { RIOT_REGIONS, useConnectRiot, useGaming, useRefreshRiot } from "../lib/gaming";
+import { useProfile } from "../lib/profile";
 import { useIsDemo } from "../lib/auth";
-
-const REGIONS = ["sg2", "na1", "euw1", "eun1", "kr", "jp1", "br1", "oc1"];
 
 const pct = (v: number | null) => (v == null ? "—" : `${Math.round(v * 100)}%`);
 const rankLabel = (r: RankInfo) => `${r.tier} ${r.division} · ${r.leaguePoints} LP`;
 
 function ConnectForm() {
   const connect = useConnectRiot();
-  const [riotId, setRiotId] = useState("");
-  const [region, setRegion] = useState("sg2");
+  const { data: profile } = useProfile();
+  // Prefill from the saved profile tag so connecting is one click for returning users.
+  const [riotId, setRiotId] = useState(profile?.profile?.riotId ?? "");
+  const [region, setRegion] = useState(profile?.profile?.riotRegion ?? "sg2");
 
   return (
     <form
@@ -24,7 +25,7 @@ function ConnectForm() {
     >
       <input placeholder="Name#TAG" value={riotId} onChange={(e) => setRiotId(e.target.value)} />
       <select value={region} onChange={(e) => setRegion(e.target.value)}>
-        {REGIONS.map((r) => (
+        {RIOT_REGIONS.map((r) => (
           <option key={r} value={r}>
             {r}
           </option>
@@ -84,8 +85,12 @@ export function GamingCard() {
   const { data, isPending, isError, error } = useGaming();
   const demo = useIsDemo();
 
+  // Title reflects the connected game (League is the only Phase 2 game); falls
+  // back to the generic pillar name until an account is linked.
+  const title = data?.connected ? "League of Legends" : "Gaming";
+
   return (
-    <Card title="Gaming" pillar="gaming">
+    <Card title={title} pillar="gaming">
       {isPending && <p>Loading…</p>}
       {isError && <p className="log-error">{error.message}</p>}
       {data && !data.connected &&

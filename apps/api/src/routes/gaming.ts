@@ -1,22 +1,59 @@
 import { Hono } from "hono";
 import { and, desc, eq } from "drizzle-orm";
-import { isWithinDays } from "@central-command/utils";
+import { isWithinDays, leagueQueue } from "@central-command/utils";
 import { gamingProviders, gamingSnapshots } from "@central-command/db";
 import type {
   GamingConnectInput,
   GamingData,
+  LiveGame,
   MatchSummary,
   RankInfo,
 } from "@central-command/types";
-import type { AppEnv } from "../env";
+import type { AppEnv, Bindings } from "../env";
 import type { Context } from "hono";
 import { createDb } from "../lib/db";
 import type { Database } from "../lib/db";
 import { ok, fail } from "../lib/response";
 import { newId } from "../lib/ids";
-import { RiotError, getAccountByRiotId, resolveRegion } from "../services/riot";
+import { RiotError, getAccountByRiotId, getActiveGame, resolveRegion } from "../services/riot";
 import { refreshRiot } from "../services/riot-sync";
 import { allowGlobalDaily, allowUserDaily } from "../services/rate-limit";
+
+/** Build params the gaming response assembly needs. */
+interface ProviderRef {
+  userId: string;
+  riotId: string;
+  region: string;
+  puuid: string;
+}
+
+/**
+ * Live game status, KV-cached 60s per user so polling/dashboard loads don't each
+ * spend a spectator API call. Caches the "not in game" result too. Spectator
+ * errors degrade to `null` — they must never break the card.
+ */
+async function getLive(env: Bindings, ref: ProviderRef): Promise<LiveGame | null> {
+  const key = `riot:live:${ref.userId}`;
+  const cached = await env.CACHE.get(key);
+  if (cached !== null) return JSON.parse(cached) as LiveGame | null;
+
+  let live: LiveGame | null = null;
+  try {
+    const { platform } = resolveRegion(ref.region);
+    const g = await getActiveGame(ref.puuid, platform, env.RIOT_API_KEY);
+    if (g) {
+      live = {
+        startedAt: Date.now() - g.gameLengthSec * 1000,
+        queue: leagueQueue(g.queueId),
+        championId: g.championId,
+      };
+    }
+  } catch {
+    live = null;
+  }
+  await env.CACHE.put(key, JSON.stringify(live), { expirationTtl: 60 });
+  return live;
+}
 
 const PROVIDER = "riot";
 const GAME = "league";
@@ -48,11 +85,12 @@ function riotFail(c: Context<AppEnv>, err: unknown) {
 }
 
 async function buildGaming(
+  env: Bindings,
   db: Database,
-  userId: string,
-  riotId: string,
-  region: string,
+  ref: ProviderRef,
+  opts: { live?: boolean } = {},
 ): Promise<GamingData> {
+  const userId = ref.userId;
   const rankRows = await db
     .select()
     .from(gamingSnapshots)
@@ -86,6 +124,7 @@ async function buildGaming(
     matchId: r.matchId ?? "",
     champion: r.champion ?? "",
     position: r.position ?? "",
+    queue: leagueQueue(r.queueId ?? 0),
     win: r.win === 1,
     kills: r.kills ?? 0,
     deaths: r.deaths ?? 0,
@@ -104,12 +143,13 @@ async function buildGaming(
 
   return {
     connected: true,
-    riotId,
-    region,
+    riotId: ref.riotId,
+    region: ref.region,
     ranks,
     matches,
     winRate7d: winRate(7),
     winRate30d: winRate(30),
+    live: opts.live === false ? null : await getLive(env, ref),
   };
 }
 
@@ -117,9 +157,23 @@ export const gaming = new Hono<AppEnv>()
   // GET /gaming — connected status + rank, matches, win-rate windows.
   .get("/", async (c) => {
     const db = createDb(c.env.DB);
-    const provider = await getProvider(db, c.get("userId"));
+    const userId = c.get("userId");
+    const provider = await getProvider(db, userId);
     if (!provider) return ok(c, { connected: false });
-    return ok(c, await buildGaming(db, c.get("userId"), provider.riotId ?? "", provider.region ?? ""));
+    return ok(
+      c,
+      await buildGaming(
+        c.env,
+        db,
+        {
+          userId,
+          riotId: provider.riotId ?? "",
+          region: provider.region ?? "",
+          puuid: provider.puuid ?? "",
+        },
+        { live: !c.get("isDemo") },
+      ),
+    );
   })
 
   // POST /gaming/connect — link a Riot account and backfill recent matches.
@@ -184,7 +238,12 @@ export const gaming = new Hono<AppEnv>()
 
       return ok(
         c,
-        await buildGaming(db, userId, `${account.gameName}#${account.tagLine}`, region.platform),
+        await buildGaming(c.env, db, {
+          userId,
+          riotId: `${account.gameName}#${account.tagLine}`,
+          region: region.platform,
+          puuid: account.puuid,
+        }),
         201,
       );
     } catch (err) {
@@ -214,7 +273,12 @@ export const gaming = new Hono<AppEnv>()
         region: provider.region,
         puuid: provider.puuid,
       });
-      const data = await buildGaming(db, userId, provider.riotId ?? "", provider.region);
+      const data = await buildGaming(c.env, db, {
+        userId,
+        riotId: provider.riotId ?? "",
+        region: provider.region,
+        puuid: provider.puuid,
+      });
       return ok(c, { ...data, refresh: result });
     } catch (err) {
       return riotFail(c, err);

@@ -144,6 +144,42 @@ export interface ParsedMatch {
   playedAt: number; // epoch ms
 }
 
+interface CurrentGameDto {
+  gameLength: number; // seconds elapsed (negative during the loading screen)
+  gameQueueConfigId: number;
+  participants: { puuid: string; championId: number }[];
+}
+
+export interface ActiveGame {
+  gameLengthSec: number;
+  queueId: number;
+  championId: number;
+}
+
+/**
+ * The player's current game via spectator-v5, or `null` when not in a game
+ * (Riot returns 404). Other errors propagate to the caller.
+ */
+export async function getActiveGame(
+  puuid: string,
+  platform: string,
+  apiKey: string,
+): Promise<ActiveGame | null> {
+  const url = `https://${platform}.api.riotgames.com/lol/spectator/v5/active-games/by-puuid/${puuid}`;
+  try {
+    const dto = await riotGet<CurrentGameDto>(url, apiKey);
+    const me = dto.participants.find((p) => p.puuid === puuid);
+    return {
+      gameLengthSec: Math.max(dto.gameLength, 0),
+      queueId: dto.gameQueueConfigId,
+      championId: me?.championId ?? 0,
+    };
+  } catch (err) {
+    if (err instanceof RiotError && err.status === 404) return null; // not in game
+    throw err;
+  }
+}
+
 /** Fetch a match and extract the given player's participant row. */
 export async function getParsedMatch(
   matchId: string,

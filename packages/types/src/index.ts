@@ -85,6 +85,9 @@ export interface UserProfile {
   heightCm: number | null;
   weightKg: number | null;
   activityLevel: ActivityLevel | null;
+  /** Saved League/Riot identity — drives auto-connect of the gaming pillar. */
+  riotId: string | null; // "gameName#tagLine"
+  riotRegion: string | null; // platform id, e.g. "sg2"
   createdAt: EpochMs;
   updatedAt: EpochMs;
 }
@@ -97,6 +100,8 @@ export interface ProfileInput {
   heightCm?: number | null;
   weightKg?: number | null;
   activityLevel?: ActivityLevel | null;
+  riotId?: string | null;
+  riotRegion?: string | null;
 }
 
 export interface ProfileResponse {

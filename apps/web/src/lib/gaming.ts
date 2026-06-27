@@ -9,6 +9,10 @@ export function useGaming() {
   return useQuery({
     queryKey: ["gaming"],
     queryFn: () => apiGet<GamingResponse>("/api/gaming"),
+    // Poll so the live "in game" badge appears/clears unattended on the wall
+    // display. Aligned to the API's 60s live-status cache (≤1 spectator call/min).
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: true,
   });
 }
 

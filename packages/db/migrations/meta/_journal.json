@@ -71,6 +71,13 @@
       "when": 1781096730427,
       "tag": "0009_wild_rawhide_kid",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1782549234984,
+      "tag": "0010_greedy_ogun",
+      "breakpoints": true
     }
   ]
 }

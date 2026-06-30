@@ -99,6 +99,11 @@ jobs:
         run: pnpm --filter @central-command/api exec wrangler d1 migrations apply central-command-db --remote
       - name: Deploy Worker
         run: pnpm --filter @central-command/api exec wrangler deploy
+      # Refresh the public demo's data. The seed is idempotent (DELETE-then-
+      # INSERT, relative dates) and CI does not otherwise seed, so the live demo
+      # would drift from seed-demo.sql without this. A handful of statements.
+      - name: Re-seed remote demo
+        run: pnpm --filter @central-command/api run seed:demo:remote
 
   # ---------------------------------------------------------------------------
   # Deploy the web SPA to Cloudflare Pages. --branch=main marks this as a

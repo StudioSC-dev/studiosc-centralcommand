@@ -3,7 +3,7 @@ import { gamingSnapshots } from "@central-command/db";
 import type { Bindings } from "../env";
 import type { Database } from "../lib/db";
 import { newId } from "../lib/ids";
-import { getLeagueEntriesByPuuid, getMatchIds, getParsedMatch, resolveRegion } from "./riot";
+import { getLeagueEntriesByPuuid, getMatchIds, getParsedMatch, resolveRegion, RiotError } from "./riot";
 import { scoreMatch } from "./riot-score";
 
 const RATE_GATE_TTL = 15 * 60; // seconds — CLAUDE.md Riot gate
@@ -88,7 +88,16 @@ export async function refreshRiot(
   let matchesAdded = 0;
   for (const id of ids) {
     if (seen.has(id)) continue;
-    const pm = await getParsedMatch(id, provider.puuid, match, key);
+    let pm;
+    try {
+      pm = await getParsedMatch(id, provider.puuid, match, key);
+    } catch (err) {
+      // match-v5 returns 403 for ARAM: Mayhem matches (Riot dev-rel #1109).
+      // Skip the unreadable match rather than aborting the whole refresh; any
+      // other error (401/429/5xx) still propagates and stops the run.
+      if (err instanceof RiotError && err.status === 403) continue;
+      throw err;
+    }
     if (!pm) continue;
     await db.insert(gamingSnapshots).values({
       id: newId(),

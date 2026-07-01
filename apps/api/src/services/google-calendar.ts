@@ -7,6 +7,8 @@ import type { CalendarEvent } from "@central-command/types";
 
 const EVENTS_ENDPOINT =
   "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+const WATCH_ENDPOINT = `${EVENTS_ENDPOINT}/watch`;
+const STOP_ENDPOINT = "https://www.googleapis.com/calendar/v3/channels/stop";
 
 interface GoogleEventDate {
   dateTime?: string; // RFC3339 for timed events
@@ -59,4 +61,63 @@ export async function fetchUpcomingEvents(
 
   const data = (await res.json()) as { items?: GoogleEvent[] };
   return (data.items ?? []).map(toEvent);
+}
+
+/**
+ * Open a push channel on the user's primary calendar. Google will POST change
+ * notifications to `address` (our webhook) until `expiration`, echoing `id` and
+ * `token` back in the request headers. `address` must be an HTTPS URL on a
+ * domain verified in the Google Cloud console.
+ */
+export async function watchCalendar(
+  accessToken: string,
+  opts: { channelId: string; token: string; address: string; ttlSec?: number },
+): Promise<{ resourceId: string; expiration: number }> {
+  const body: Record<string, unknown> = {
+    id: opts.channelId,
+    type: "web_hook",
+    address: opts.address,
+    token: opts.token,
+  };
+  if (opts.ttlSec) body.params = { ttl: String(opts.ttlSec) };
+
+  const res = await fetch(WATCH_ENDPOINT, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error(`Google Calendar watch failed: ${res.status} ${await res.text()}`);
+  }
+
+  const data = (await res.json()) as { resourceId: string; expiration?: string };
+  return {
+    resourceId: data.resourceId,
+    // `expiration` is a stringified epoch-ms; fall back to ~7 days if omitted.
+    expiration: data.expiration ? Number(data.expiration) : Date.now() + 7 * 24 * 60 * 60 * 1000,
+  };
+}
+
+/**
+ * Stop a previously opened channel. Best-effort — a 404 means it already
+ * lapsed, which is fine.
+ */
+export async function stopChannel(
+  accessToken: string,
+  opts: { channelId: string; resourceId: string },
+): Promise<void> {
+  const res = await fetch(STOP_ENDPOINT, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ id: opts.channelId, resourceId: opts.resourceId }),
+  });
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`Google Calendar channel stop failed: ${res.status}`);
+  }
 }

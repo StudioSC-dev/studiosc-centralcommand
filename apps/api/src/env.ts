@@ -9,6 +9,11 @@ export interface Bindings {
   DB: D1Database;
   CACHE: KVNamespace;
 
+  // Non-secret config (wrangler.toml [vars]). Public HTTPS origin of the app,
+  // used to build the Google Calendar push webhook address. Unset in local dev
+  // (Google can't reach localhost) → calendar push is disabled, polling remains.
+  APP_ORIGIN?: string;
+
   // Secrets
   API_BEARER_TOKEN: string;
   OPENWEATHERMAP_API_KEY: string;

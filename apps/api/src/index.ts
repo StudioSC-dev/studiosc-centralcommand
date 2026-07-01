@@ -6,12 +6,13 @@ import { notFound, onError } from "./middleware/error";
 import { securityHeaders } from "./middleware/security";
 import { ok } from "./lib/response";
 import { runRiotRefresh } from "./workers/riot-cron";
+import { runCalendarRenewal } from "./workers/calendar-cron";
 
 import { authPublic, authGuarded } from "./routes/auth";
 import { settings } from "./routes/settings";
 import { profile } from "./routes/profile";
 import { summary } from "./routes/summary";
-import { calendar } from "./routes/calendar";
+import { calendar, calendarWebhook } from "./routes/calendar";
 import { weather } from "./routes/weather";
 import { fitness } from "./routes/fitness";
 import { nutrition } from "./routes/nutrition";
@@ -37,6 +38,10 @@ app.get("/api/health", (c) => ok(c, { service: "centralcommand", status: "ok" })
 // Public auth routes — sign-in begins/ends here, so they sit OUTSIDE the session
 // guard. A per-IP limiter is applied inside the group (see routes/auth.ts).
 app.route("/api/auth", authPublic);
+
+// Google Calendar push webhook — Google calls this unauthenticated, so it sits
+// OUTSIDE the session guard. It self-authenticates via the per-channel token.
+app.route("/api/calendar/notifications", calendarWebhook);
 
 // Everything below requires an authenticated session (cookie, Access JWT, or dev).
 const api = new Hono<AppEnv>();
@@ -64,5 +69,6 @@ export default {
   fetch: app.fetch,
   async scheduled(_controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
     ctx.waitUntil(runRiotRefresh(env));
+    ctx.waitUntil(runCalendarRenewal(env));
   },
 } satisfies ExportedHandler<Bindings>;

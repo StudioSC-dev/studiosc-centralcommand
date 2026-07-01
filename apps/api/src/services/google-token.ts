@@ -3,7 +3,8 @@ import { authProviders } from "@central-command/db";
 import type { Bindings } from "../env";
 import type { Database } from "../lib/db";
 import { decryptSecret, encryptSecret } from "../lib/crypto";
-import { GoogleReauthRequiredError, refreshAccessToken } from "./google-oauth";
+import { GoogleReauthRequiredError, refreshAccessToken, revokeToken } from "./google-oauth";
+import { stopAndDeleteChannel } from "./calendar-channels";
 
 const PROVIDER = "google";
 
@@ -56,6 +57,46 @@ export async function getGoogleProvider(db: Database, userId: string) {
     .from(authProviders)
     .where(and(eq(authProviders.userId, userId), eq(authProviders.provider, PROVIDER)))
     .get();
+}
+
+/**
+ * Fully disconnect a user's Google account: stop the calendar push channel,
+ * revoke the grant at Google, and delete the stored provider row. Every external
+ * step is best-effort — the local row is always removed so the user ends up
+ * disconnected regardless of Google's availability.
+ */
+export async function disconnectGoogle(
+  db: Database,
+  env: Bindings,
+  userId: string,
+): Promise<void> {
+  const row = await getGoogleProvider(db, userId);
+  if (!row) return;
+
+  // Stop the push channel first, using a live access token when we can still get
+  // one (so Google is told to stop pushing, not just left to lapse).
+  let accessToken: string | undefined;
+  try {
+    accessToken = await getValidGoogleAccessToken(db, env, userId);
+  } catch {
+    accessToken = undefined; // credentials already dead — channel will lapse
+  }
+  await stopAndDeleteChannel(db, userId, accessToken).catch(() => {});
+
+  // Revoke the grant. Revoking the refresh token kills the whole grant; fall
+  // back to the access token if that's all we have.
+  const encrypted = row.refreshToken ?? row.accessToken;
+  if (encrypted) {
+    try {
+      await revokeToken(await decryptSecret(encrypted, env.TOKEN_ENCRYPTION_KEY));
+    } catch {
+      // Already-revoked / unreachable — the row removal below still disconnects.
+    }
+  }
+
+  await db
+    .delete(authProviders)
+    .where(and(eq(authProviders.userId, userId), eq(authProviders.provider, PROVIDER)));
 }
 
 /**

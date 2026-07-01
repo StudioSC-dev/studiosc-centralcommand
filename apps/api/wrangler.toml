@@ -33,10 +33,18 @@ migrations_dir = "../../packages/db/migrations"
 binding = "CACHE"
 id = "371f6b05b8f74a369d4053ed0b50345e"
 
-# Riot refresh cron. Cron Triggers fire in UTC only — the "8am / 8pm in the
-# user's local timezone" rule from CLAUDE.md is enforced per-user in code
-# (the cron handler checks each user's timezone before calling the Riot API).
-# These two UTC times are a placeholder cadence; tighten once a timezone
-# strategy is wired up.
+# Non-secret config. Public origin of the app, used to build the Google Calendar
+# push webhook address (centralcommand.studiosc.dev/api/calendar/notifications).
+# For local `wrangler dev`, override this to an empty string in `.dev.vars` so
+# calendar push self-disables (Google can't reach localhost); the poll keeps
+# data fresh regardless.
+[vars]
+APP_ORIGIN = "https://centralcommand.studiosc.dev"
+
+# Scheduled jobs. Each tick runs BOTH the Riot refresh and the Google Calendar
+# push-channel renewal (channels expire ≤7 days; renewed within 24h of expiry,
+# so twice daily is ample). Cron Triggers fire in UTC only — the Riot "8am/8pm
+# local" rule from CLAUDE.md is enforced per-user in code. These two UTC times
+# are a placeholder cadence; tighten once a timezone strategy is wired up.
 [triggers]
 crons = ["0 8 * * *", "0 20 * * *"]

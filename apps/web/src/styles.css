@@ -545,6 +545,20 @@ button {
   cursor: default;
 }
 
+/* Destructive action (e.g. disconnect Google) — muted surface, danger on hover. */
+.settings-disconnect {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--glass-border);
+}
+
+.settings-disconnect:hover:not(:disabled) {
+  filter: none;
+  background: color-mix(in srgb, #e5484d 16%, var(--surface-2));
+  border-color: #e5484d;
+  color: #e5484d;
+}
+
 .onboard-location {
   margin-top: 1.6rem;
   padding-top: 1.2rem;

@@ -10,8 +10,19 @@ import { getGoogleProvider, getValidGoogleAccessToken } from "../services/google
 import { GoogleReauthRequiredError } from "../services/google-oauth";
 import { demoCalendar } from "../demo/fixtures";
 import { allowGlobalDaily, allowUserDaily } from "../services/rate-limit";
+import {
+  ensureChannel,
+  getChannelByChannelId,
+  stopAndDeleteChannel,
+  webhookAddress,
+} from "../services/calendar-channels";
 
-const CACHE_TTL = 3 * 60; // calendar TTL (3 min — pairs with the 3-min client poll)
+// Calendar cache TTL. With the push webhook driving freshness (it busts this key
+// on a real change), the TTL is only a backstop for a missed push — so it's set
+// well above the client poll: high enough to keep fresh Google fetches under the
+// 120/day per-user cap on a continuously-polling wall display (~96/day worst
+// case), low enough to self-heal within 15 min if a push is ever dropped.
+const CACHE_TTL = 15 * 60;
 const MS_PER_HOUR = 60 * 60 * 1000;
 
 /**
@@ -58,10 +69,17 @@ export const calendar = new Hono<AppEnv>().get("/", async (c) => {
   try {
     const accessToken = await getValidGoogleAccessToken(db, c.env, userId);
     events = await fetchUpcomingEvents(accessToken, { timeMin: start, maxResults: 20 });
+    // Make sure this user has a live push channel (registers on first fetch for
+    // accounts connected before push existed; renews a lapsing one). Best-effort,
+    // off the response path; no-op in local dev.
+    c.executionCtx.waitUntil(ensureChannel(db, userId, accessToken, webhookAddress(c.env)));
   } catch (err) {
     // Expired/revoked credentials are a recoverable, user-actionable state —
     // prompt a reconnect instead of bubbling up to the generic 500 handler.
     if (err instanceof GoogleReauthRequiredError) {
+      // Forget the now-orphaned push channel so its pushes stop busting our
+      // cache; the provider row stays so the card keeps showing "reconnect".
+      c.executionCtx.waitUntil(stopAndDeleteChannel(db, userId).catch(() => {}));
       return ok(c, { connected: false, needsReconnect: true });
     }
     throw err;
@@ -74,4 +92,31 @@ export const calendar = new Hono<AppEnv>().get("/", async (c) => {
   };
   await c.env.CACHE.put(cacheKey, JSON.stringify(data), { expirationTtl: CACHE_TTL });
   return ok(c, data);
+});
+
+/**
+ * POST /calendar/notifications — Google Calendar push webhook (PUBLIC: Google
+ * calls it unauthenticated). Mounted outside the session guard. Security is the
+ * per-channel `token` we set at watch time and Google echoes back; an unknown
+ * channel or mismatched token is ignored. On a real change we invalidate the
+ * user's cached calendar so their next poll refetches fresh data. Always 200s
+ * fast — Google retries non-2xx responses.
+ */
+export const calendarWebhook = new Hono<AppEnv>().post("/", async (c) => {
+  const channelId = c.req.header("X-Goog-Channel-ID");
+  const token = c.req.header("X-Goog-Channel-Token");
+  const state = c.req.header("X-Goog-Resource-State");
+  if (!channelId) return c.body(null, 200);
+
+  const db = createDb(c.env.DB);
+  const channel = await getChannelByChannelId(db, channelId);
+  // Ignore unknown channels or a token that doesn't match what we registered.
+  if (!channel || channel.token !== token) return c.body(null, 200);
+
+  // "sync" is Google's initial handshake (no change yet); "exists" is a real
+  // change. Only the latter needs a cache bust.
+  if (state === "exists") {
+    await c.env.CACHE.delete(`calendar:${channel.userId}`);
+  }
+  return c.body(null, 200);
 });

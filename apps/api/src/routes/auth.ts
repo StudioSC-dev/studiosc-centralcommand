@@ -12,7 +12,8 @@ import {
   randomState,
   verifyGoogleIdToken,
 } from "../services/google-oauth";
-import { storeGoogleTokens } from "../services/google-token";
+import { disconnectGoogle, storeGoogleTokens } from "../services/google-token";
+import { ensureChannel, webhookAddress } from "../services/calendar-channels";
 import { getOrCreateUser } from "../services/users";
 import { isProfileComplete } from "../services/profile";
 import { getSession, issueSession, setSessionCookie, clearSessionCookie } from "../lib/session";
@@ -94,6 +95,11 @@ export const authPublic = new Hono<AppEnv>()
       refreshToken: tokens.refresh_token,
       expiresAt: Date.now() + tokens.expires_in * 1000,
     });
+    // Open a push channel so calendar changes invalidate our cache in near-real
+    // time. Best-effort + off the redirect's critical path (no-op in local dev).
+    c.executionCtx.waitUntil(
+      ensureChannel(createDb(c.env.DB), session.userId, tokens.access_token, webhookAddress(c.env)),
+    );
     return c.redirect("/?connected=google");
   })
   .post("/logout", (c) => {
@@ -125,4 +131,10 @@ export const authGuarded = new Hono<AppEnv>()
   .get("/google", (c) => {
     if (c.get("isDemo")) return fail(c, "demo_read_only", "The demo can't connect accounts.", 403);
     return startGoogle(c, "connect");
+  })
+  // Disconnect Google: stop the calendar push channel, revoke the grant, and
+  // delete the stored tokens. (Demo POSTs are already blocked by demoReadOnly.)
+  .post("/google/disconnect", async (c) => {
+    await disconnectGoogle(createDb(c.env.DB), c.env, c.get("userId"));
+    return ok(c, { connected: false });
   });

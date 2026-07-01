@@ -10,6 +10,7 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 
 const AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
+const REVOKE_ENDPOINT = "https://oauth2.googleapis.com/revoke";
 
 /** Minimal scopes for sign-in (no offline access needed). */
 export const LOGIN_SCOPES = ["openid", "email", "profile"];
@@ -145,6 +146,22 @@ export async function refreshAccessToken(opts: {
     throw new Error(`Google token refresh failed: ${res.status} ${body}`);
   }
   return (await res.json()) as RefreshedToken;
+}
+
+/**
+ * Revoke a Google token (access or refresh). Revoking a refresh token
+ * invalidates the whole grant. Best-effort: an already-invalid token comes back
+ * 400 and is treated as success (the end state — no live grant — is the same).
+ */
+export async function revokeToken(token: string): Promise<void> {
+  const res = await fetch(REVOKE_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ token }),
+  });
+  if (!res.ok && res.status !== 400) {
+    throw new Error(`Google token revoke failed: ${res.status}`);
+  }
 }
 
 /** Verify a Google id_token's signature + claims, returning the subject + email. */

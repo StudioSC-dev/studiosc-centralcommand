@@ -5,6 +5,7 @@ import { meQueryOptions, useIsDemo } from "../lib/auth";
 import { profileQueryOptions, useProfile, useSaveProfile } from "../lib/profile";
 import { settingsQueryOptions, useSettings } from "../lib/settings";
 import { RIOT_REGIONS, useConnectRiot, useGaming } from "../lib/gaming";
+import { useCalendar, useDisconnectGoogle } from "../lib/calendar";
 import { useSetUnits } from "../lib/weather";
 import { useTheme } from "../lib/theme";
 import { LocationSetter } from "../components/LocationSetter";
@@ -47,6 +48,7 @@ function SettingsPage() {
 
       <ProfileSection />
       <GameConnectionSection />
+      <CalendarConnectionSection />
       <PreferencesSection />
       <AboutSection />
     </div>
@@ -253,6 +255,47 @@ function GameConnectionSection() {
             )}
           </div>
         </form>
+      )}
+    </section>
+  );
+}
+
+/** Calendar connection — connect Google Calendar (read-only) or disconnect it
+ * (revokes the grant + drops stored tokens server-side). */
+function CalendarConnectionSection() {
+  const { data } = useCalendar();
+  const disconnect = useDisconnectGoogle();
+  const connected = data?.connected === true;
+
+  return (
+    <section className="settings-block">
+      <h2 className="settings-section-title">Calendar connection</h2>
+      {connected ? (
+        <>
+          <p className="settings-hint">Google Calendar is connected (read-only access).</p>
+          <div className="settings-actions">
+            <button
+              type="button"
+              className="onboard-submit settings-disconnect"
+              onClick={() => disconnect.mutate()}
+              disabled={disconnect.isPending}
+            >
+              {disconnect.isPending ? "Disconnecting…" : "Disconnect Google Calendar"}
+            </button>
+            {disconnect.isError && (
+              <span className="settings-hint">Couldn't disconnect: {disconnect.error.message}</span>
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="settings-hint">
+            Connect Google Calendar (read-only) to show your events and daily busyness.
+          </p>
+          <a className="connect-link" href="/api/auth/google">
+            {data?.needsReconnect ? "Reconnect Google Calendar" : "Connect Google Calendar"}
+          </a>
+        </>
       )}
     </section>
   );

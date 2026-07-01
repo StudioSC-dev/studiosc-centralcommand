@@ -85,6 +85,25 @@ export const userSettings = sqliteTable("user_settings", {
   updatedAt: integer("updated_at").notNull(),
 });
 
+// ─── Calendar push channels ──────────────────────────────────────────────────
+
+// One Google Calendar watch channel per user. Google pushes change
+// notifications to our webhook, which invalidates the user's cached calendar so
+// the next poll refetches. `resourceId` is Google's opaque handle (needed to
+// stop the channel); `token` is our secret, echoed back in the push headers so
+// the unauthenticated webhook can validate + resolve the caller. Channels expire
+// (≤7 days) and are renewed by cron before `expiration`.
+export const calendarChannels = sqliteTable("calendar_channels", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id),
+  channelId: text("channel_id").notNull().unique(), // our UUID — the X-Goog-Channel-ID (webhook looks up by this)
+  resourceId: text("resource_id").notNull(), // Google's handle — needed to stop it
+  token: text("token").notNull(), // our secret — validates incoming push headers
+  expiration: integer("expiration").notNull(), // epoch ms when Google stops pushing
+  createdAt: integer("created_at").notNull(),
+});
+
 // ─── Data (Phase 1 stubs) ────────────────────────────────────────────────────
 
 export const calendarEvents = sqliteTable("calendar_events", {

@@ -8,8 +8,6 @@ import { RIOT_REGIONS, useConnectRiot, useGaming } from "../lib/gaming";
 import { useCalendar, useDisconnectGoogle } from "../lib/calendar";
 import { useSetUnits } from "../lib/weather";
 import { useTheme } from "../lib/theme";
-import { useDashboardLayout, useToggleCard } from "../lib/dashboard";
-import { CARD_CATALOG } from "../components/cardCatalog";
 import { LocationSetter } from "../components/LocationSetter";
 
 export const Route = createFileRoute("/settings")({
@@ -356,57 +354,6 @@ function PreferencesSection() {
         <h2 className="settings-section-title">Home location</h2>
         <LocationSetter />
       </section>
-
-      <DashboardCardsSection />
     </>
-  );
-}
-
-/** Which cards appear on the dashboard. Card sizing is the next phase — see
- * docs/ui-suite.md. */
-function DashboardCardsSection() {
-  const isDemo = useIsDemo();
-  const { data, isPending } = useDashboardLayout();
-  const { toggle, isPending: isSaving } = useToggleCard();
-
-  const hidden = new Set(data?.layout.hidden ?? []);
-  const visibleCount = CARD_CATALOG.length - hidden.size;
-
-  return (
-    <section className="settings-block">
-      <h2 className="settings-section-title">Dashboard cards</h2>
-      <p className="settings-hint">
-        Choose which cards appear on your dashboard. The grid resizes to fit what's left.
-        {isDemo ? " The demo dashboard is read-only." : ""}
-      </p>
-
-      <ul className="card-toggles">
-        {CARD_CATALOG.map((card) => {
-          const isVisible = !hidden.has(card.key);
-          return (
-            <li key={card.key} className="card-toggle">
-              <label className="card-toggle-label">
-                <input
-                  type="checkbox"
-                  checked={isVisible}
-                  disabled={isDemo || isPending || isSaving}
-                  onChange={() => toggle(card.key)}
-                />
-                <span className={`card-dot pillar-${card.key}`} aria-hidden="true" />
-                <span className="card-toggle-text">
-                  <span className="card-toggle-name">{card.label}</span>
-                  <span className="card-toggle-desc">{card.description}</span>
-                </span>
-              </label>
-            </li>
-          );
-        })}
-      </ul>
-
-      <p className="settings-hint">
-        {visibleCount} of {CARD_CATALOG.length} cards shown.
-        {visibleCount === 0 ? " Your dashboard is empty." : ""}
-      </p>
-    </section>
   );
 }

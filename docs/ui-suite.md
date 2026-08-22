@@ -109,26 +109,45 @@ display, which is what this is.
 (e.g. becomes a scrolling mobile-first surface), C is the correct migration target and this
 decision should be revisited rather than patched.
 
-### D2 — Both columns and rows are derived from the visible card count
+### D2 — Grid shape is derived from the visible card count, rows before columns
 
 ```
-cols = min(4, ceil(cells / 3))
-rows = min(3, ceil(cells / cols))
+rows = min(3, ceil(count / 3))
+cols = min(4, ceil(count / rows))
 ```
 
-Nine 1×1 cards → today's 3×3. A tenth card → 4 columns, 12 slots. Beyond 12 cells the tiles
-get too narrow for a wall display, and that cap is the honest limit, surfaced in the UI
-rather than hidden.
+| Cards | Grid | Holes | Tile aspect vs the 3×3 reference |
+|---|---|---|---|
+| 1 | 1×1 | 0 | 0.98 |
+| 2 | 2×1 | 0 | 0.49 |
+| 3 | 3×1 | 0 | 0.32 |
+| 4 | 2×2 | 0 | 0.99 |
+| 5–6 | 3×2 | 1 / 0 | 0.66 |
+| 7–9 | 3×3 | 2 / 1 / 0 | 1.00 |
+| 10–12 | 4×3 | 2 / 1 / 0 | 0.74 |
 
-**Corrected 2026-08-22 during P1.6.** The contract's rule — and the first draft of this
-decision — pinned rows at 3 unconditionally. That is wrong below seven cards: four visible
-cards would give 2 columns × 3 rows, so the grid renders a 2×2 block and then an *empty
-third row* on a layout whose entire purpose is filling the viewport. Deriving rows from the
-columns gives four cards a true 2×2, three cards a full-height vertical stack, and one card
-the whole screen. Implemented in `gridShape()` in `routes/index.tsx`.
+**Two corrections, both made while building.**
 
-Carried from the integrations contract, extended from *card count* to *cell count* because
-sizing is now in scope. **Mirror this correction back into the contract.**
+*First (P1.6):* the contract pinned rows at 3 unconditionally. That leaves an empty band
+below seven cards — four cards would render a 2×2 and then a dead third row on a layout
+whose entire purpose is filling the viewport.
+
+*Second (browser pass):* deriving **columns** first was also wrong, and worse. Three cards
+became a 1×3 — every card the full window width at a third of its height, roughly 6:1
+against the ~2:1 tile the cards are designed for. Card contents visibly stretched. The
+viewport is a widescreen, so the grid must fill **across** before it fills **down**: three
+cards are a 3×1, not a 1×3.
+
+Two properties fall out of the corrected rule and are worth keeping:
+
+- **Rows never exceed 3**, so a tile is never *shorter* than it is in the full 3×3. Vertical
+  space only increases as cards are hidden, so hiding a card can never make another card
+  start scrolling.
+- **No shape is a letterbox.** The worst aspect deviation is a *portrait* tile (3 cards),
+  which is the safe direction — it yields empty space, not overflow.
+
+Implemented as `gridShape()` in `routes/index.tsx`. **Mirror this into the contract**, where
+the original pinned-rows rule is still on record.
 
 ### D3 — `CardKey` is a closed union in `packages/types`, and the nine pillar keys are it
 
@@ -201,12 +220,86 @@ This is the integrations contract's build order 1.1–1.9 verbatim.
 | ✅ 1.3 | **Card registry** replacing the nine hardcoded JSX tags | `apps/web` | **Keystone.** Split into `cardCatalog.ts` (metadata, no component imports) + `cardRegistry.ts` (key → component). Resolved both hand-rolled shells. |
 | ✅ 1.4 | `GET` / `PATCH /api/dashboard/layout` | `apps/api` | User-scoped, validated against `CardKey`, server default when no row exists. `demoReadOnly` already blocks the `PATCH` for demo sessions. |
 | ✅ 1.5 | `useDashboardLayout` hook; render registry filtered by layout | `apps/web` | Optimistic toggle; shared `queryOptions` like `settingsQueryOptions`. |
-| ✅ 1.6 | Variable-count grid CSS | `apps/web` | D2. `gridShape()` derives cols **and** rows; passed to `.dashboard` as the `--dash-cols` / `--dash-rows` custom properties. |
+| ✅ 1.6 | Variable-count grid CSS | `apps/web` | D2. `gridShape()` derives rows then cols; passed to `.dashboard` as `--dash-cols` / `--dash-rows`. |
 | ✅ 1.7 | Settings toggles section | `apps/web` | Replaces the `.settings-disabled` teaser at `routes/settings.tsx:358`. Where the feature becomes usable rather than merely present. |
 | ✅ 1.8 | Demo default layout | `packages/db/seed-demo.sql` | Demo shows all nine. |
 | ✅ 1.9 | Verification | — | See §7. |
 
-### Phase 2 — Sizing (spans)
+### Phase 2 — Edit mode (in place, on the dashboard)
+
+Arrangement moved out of Settings and onto the dashboard itself, phone-home-screen style.
+**Sequenced before sizing on purpose:** sizing otherwise has no UI home but more Settings
+controls, which edit mode would immediately replace — building them would be building them
+twice. Edit mode is the surface all three of visibility, sizing and reorder belong on.
+
+| # | Deliverable | Status |
+|---|---|---|
+| 2.1 | `EditModeProvider` / `useEditMode` above the route; Escape exits; leaving `/` exits | ✅ built |
+| 2.2 | Header toggle, dashboard-only, hidden for demo sessions | ✅ built |
+| 2.3 | Long-press (500 ms) on a card to enter, as on a home screen | ✅ built |
+| 2.4 | `CardKeyContext` so the shared shell knows which card it is rendering | ✅ built |
+| 2.5 | Remove badge on each card; jiggle, with a reduced-motion equivalent | ✅ built |
+| 2.6 | Edit bar: hidden-card chips to restore, error text, Done | ✅ built |
+| 2.7 | Settings "Dashboard cards" section removed | ✅ built |
+| 2.8 | `useLayoutError` — failures surface wherever the mutation was fired from | ✅ built |
+| 2.9 | Keyboard path for hide/restore verified; live browser pass | open |
+
+**Why the shell hosts the affordances.** The badge and jiggle live in `Card`, not in a
+wrapper element around each card. A wrapper would become the grid item, displacing `.card`
+from the grid and putting a new layout box between the two — edit mode would then be able to
+disturb the grid it exists to edit. Hosting it in the shell means edit mode adds no layout at
+all. This is only possible because every card was routed through the shared shell in 1.3.
+
+**Why there is a hidden-card tray.** Hiding a card removes the very thing you would click to
+get it back. Without an inventory, hiding is one-way. The bar floats over the grid rather
+than occupying a strip, because the grid is sized to fill the viewport exactly and a strip
+would reflow every card the moment edit mode opened.
+
+**`CardKeyContext`, not the `pillar` prop.** The nine pillar values and the nine card keys
+coincide today. Deriving identity from the accent colour would break silently the first time
+they diverge, so the dashboard supplies the key explicitly.
+
+**Open — the settings section is gone.** Layout has one home now. That deletes the 1.7 UI
+(the API, types, registry and hook underneath it are untouched), which is why the phase
+ordering matters: it was built and removed inside a day.
+
+### Phase 3 — Reordering
+
+Pulled ahead of sizing. **Reorder is strictly simpler before spans exist:** every tile is
+1x1, so a move is an index splice. Once cards can be 2x1 or 2x2, reorder has to solve
+placement *and* packing together — the hard case the plan had parked at 5.3. Doing it now
+solves it once, in its easy form, and sizing then extends a working reorder instead of the
+reverse. It also completes edit mode: a jiggling card that will not move is a half-promise.
+
+| # | Deliverable | Status |
+|---|---|---|
+| 3.1 | `user_settings.card_order` + migration **`0013_calm_sumo.sql`** | built |
+| 3.2 | `order` on `DashboardLayout`; shared `resolveCardOrder` | built |
+| 3.3 | `PATCH` accepts `hidden` and `order` independently | built |
+| 3.4 | `useMoveCard` — visible-list positions spliced back into the total order | built |
+| 3.5 | `useCardDrag` — pointer-event drag, no dependency | built |
+| 3.6 | Arrow-key reordering on each slot | built |
+| 3.7 | Drop-target and picked-up styling; jiggle suppressed while dragging | built |
+| 3.8 | Live browser pass, incl. touch and keyboard | open |
+| 3.9 | Demo seed order | open |
+
+**Blocker B1 is closed, without a dependency.** Native pointer events cover mouse, touch and
+pen in one code path, and a uniform 1x1 grid makes "which cell am I over" a hit test rather
+than a layout solver — the drop target is the tile whose *centre* is nearest the pointer,
+measured from rendered boxes, so it needs no knowledge of the current column count. A library
+would also not have supplied the keyboard path, which matters more here than usual: removing
+the Settings list took away the only keyboard-operable way to arrange the dashboard, so
+arrow-key reordering is a regression fix, not a nicety.
+
+**Order storage follows D4.** `card_order` holds a partial order; keys *absent* from it sort
+after those present, in registry order. A card that ships later lands at the end for existing
+users with no backfill — the same property `hidden_cards` has. `resolveCardOrder` is shared
+between server and client so the optimistic prediction and the persisted result cannot drift.
+
+**`hidden` and `order` are replaced independently.** They are edited by different gestures, so
+requiring both on every write would let a reorder clobber a concurrent hide.
+
+### Phase 4 — Sizing (spans)
 
 Depends on the P1 registry. This is the half the integrations contract explicitly deferred
 ("size and reorder become a separate follow-up"), pulled forward by this session's scope.
@@ -223,30 +316,78 @@ Depends on the P1 registry. This is the half the integrations contract explicitl
 | 2.8 | Breakpoint collapse rules | `apps/web/styles.css` | D8. |
 | 2.9 | Demo seed sizes + verification | — | A non-trivial demo layout proves the feature to portfolio visitors. |
 
-### Phase 3 — Size-aware card content
+### Phase 5 — Card fit (cross-cutting)
 
-Makes a bigger card *worth* being bigger. Deliberately separate from P2 (D7).
+Makes a bigger card *worth* being bigger, and a smaller one still correct. **Partly built
+early** (see below) because the no-scroll requirement forced it.
 
-| # | Deliverable | Notes |
+**The rule: a card fits its tile — with one deliberate exception.** A wall display nobody is
+sitting at cannot be scrolled. **News is exempt**: a feed has no natural end, so no amount of
+trimming makes it "fit", and scrolling is what the content is for. It opts out with
+`<Card scrollable>`.
+
+**Scale first, drop only as a last resort.** Shrinking type and spacing to fit the tile keeps
+every element on the card, which is what the card was designed to show; dropping a block is a
+worse outcome and is reserved for when scaling has bottomed out. Scaling is done with
+**container query units**: `.card` is a size container (`container-type: size`), so contents
+size against *their own tile* rather than the viewport — e.g.
+`font-size: clamp(1.5rem, 15cqh, 2.85rem)`. No per-size rules to write, and it keeps working
+at whatever tiles Phase 2 introduces.
+
+Below that, two fallback mechanisms, because cards come in two shapes:
+
+- **`useClampList`** thins one list, row by row, hiding rows that don't fully fit
+  (Calendar, Tasks, Insights).
+- **`useFitSections`** drops whole blocks in a declared order, which is what a *non*-list
+  card needs — Weather and Performance are fixed stacks (hero, details, outlook, chart) with
+  no list to thin. A card marks optional blocks with `data-drop-order`, lowest dropped first;
+  anything unmarked is essential. **The shell owns this**, so the guarantee is not
+  re-implemented per card, and a card with nothing marked still scrolls *visibly* — an honest
+  scrollbar beats silently clipping a card nobody has audited.
+
+Current drop orders: Weather `outlook → details → sun arc`; Performance `trend chart → resting-HR vitals`.
+
+ The naive implementation is a `slice(0, N)` per
+card, and it is wrong — every `N` encodes one tile size, so it is stale the moment the grid
+reshapes (P1) or a card is resized (P2). Retuning constants at every size is how the
+original overflow bug happened. So the content decides what to show by **measuring**, once,
+in a shared primitive.
+
+| # | Deliverable | Status |
 |---|---|---|
-| 3.1 | Size context available to card bodies | Registry passes the resolved size down; no card reads the DOM. |
-| 3.2 | Calendar honours its tile | `MAX_EVENTS = 10` becomes a function of height. |
-| 3.3 | League honours its tile | The 6-match slice and the "fits without scroll" portioning become size-aware. |
-| 3.4 | News honours its tile | The card that most wants 2×1; thumbnails and item count scale. |
-| 3.5 | Remaining cards audited | Some legitimately need nothing — record which and why. |
+| 3.1 | `useClampList` — hide rows that don't fully fit, report the count; `ClippedNote` footer | ✅ built |
+| 3.2 | Calendar clamped; `MAX_EVENTS` demoted from "what shows" to a DOM ceiling (10 → 30) | ✅ built |
+| 3.3 | Tasks clamped — previously rendered **every** task, unbounded | ✅ built |
+| 3.4 | Insights clamped — previously rendered **every** insight, unbounded | ✅ built |
+| 3.5 | `useFitSections` — the shell drops `[data-drop-order]` blocks until the body fits | ✅ built |
+| 3.6 | Weather (outlook → details → sun arc) and Performance (trend → vitals) marked | ✅ built |
+| 3.7 | News opted out via `<Card scrollable>` — a feed has no natural end | ✅ built |
+| 3.8 | `.card` as a size container; display numerals + hero spacing on `cqh` clamps | ✅ built |
+| 3.9 | Fix `.gaming-matches-block` overlap — `min-height: 0` spilled content onto the disclaimer | ✅ built |
+| 3.10 | Audit the rest (Health, Gaming, Summary) and scale/mark their blocks | open |
+| 3.11 | Size-*aware* content, as opposed to size-*safe*: a 2×2 card using its extra room well | open |
 
-### Phase 4 — Reordering
+**How the primitive works, and why it is built that way.** Item heights are not uniform — an
+insight's detail wraps, the calendar has a divider row, a task row grows while being edited —
+so "how many fit" cannot be derived from one row's height. It has to come from each item's
+real box. Two consequences:
 
-The last piece of "dynamic". Kept last because it is the one step that likely forces the
-storage shape to change.
+- **It hides rather than slices.** Slicing in React would unmount the very elements whose
+  boxes the next measurement depends on, so the list could never tell that a row would fit
+  again once the card grew. Every item stays mounted; `visibility` is toggled.
+- **`visibility: hidden`, specifically.** It is the only way to hide an element without
+  affecting layout, so toggling it cannot trigger the `ResizeObserver` that scheduled it —
+  which is precisely what would loop.
+- **The "+N more" footer is always rendered, even at zero**, at a fixed height. If it
+  appeared only when something was clipped, it would take space from the list exactly when
+  the list was already full — and removing it would free the space that makes the last row
+  fit, which removes it again. Reserving the space unconditionally gives the measurement a
+  fixed point.
 
-| # | Deliverable | Notes |
-|---|---|---|
-| 4.1 | Order storage | Almost certainly the point at which the two JSON columns become a `dashboard_cards` table (D4). Migration carries one real user + the demo seed. |
-| 4.2 | Reorder UI | Settings list reorder first (no new dependency); drag-on-grid only if it can be done without one — see §6. |
-| 4.3 | Order + span interaction | Dense packing plus explicit order is the genuinely hard case; may need explicit placement rather than auto-flow. |
+This is why 3.1 was worth building properly instead of tuning three constants: it is correct
+at every tile size, so **Phase 2 sizing needs no retuning of it**.
 
-### Phase 5 (optional) — Presets
+### Phase 6 (optional) — Presets
 
 "Wall", "Focus", "Minimal" as named layouts. Cheap once P1–P4 exist, and the best answer to
 "this is fiddly to configure". Not scheduled.
@@ -259,9 +400,10 @@ storage shape to change.
 |---|---|---|---|
 | 0 — Audit & decisions | this document | 8 decisions recorded, prior art catalogued | mirror D1/D2/D5 into the integrations contract |
 | 1 — Visibility | 9 | **9** | — shipped |
-| 2 — Sizing | 9 | 0 | 2.1 – 2.9 — **next** |
-| 3 — Size-aware content | 5 | 0 | 3.1 – 3.5 |
-| 4 — Reordering | 3 | 0 | 4.1 – 4.3 |
+| 2 — Edit mode | 9 | 8 | 2.9 (verification) |
+| 3 — Reordering | 9 | 7 | 3.8 – 3.9 (verification, demo seed) |
+| 4 — Sizing | 9 | 0 | 4.1 – 4.9 — **next** |
+| 5 — Card fit | 11 | 9 | 5.10 – 5.11 (built early; forced by the no-scroll rule) |
 
 Pre-existing partial credit, for honesty: `.span-2` (dead) and the settings teaser (a stub
 that says the feature is coming). Neither does anything.
@@ -274,9 +416,9 @@ that says the feature is coming). Neither does anything.
    the shared shell, which gained a `className` passthrough. Their only reason to exist was to
    add `news-card` / `weather-card` classes that **appear nowhere in `styles.css`** — dead
    classes duplicating a shell. Kept on the shared call for future styling, at zero cost.
-2. **Card internals are tuned for a 1×1 tile** (§2.3). P2 ships bigger cards containing the
-   same content; P3 exists to close that, and the interim state should be a conscious
-   choice, not a surprise in review.
+2. **Card internals are tuned for a 1×1 tile** (§2.3). *Partly closed:* the three unbounded
+   list cards (Calendar, Tasks, Insights) now measure instead (3.1–3.4). The remaining cards
+   are unaudited — 3.5.
 3. **Reordering may require a drag dependency.** Every serious grid-drag library is a new
    `npm` package, which needs explicit approval per the repo's prime directives. The stated
    preference is native HTML5 drag-and-drop or a settings-list reorder with buttons — no new
@@ -302,7 +444,7 @@ that says the feature is coming). Neither does anything.
 
 | # | Blocker | Blocks | Status |
 |---|---|---|---|
-| B1 | New-dependency approval for any drag library | P4.2 only | Open — ask before P4 is scoped. Preference on record: no new dependency. |
+| ~~B1~~ | ~~Drag library dependency~~ | — | **Closed 2026-08-22.** Reorder shipped on native pointer events; no package added. |
 | B2 | Confirmation of D1 (the 3×3 substrate) | P2 onward | **Decided here, pending review.** P1 is substrate-agnostic and can start regardless. |
 | B3 | The Homelab card (the tenth card) does not exist yet | Nothing here | Informational. This work is that card's prerequisite, not the reverse. |
 
@@ -354,6 +496,17 @@ Written during the build; these are the things a reader of the plan alone would 
 - **One deliberate visual change:** the News card now renders the `card-dot` accent, because
   the shared shell always does and `--pillar-news` already existed for it. Every other card
   had one; News was the outlier. Revert by giving `Card` a dot opt-out if that reads wrong.
+- **A failed layout save is now shown.** The first browser attempt hit a 500 and the only
+  symptom was a checkbox that "clicked itself back" — the optimistic rollback with nothing
+  explaining it. `DashboardCardsSection` now renders the mutation error. Any optimistic
+  toggle needs this; silent rollback is indistinguishable from a dead control.
+- **Toggles are not disabled while saving.** The update is optimistic and each `PATCH` sends
+  the whole set derived from the already-updated cache, so rapid toggling stays consistent.
+- **Local-dev gotcha:** apply migrations **before** starting `wrangler dev`, and never while
+  it is running. A running miniflare instance holds D1 state in memory and can flush an older
+  snapshot on shutdown — it silently reverted `0012`, dropping both the column and its
+  `d1_migrations` row while leaving all other data intact. `SELECT name FROM d1_migrations`
+  is the reliable check; the column existing is not, because it can disappear later.
 - **`.settings-disabled` was deleted** along with the teaser it existed for. `.span-2` is
   still present and still dead — it is retired in 2.4, not here.
 
@@ -366,3 +519,6 @@ Written during the build; these are the things a reader of the plan alone would 
 | 2026-08-21 | Card visibility scoped as Phase 1 of `integrations/homelab-telemetry.md` (D1 there), sizing explicitly deferred. |
 | 2026-08-22 | This document created. Audit of prior art; sizing pulled into scope as Phase 2; substrate decided (D1 here); phases 3–5 added. No code written. |
 | 2026-08-22 | **Phase 1 built and verified** (1.1–1.9). D2 corrected mid-build: rows are derived, not pinned at 3. Gap 1 closed. Implementation notes in §9. |
+| 2026-08-22 | **Reordering built** as Phase 3, ahead of sizing — drag on native pointer events plus arrow keys; B1 closed with no dependency. Sizing -> Phase 4. |
+| 2026-08-22 | **Edit mode built** as the new Phase 2, ahead of sizing — arrangement moved onto the dashboard; Settings section removed. Sizing → Phase 3, reorder → Phase 5. |
+| 2026-08-22 | Browser pass. D2 corrected **again** (rows before columns — column-first made 3 cards a 6:1 letterbox). Cards were scrolling: Tasks and Insights rendered unbounded lists. Built `useClampList` (3.1) and applied it to Calendar, Tasks, Insights rather than tuning per-card constants. |

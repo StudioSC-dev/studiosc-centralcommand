@@ -81,6 +81,12 @@ export const userSettings = sqliteTable("user_settings", {
   homeLon: real("home_lon"),
   locationLabel: text("location_label"), // human-readable, e.g. "Brooklyn, NY"
   units: text("units"), // 'metric' | 'imperial' — weather display preference (null → metric)
+  // JSON array of CardKey values the user has HIDDEN from the dashboard, e.g.
+  // '["gaming","news"]'. Stores the exceptions, not the state: a card absent
+  // from this list is visible, so a newly shipped card appears for every
+  // existing user with no backfill. null / absent → nothing hidden.
+  // See docs/ui-suite.md D4.
+  hiddenCards: text("hidden_cards"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });

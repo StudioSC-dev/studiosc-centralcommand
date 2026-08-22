@@ -1,4 +1,10 @@
-import { CARD_KEYS, isCardKey, type CardKey, type DashboardLayout } from "@central-command/types";
+import {
+  CARD_KEYS,
+  isCardKey,
+  resolveCardOrder,
+  type CardKey,
+  type DashboardLayout,
+} from "@central-command/types";
 
 /**
  * Read the stored `hidden_cards` JSON into a clean key list.
@@ -27,17 +33,55 @@ export function parseHiddenCards(raw: string | null | undefined): CardKey[] {
   return CARD_KEYS.filter((key) => hidden.has(key));
 }
 
-/** Expand a hidden set into the full layout, deriving `visible` server-side. */
-export function toLayout(hidden: readonly CardKey[]): DashboardLayout {
+/**
+ * Read the stored `card_order` JSON. Lenient for the same reasons as
+ * `parseHiddenCards` — a stale key here fails safe by being ignored, leaving
+ * that card in its registry position.
+ */
+export function parseCardOrder(raw: string | null | undefined): CardKey[] {
+  if (!raw) return [];
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+
+  const seen = new Set<CardKey>();
+  const order: CardKey[] = [];
+  for (const key of parsed) {
+    if (isCardKey(key) && !seen.has(key)) {
+      seen.add(key);
+      order.push(key);
+    }
+  }
+  return order;
+}
+
+/**
+ * Expand the stored state into the full layout.
+ *
+ * `order` is resolved to a total order (unknown keys appended in registry
+ * order); `visible` is that order minus the hidden set. Both derived here so the
+ * client never has to reproduce the rule.
+ */
+export function toLayout(
+  hidden: readonly CardKey[],
+  storedOrder: readonly CardKey[] = [],
+): DashboardLayout {
   const hiddenSet = new Set(hidden);
+  const order = resolveCardOrder(storedOrder);
   return {
-    hidden: CARD_KEYS.filter((key) => hiddenSet.has(key)),
-    visible: CARD_KEYS.filter((key) => !hiddenSet.has(key)),
+    hidden: order.filter((key) => hiddenSet.has(key)),
+    order,
+    visible: order.filter((key) => !hiddenSet.has(key)),
   };
 }
 
-/** Serialise for storage. `null` when nothing is hidden, so the common case
- * leaves the column empty rather than holding an empty array. */
-export function serialiseHiddenCards(hidden: readonly CardKey[]): string | null {
-  return hidden.length === 0 ? null : JSON.stringify(hidden);
+/** Serialise for storage. `null` when empty, so the common case leaves the
+ * column empty rather than holding an empty array. */
+export function serialiseKeys(keys: readonly CardKey[]): string | null {
+  return keys.length === 0 ? null : JSON.stringify(keys);
 }

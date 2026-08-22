@@ -18,6 +18,8 @@ export interface SettingsInput {
   units?: "metric" | "imperial" | null;
   /** JSON array of hidden CardKeys, or null for "nothing hidden". */
   hiddenCards?: string | null;
+  /** JSON array of CardKeys in the user's preferred order, or null for default. */
+  cardOrder?: string | null;
 }
 
 /**

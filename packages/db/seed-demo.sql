@@ -27,8 +27,11 @@ VALUES ('demo0000-0000-7000-8000-000000000000', 'demo@centralcommand.studiosc.de
 INSERT INTO user_profiles (user_id, display_name, birthdate, sex, height_cm, weight_kg, activity_level, created_at, updated_at)
 VALUES ('demo0000-0000-7000-8000-000000000000', 'Alex Rivera', '1993-07-15', 'male', 178, 74, 'active', unixepoch('now') * 1000, unixepoch('now') * 1000);
 
-INSERT INTO user_settings (user_id, timezone, home_lat, home_lon, location_label, units, created_at, updated_at)
-VALUES ('demo0000-0000-7000-8000-000000000000', 'America/New_York', 40.71, -74.01, 'New York, NY', 'metric', unixepoch('now') * 1000, unixepoch('now') * 1000);
+-- hidden_cards is NULL: the demo shows all nine cards, so a visitor sees the
+-- full dashboard. The toggles themselves are visible but disabled for demo
+-- sessions (demoReadOnly blocks the PATCH server-side regardless).
+INSERT INTO user_settings (user_id, timezone, home_lat, home_lon, location_label, units, hidden_cards, created_at, updated_at)
+VALUES ('demo0000-0000-7000-8000-000000000000', 'America/New_York', 40.71, -74.01, 'New York, NY', 'metric', NULL, unixepoch('now') * 1000, unixepoch('now') * 1000);
 
 -- ── Performance scores (last 30 days) ────────────────────────────────────────
 WITH RECURSIVE seq(n) AS (SELECT 0 UNION ALL SELECT n + 1 FROM seq WHERE n < 29)

@@ -1,0 +1,81 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+
+/**
+ * Hide the list items that do not *fully* fit the space the list has, and
+ * report how many were hidden.
+ *
+ * This is the dashboard's answer to "a card must never scroll". The naive fix —
+ * a `slice(0, N)` per card — encodes one tile size as a constant, so every N is
+ * wrong again the moment a card is resized (Phase 2) or the grid reshapes
+ * because a card was hidden (Phase 1). This measures instead, so it is correct
+ * at every tile size and needs no retuning.
+ *
+ * **Why it hides rather than slices.** Item heights here are not uniform — an
+ * insight's detail wraps, the calendar has a divider row, a task row grows while
+ * being edited — so "how many fit" cannot be computed from one row's height; it
+ * has to come from each item's real box. Slicing in React would remove the very
+ * elements whose boxes the next measurement depends on, so the list would have
+ * no way to know an item could fit again once the card grew. Keeping every item
+ * mounted and toggling `visibility` preserves the layout boxes, which keeps the
+ * measurement valid in both directions.
+ *
+ * `visibility: hidden` is also the one way to hide something without touching
+ * layout — so toggling it cannot itself trigger the ResizeObserver that
+ * scheduled it, which is what would otherwise loop.
+ *
+ * Requires the list element to be sized to the available space and to clip:
+ * `flex: 1 1 0; min-height: 0; overflow: hidden`.
+ */
+export function useClampList<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null);
+  const [clippedCount, setClippedCount] = useState(0);
+
+  const measure = useCallback(() => {
+    const list = ref.current;
+    if (!list) return;
+
+    // The list's own padding box is the space it may occupy; anything whose
+    // bottom edge falls past it is not fully visible.
+    const limit = list.getBoundingClientRect().top + list.clientHeight;
+    let clipped = 0;
+
+    for (const child of Array.from(list.children) as HTMLElement[]) {
+      // Sub-pixel tolerance: a row whose bottom lands exactly on the boundary
+      // is visible, and fractional layout should not count it as clipped.
+      const fits = child.getBoundingClientRect().bottom <= limit + 0.5;
+      child.classList.toggle("is-clipped", !fits);
+      if (!fits) clipped += 1;
+    }
+
+    setClippedCount((prev) => (prev === clipped ? prev : clipped));
+  }, []);
+
+  useEffect(() => {
+    const list = ref.current;
+    if (!list) return;
+
+    measure();
+
+    // Observe the list (the card was resized) and every row (its own content
+    // changed height — a wrapping title, an inline editor opening).
+    const observer = new ResizeObserver(measure);
+    observer.observe(list);
+    for (const child of Array.from(list.children)) observer.observe(child);
+
+    // Rows are added and removed by data changes, not just resizes.
+    const mutation = new MutationObserver(() => {
+      observer.disconnect();
+      observer.observe(list);
+      for (const child of Array.from(list.children)) observer.observe(child);
+      measure();
+    });
+    mutation.observe(list, { childList: true });
+
+    return () => {
+      observer.disconnect();
+      mutation.disconnect();
+    };
+  }, [measure]);
+
+  return { ref, clippedCount };
+}

@@ -450,12 +450,44 @@ export function isCardKey(value: unknown): value is CardKey {
  */
 export interface DashboardLayout {
   hidden: CardKey[];
+  /** The user's preferred order, fully resolved — every key, no gaps. */
+  order: CardKey[];
+  /** `order` minus `hidden`. Derived server-side so the client never re-derives it. */
   visible: CardKey[];
 }
 
-/** Body for PATCH /dashboard/layout. The full hidden set, not a delta. */
+/**
+ * Resolve a stored partial order into a total one.
+ *
+ * Keys present in `stored` keep their relative order; anything missing — a card
+ * that shipped after the row was written — falls in afterwards in registry
+ * order. That is the ordering half of "store the exceptions" (docs/ui-suite.md
+ * D4): a new card needs no backfill, it just lands at the end.
+ *
+ * Shared rather than duplicated because the server persists it and the client
+ * predicts it optimistically; two implementations would drift.
+ */
+export function resolveCardOrder(stored: readonly CardKey[]): CardKey[] {
+  const seen = new Set<CardKey>();
+  const ordered: CardKey[] = [];
+  for (const key of stored) {
+    if (isCardKey(key) && !seen.has(key)) {
+      seen.add(key);
+      ordered.push(key);
+    }
+  }
+  for (const key of CARD_KEYS) if (!seen.has(key)) ordered.push(key);
+  return ordered;
+}
+
+/**
+ * Body for PATCH /dashboard/layout. Both fields are full replacements, not
+ * deltas — idempotent, and no add/remove races between two open tabs. Either may
+ * be omitted to leave that half untouched.
+ */
 export interface DashboardLayoutInput {
-  hidden: CardKey[];
+  hidden?: CardKey[];
+  order?: CardKey[];
 }
 
 export interface DashboardLayoutResponse {

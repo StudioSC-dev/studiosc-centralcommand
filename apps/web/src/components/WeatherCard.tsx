@@ -3,6 +3,7 @@ import type { WeatherCurrent, WeatherData, WeatherDailyEntry } from "@central-co
 import { useSetUnits, useWeather } from "../lib/weather";
 import { useIsDemo } from "../lib/auth";
 import { LocationSetter } from "./LocationSetter";
+import { Card as CardShell } from "./Card";
 import { WeatherGlyph, weatherGroup } from "./WeatherGlyph";
 
 type Units = WeatherData["units"];
@@ -152,14 +153,12 @@ export function WeatherCard() {
   );
 }
 
+/** Local alias so every `<Card>` in this file gets the Weather title and pillar.
+ * Delegates to the shared shell — see CardShell's `className` note for why. */
 function Card({ children }: { children: ReactNode }) {
   return (
-    <section className="card weather-card pillar-weather">
-      <h2 className="card-title">
-        <span className="card-dot" aria-hidden="true" />
-        Weather
-      </h2>
-      <div className="card-body">{children}</div>
-    </section>
+    <CardShell title="Weather" pillar="weather" className="weather-card">
+      {children}
+    </CardShell>
   );
 }

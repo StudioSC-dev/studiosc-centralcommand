@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { NewsItem, NewsTopic } from "@central-command/types";
 import { useNews } from "../lib/news";
+import { Card as CardShell } from "./Card";
 
 const fmtDate = (ms: number) =>
   new Date(ms).toLocaleDateString([], { month: "short", day: "numeric" });
@@ -117,11 +118,12 @@ function NewsRow({ item }: { item: NewsItem }) {
   );
 }
 
+/** Local alias so every `<Card>` in this file gets the News title and pillar.
+ * Delegates to the shared shell — see CardShell's `className` note for why. */
 function Card({ children }: { children: ReactNode }) {
   return (
-    <section className="card news-card pillar-news">
-      <h2 className="card-title">News</h2>
-      <div className="card-body">{children}</div>
-    </section>
+    <CardShell title="News" pillar="news" className="news-card">
+      {children}
+    </CardShell>
   );
 }

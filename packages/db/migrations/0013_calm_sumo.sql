@@ -1,0 +1,1 @@
+ALTER TABLE `user_settings` ADD `card_order` text;

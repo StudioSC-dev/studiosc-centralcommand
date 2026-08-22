@@ -87,6 +87,12 @@ export const userSettings = sqliteTable("user_settings", {
   // existing user with no backfill. null / absent → nothing hidden.
   // See docs/ui-suite.md D4.
   hiddenCards: text("hidden_cards"),
+  // JSON array of CardKey values in the user's preferred order, e.g.
+  // '["news","weather"]'. Same "store the exceptions" principle as hidden_cards
+  // (docs/ui-suite.md D4): a key ABSENT from this list sorts after every key
+  // present, in registry order — so a card shipped later appears at the end for
+  // existing users with no backfill. null / absent → registry order.
+  cardOrder: text("card_order"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });

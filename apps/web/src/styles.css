@@ -610,8 +610,64 @@ button {
   font-size: 0.85rem;
 }
 
-.settings-disabled {
-  opacity: 0.6;
+/* ─── Dashboard card toggles (settings) ─────────────────────────────────────── */
+
+.card-toggles {
+  list-style: none;
+  margin: 0.9rem 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.card-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.card-toggle-label:hover {
+  background: var(--surface-2);
+}
+
+.card-toggle-label:has(input:disabled) {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* Dim the row when the card is off, so the list reads at a glance. */
+.card-toggle-label:has(input:not(:checked)) .card-toggle-text {
+  opacity: 0.5;
+}
+
+.card-toggle-label input {
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+  cursor: inherit;
+}
+
+.card-toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.card-toggle-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.card-toggle-desc {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  opacity: 0.75;
 }
 
 .about-links {
@@ -680,13 +736,16 @@ button {
 
 .dashboard {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  /* Wall-display layout: three equal rows that fill the viewport height, so the
-     whole 3×3 grid fits on screen with NO page scroll and each card grows as
-     tall as the monitor allows. Overflow scrolls inside individual cards
-     (expected for News and a busy Calendar). The 8px trims sub-pixel rounding +
-     the header border so it never tips into a page scrollbar. */
-  grid-template-rows: repeat(3, minmax(0, 1fr));
+  /* Column and row counts are derived from the number of visible cards and set
+     as inline custom properties by routes/index.tsx (see gridShape()). The
+     fallbacks keep the historic 3×3 if the layout query has not resolved. */
+  grid-template-columns: repeat(var(--dash-cols, 3), minmax(0, 1fr));
+  /* Wall-display layout: equal rows that fill the viewport height, so the whole
+     grid fits on screen with NO page scroll and each card grows as tall as the
+     monitor allows. Overflow scrolls inside individual cards (expected for News
+     and a busy Calendar). The 8px trims sub-pixel rounding + the header border
+     so it never tips into a page scrollbar. */
+  grid-template-rows: repeat(var(--dash-rows, 3), minmax(0, 1fr));
   height: calc(100vh - 56px - 1.8rem - 8px);
   gap: var(--gap);
   align-items: stretch;

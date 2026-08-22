@@ -16,6 +16,8 @@ export interface SettingsInput {
   homeLon?: number | null;
   locationLabel?: string | null;
   units?: "metric" | "imperial" | null;
+  /** JSON array of hidden CardKeys, or null for "nothing hidden". */
+  hiddenCards?: string | null;
 }
 
 /**

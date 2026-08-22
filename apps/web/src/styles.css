@@ -791,6 +791,13 @@ button {
 .card {
   /* Default accent; pillar-* classes override --card-accent per card. */
   --card-accent: var(--accent);
+  /* Size container: card contents scale to THIS tile, not to the viewport, via
+     cq units. That is what lets a card shrink to fit instead of shedding
+     elements, and it keeps working at whatever tile sizes Phase 2 introduces —
+     no per-size rules to write. Safe here because a card's height is always
+     definite (a grid row), which `container-type: size` requires. */
+  container-type: size;
+  container-name: card;
   position: relative;
   /* Own stacking context so the sheen's negative z-index stays inside the card. */
   isolation: isolate;
@@ -864,10 +871,23 @@ button {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* Cards fit their tile by default — a wall display nobody is sitting at
+     cannot be scrolled. useFitSections drops [data-drop-order] blocks until the
+     body fits; a card with none marked still scrolls, visibly, which beats
+     silently clipping a card nobody has audited. `.is-scrollable` is the
+     deliberate opt-out (News). */
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-gutter: stable;
+}
+
+/* A section dropped because the card body could not fit it. `display: none`
+   (unlike the row-level `.is-clipped`) because here we want the space back —
+   and the body's own box is fixed by the card, so removing a child cannot
+   resize it and cannot loop the observer that dropped it. */
+.is-dropped {
+  display: none !important;
 }
 
 .card-title {
@@ -968,8 +988,8 @@ button {
 .weather-hero {
   display: flex;
   align-items: center;
-  gap: 0.9rem;
-  padding: 0.7rem 0.85rem;
+  gap: clamp(0.4rem, 3cqh, 0.9rem);
+  padding: clamp(0.3rem, 2.5cqh, 0.7rem) 0.85rem;
   margin: 0 -0.25rem 0.4rem;
   border-radius: var(--radius-inner);
   border: 1px solid var(--glass-border);
@@ -1034,7 +1054,9 @@ button {
 }
 
 .weather-temp {
-  font-size: 2.85rem;
+  /* Scales with the tile: ~2.85rem at the 3x3 reference (~307px tall), smaller
+     on a shorter tile, capped so it never gets silly on a large one. */
+  font-size: clamp(1.5rem, 15cqh, 2.85rem);
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1;
@@ -1565,6 +1587,11 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
+  /* Clamped list: take the space left in the card body and clip, so the card
+     itself never scrolls. useClampList hides the rows that don't fully fit. */
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .cal-event {
@@ -1780,7 +1807,7 @@ button {
 }
 
 .perf-score {
-  font-size: 2.8rem;
+  font-size: clamp(1.5rem, 15cqh, 2.8rem);
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1;
@@ -1797,7 +1824,7 @@ button {
 }
 
 .perf-bars {
-  margin-top: 0.85rem;
+  margin-top: clamp(0.3rem, 3cqh, 0.85rem);
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
@@ -2170,6 +2197,11 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+  /* `min-height: 0` above lets this shrink below its content (needed so the
+     match list can give space back). Without clipping, that content — the
+     empty-state line especially — spilled out and overlapped the disclaimer
+     underneath. Contain it. */
+  overflow: hidden;
 }
 
 .gaming-matches-head {
@@ -2425,6 +2457,11 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+  /* Clamped list: take the space left in the card body and clip, so the card
+     itself never scrolls. useClampList hides the rows that don't fully fit. */
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .insight {
@@ -2472,6 +2509,12 @@ button {
   grid-template-columns: 1fr auto auto auto auto;
   column-gap: 0.4rem;
   row-gap: 0.1rem;
+  /* Clamped list — see .insight-list. `align-content: start` keeps rows at
+     their natural height instead of stretching to fill the flex space. */
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  align-content: start;
 }
 
 /* Row = three borderless columns + a trailing done-circle:
@@ -2723,4 +2766,230 @@ button {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ─── Clamped lists ─────────────────────────────────────────────────────────── */
+
+/* A row that does not fully fit its card. `visibility` rather than `display`:
+   the box is preserved, so the next measurement can still tell that the row
+   would fit again once the card grows — and toggling it cannot itself change
+   layout, which is what would otherwise loop the ResizeObserver that set it. */
+.is-clipped {
+  visibility: hidden;
+}
+
+/* Always present, always the same height — see ClippedNote for why. */
+.list-clipped-note {
+  flex: 0 0 auto;
+  min-height: 1.15rem;
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+}
+
+/* ─── Dashboard edit mode ───────────────────────────────────────────────────── */
+
+/* Cards are inert while arranging: a click is for hiding a card, not for
+   paging the news or ticking a task off. The title and the remove badge stay
+   live so the card is still identifiable and actionable. */
+.dashboard.is-editing .card-body {
+  pointer-events: none;
+  user-select: none;
+}
+
+.card.is-editing {
+  /* Lifted and restless — the phone-home-screen idiom for "you can rearrange
+     this now". Alternate offsets so neighbouring cards fall out of phase
+     instead of wobbling in unison. */
+  animation: card-jiggle 0.32s ease-in-out infinite alternate;
+  cursor: grab;
+}
+
+.card.is-editing:nth-child(even) {
+  animation-delay: -0.16s;
+}
+
+@keyframes card-jiggle {
+  from {
+    transform: rotate(-0.28deg) translateY(-1px);
+  }
+  to {
+    transform: rotate(0.28deg) translateY(1px);
+  }
+}
+
+/* The motion is decoration, not information — the badge and the edit bar carry
+   the meaning, so removing it costs nothing. */
+@media (prefers-reduced-motion: reduce) {
+  .card.is-editing {
+    animation: none;
+    outline: 1px dashed color-mix(in srgb, var(--card-accent) 60%, transparent);
+    outline-offset: 3px;
+  }
+}
+
+.card-remove {
+  /* Inside the card, not overhanging it: `.card` sets `overflow: hidden` to clip
+     its own rounded corners, so a badge at negative offsets would be cut off.
+     Top-right rather than top-left — the title row's left is occupied by the
+     pillar dot and the heading, its right is empty on every card. */
+  position: absolute;
+  top: 0.55rem;
+  right: 0.6rem;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.card-remove svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  fill: none;
+}
+
+.card-remove:hover {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+/* Floats over the grid rather than sitting in it: the grid is sized to fill the
+   viewport exactly, so giving this a strip of its own would reflow every card
+   the moment edit mode opened. */
+.edit-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 1.1rem;
+  transform: translateX(-50%);
+  z-index: 20;
+  max-width: min(92vw, 1100px);
+}
+
+.edit-bar-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.7rem 0.55rem 0.9rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--shadow);
+}
+
+.edit-bar-label,
+.edit-bar-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.edit-bar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.edit-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.28rem 0.6rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.edit-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.edit-chip-add {
+  font-size: 0.95rem;
+  line-height: 1;
+  color: var(--text-faint);
+}
+
+.edit-bar-error {
+  font-size: 0.75rem;
+  color: var(--bad);
+  white-space: nowrap;
+}
+
+.edit-done {
+  padding: 0.35rem 0.95rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.edit-done:hover {
+  filter: brightness(1.08);
+}
+
+/* The header toggle, while edit mode is open. */
+.icon-button.active {
+  color: var(--accent);
+}
+
+/* ─── Reordering (edit mode) ────────────────────────────────────────────────── */
+
+/* `display: contents` — the wrapper contributes no box, so the card stays the
+   grid item and reordering cannot disturb the grid it is rearranging. */
+.card-slot {
+  display: contents;
+}
+
+.card-slot:focus-visible > .card {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Suppress the jiggle while dragging — one card should feel picked up and still,
+   not vibrating in the hand. */
+.dashboard.is-dragging .card.is-editing {
+  animation: none;
+}
+
+.card-slot.is-dragging > .card {
+  opacity: 0.55;
+  cursor: grabbing;
+  transform: scale(0.97);
+}
+
+.card-slot.is-drop-target > .card {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
+}
+
+/* Text selection while dragging across cards looks broken and blocks the drag
+   on touch. */
+.dashboard.is-editing {
+  touch-action: none;
 }

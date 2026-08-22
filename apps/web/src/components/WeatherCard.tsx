@@ -39,7 +39,7 @@ function SunArc({ current }: { current: WeatherCurrent }) {
   const y = cy - r * Math.sin(a);
 
   return (
-    <div className="weather-sun">
+    <div className="weather-sun" data-drop-order="3">
       <svg viewBox="0 0 120 62" className="sun-arc" aria-hidden="true">
         <path className="sun-arc-track" d="M14 52 A46 46 0 0 1 106 52" />
         <circle className={`sun-dot${daytime ? "" : " night"}`} cx={x} cy={y} r="4.5" />
@@ -127,14 +127,14 @@ export function WeatherCard() {
 
       <SunArc current={current} />
 
-      <div className="weather-details">
+      <div className="weather-details" data-drop-order="2">
         <Detail label="Humidity" value={`${current.humidity}%`} />
         <Detail label="Pressure" value={`${current.pressure} hPa`} />
         <Detail label="Visibility" value={fmtVisibility(current.visibility, units)} />
       </div>
 
       {daily.length > 1 && (
-        <ul className="weather-outlook">
+        <ul className="weather-outlook" data-drop-order="1">
           {daily.map((d, i) => (
             <li key={d.date}>
               <span className="weather-outlook-day">{dayLabel(d.date, i)}</span>

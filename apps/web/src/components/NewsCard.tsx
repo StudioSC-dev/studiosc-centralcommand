@@ -122,7 +122,7 @@ function NewsRow({ item }: { item: NewsItem }) {
  * Delegates to the shared shell — see CardShell's `className` note for why. */
 function Card({ children }: { children: ReactNode }) {
   return (
-    <CardShell title="News" pillar="news" className="news-card">
+    <CardShell title="News" pillar="news" className="news-card" scrollable>
       {children}
     </CardShell>
   );

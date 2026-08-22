@@ -283,6 +283,24 @@ reverse. It also completes edit mode: a jiggling card that will not move is a ha
 | 3.8 | Live browser pass, incl. touch and keyboard | open |
 | 3.9 | Demo seed order | open |
 
+**Bug found in the browser pass (fixed):** drag selected the wrong target because the hit
+test measured `grid.children` — which in edit mode are the `.card-slot` wrappers. Those are
+`display: contents`, chosen precisely so the card stays the grid item, and such an element
+generates **no box**, so `getBoundingClientRect()` returns all zeros. Every tile's centre
+computed as (0,0) and the drop target was meaningless. It now measures the `.card` elements,
+which are what the grid actually places. Worth remembering as a general trap: `display:
+contents` is invisible to every geometry API, so anything that measures must target the
+element that is really laid out.
+
+**Second bug, same pass (fixed):** with the hit test corrected, the drop outline tracked
+properly but cards still did not move. `cardsFor()` filtered `CARD_REGISTRY`, which always
+returns registry order and silently discarded the order it was handed — so the reorder
+persisted to `card_order` and was then thrown away at render. It was *correct* in Phase 1,
+where order was fixed; Phase 3 invalidated it without changing the signature, so nothing
+failed loudly. **Both bugs in this phase were presentational**, and neither was reachable by
+the API tests, which stayed green because the server was never wrong. Layout is a render
+property and needs a render-level check.
+
 **Blocker B1 is closed, without a dependency.** Native pointer events cover mouse, touch and
 pen in one code path, and a uniform 1x1 grid makes "which cell am I over" a hit test rather
 than a layout solver — the drop target is the tile whose *centre* is nearest the pointer,

@@ -43,8 +43,22 @@ export const CARD_REGISTRY: readonly CardDefinition[] = CARD_CATALOG.map((meta) 
   component: CARD_COMPONENTS[meta.key],
 }));
 
-/** Registry entries for a set of keys, in registry order. */
+/**
+ * Registry entries for the given keys, **in the order given**.
+ *
+ * The order of `keys` is the user's card order, so it has to survive this
+ * lookup. An earlier version filtered `CARD_REGISTRY` instead, which always
+ * returned registry order and silently discarded the caller's — correct while
+ * order was fixed in Phase 1, wrong the moment reordering shipped, and invisible
+ * because the return type never changed.
+ *
+ * Unknown keys are dropped rather than throwing: a key can outlive the card it
+ * names (a removed pillar still sitting in someone's stored order), and that
+ * should cost that one card, not the whole dashboard.
+ */
 export function cardsFor(keys: readonly CardKey[]): CardDefinition[] {
-  const wanted = new Set(keys);
-  return CARD_REGISTRY.filter((card) => wanted.has(card.key));
+  const byKey = new Map(CARD_REGISTRY.map((card) => [card.key, card]));
+  return keys
+    .map((key) => byKey.get(key))
+    .filter((card): card is CardDefinition => card !== undefined);
 }

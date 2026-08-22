@@ -2,7 +2,7 @@
 
 **Scope:** per-user control over *which* cards appear on the dashboard and *how large* each
 one is, on a uniform cell grid.
-**Status:** Phase 0 complete · **Phase 1 complete** (visibility ships) · Phases 2–4 not started
+**Status:** Phases 0–3 complete (visibility · edit mode · reordering) · Phase 4 (sizing) next
 **Owner branch:** `feat/ui-suite` → `dev`
 **Last updated:** 2026-08-22
 
@@ -280,7 +280,7 @@ reverse. It also completes edit mode: a jiggling card that will not move is a ha
 | 3.5 | `useCardDrag` — pointer-event drag, no dependency | built |
 | 3.6 | Arrow-key reordering on each slot | built |
 | 3.7 | Drop-target and picked-up styling; jiggle suppressed while dragging | built |
-| 3.8 | Live browser pass, incl. touch and keyboard | open |
+| 3.8 | Live browser pass — drag, drop, keyboard, persistence across reload | verified |
 | 3.9 | Demo seed order | open |
 
 **Bug found in the browser pass (fixed):** drag selected the wrong target because the hit
@@ -419,7 +419,7 @@ at every tile size, so **Phase 2 sizing needs no retuning of it**.
 | 0 — Audit & decisions | this document | 8 decisions recorded, prior art catalogued | mirror D1/D2/D5 into the integrations contract |
 | 1 — Visibility | 9 | **9** | — shipped |
 | 2 — Edit mode | 9 | 8 | 2.9 (verification) |
-| 3 — Reordering | 9 | 7 | 3.8 – 3.9 (verification, demo seed) |
+| 3 — Reordering | 9 | 8 | 3.9 (demo seed order); touch untested |
 | 4 — Sizing | 9 | 0 | 4.1 – 4.9 — **next** |
 | 5 — Card fit | 11 | 9 | 5.10 – 5.11 (built early; forced by the no-scroll rule) |
 

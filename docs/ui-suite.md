@@ -2,7 +2,7 @@
 
 **Scope:** per-user control over *which* cards appear on the dashboard and *how large* each
 one is, on a uniform cell grid.
-**Status:** Phase 0 audit complete · Phases 1–4 not started (no code written)
+**Status:** Phase 0 complete · **Phase 1 complete** (visibility ships) · Phases 2–4 not started
 **Owner branch:** `feat/ui-suite` → `dev`
 **Last updated:** 2026-08-22
 
@@ -36,7 +36,7 @@ more room than a 1×1 tile gives them.
 
 ## 2. What exists today (audit, 2026-08-22)
 
-### 2.1 Already implemented
+### 2.1 Already implemented *(snapshot taken before Phase 1; §10 records what changed)*
 
 | Thing | Where | Note |
 |---|---|---|
@@ -109,14 +109,26 @@ display, which is what this is.
 (e.g. becomes a scrolling mobile-first surface), C is the correct migration target and this
 decision should be revisited rather than patched.
 
-### D2 — Columns are derived from the visible card count; rows stay pinned at 3
+### D2 — Both columns and rows are derived from the visible card count
 
-`columns = min(4, ceil(totalCells / 3))`, rows always 3. Nine 1×1 cards → today's 3×3. A
-tenth card → 4 columns, 12 slots. Beyond 12 cells the tiles get too narrow for a wall
-display, and that cap is the honest limit, surfaced in the UI rather than hidden.
+```
+cols = min(4, ceil(cells / 3))
+rows = min(3, ceil(cells / cols))
+```
+
+Nine 1×1 cards → today's 3×3. A tenth card → 4 columns, 12 slots. Beyond 12 cells the tiles
+get too narrow for a wall display, and that cap is the honest limit, surfaced in the UI
+rather than hidden.
+
+**Corrected 2026-08-22 during P1.6.** The contract's rule — and the first draft of this
+decision — pinned rows at 3 unconditionally. That is wrong below seven cards: four visible
+cards would give 2 columns × 3 rows, so the grid renders a 2×2 block and then an *empty
+third row* on a layout whose entire purpose is filling the viewport. Deriving rows from the
+columns gives four cards a true 2×2, three cards a full-height vertical stack, and one card
+the whole screen. Implemented in `gridShape()` in `routes/index.tsx`.
 
 Carried from the integrations contract, extended from *card count* to *cell count* because
-sizing is now in scope.
+sizing is now in scope. **Mirror this correction back into the contract.**
 
 ### D3 — `CardKey` is a closed union in `packages/types`, and the nine pillar keys are it
 
@@ -184,15 +196,15 @@ This is the integrations contract's build order 1.1–1.9 verbatim.
 
 | # | Deliverable | Where | Notes |
 |---|---|---|---|
-| 1.1 | `user_settings.hidden_cards` JSON column + migration **`0012`** | `packages/db` | D4. Nullable TEXT holding a JSON array; `null` → nothing hidden. |
-| 1.2 | `CardKey` union + `DashboardLayout` type | `packages/types` | D3. Single source of truth for the nine keys. |
-| 1.3 | **Card registry** replacing the nine hardcoded JSX tags | `apps/web` | **Keystone.** `key → { component, title, pillar }`. Pure refactor, zero behaviour change — verify by visual parity. Must resolve the two hand-rolled shells (§2.3). |
-| 1.4 | `GET` / `PATCH /api/dashboard/layout` | `apps/api` | User-scoped, validated against `CardKey`, server default when no row exists. `demoReadOnly` already blocks the `PATCH` for demo sessions. |
-| 1.5 | `useDashboardLayout` hook; render registry filtered by layout | `apps/web` | Optimistic toggle; shared `queryOptions` like `settingsQueryOptions`. |
-| 1.6 | Variable-count grid CSS | `apps/web` | D2. `columns = min(4, ceil(N/3))`, rows pinned at 3, driven by a `data-cols` attribute or CSS custom property on `.dashboard`. |
-| 1.7 | Settings toggles section | `apps/web` | Replaces the `.settings-disabled` teaser at `routes/settings.tsx:358`. Where the feature becomes usable rather than merely present. |
-| 1.8 | Demo default layout | `packages/db/seed-demo.sql` | Demo shows all nine. |
-| 1.9 | Verification | — | See §7. |
+| ✅ 1.1 | `user_settings.hidden_cards` JSON column + migration **`0012_flaky_lorna_dane.sql`** | `packages/db` | D4. Nullable TEXT holding a JSON array; `null` → nothing hidden. |
+| ✅ 1.2 | `CardKey` union + `DashboardLayout` type | `packages/types` | D3. Single source of truth for the nine keys. |
+| ✅ 1.3 | **Card registry** replacing the nine hardcoded JSX tags | `apps/web` | **Keystone.** Split into `cardCatalog.ts` (metadata, no component imports) + `cardRegistry.ts` (key → component). Resolved both hand-rolled shells. |
+| ✅ 1.4 | `GET` / `PATCH /api/dashboard/layout` | `apps/api` | User-scoped, validated against `CardKey`, server default when no row exists. `demoReadOnly` already blocks the `PATCH` for demo sessions. |
+| ✅ 1.5 | `useDashboardLayout` hook; render registry filtered by layout | `apps/web` | Optimistic toggle; shared `queryOptions` like `settingsQueryOptions`. |
+| ✅ 1.6 | Variable-count grid CSS | `apps/web` | D2. `gridShape()` derives cols **and** rows; passed to `.dashboard` as the `--dash-cols` / `--dash-rows` custom properties. |
+| ✅ 1.7 | Settings toggles section | `apps/web` | Replaces the `.settings-disabled` teaser at `routes/settings.tsx:358`. Where the feature becomes usable rather than merely present. |
+| ✅ 1.8 | Demo default layout | `packages/db/seed-demo.sql` | Demo shows all nine. |
+| ✅ 1.9 | Verification | — | See §7. |
 
 ### Phase 2 — Sizing (spans)
 
@@ -246,8 +258,8 @@ storage shape to change.
 | Phase | Deliverables | Done | Remaining |
 |---|---|---|---|
 | 0 — Audit & decisions | this document | 8 decisions recorded, prior art catalogued | mirror D1/D2/D5 into the integrations contract |
-| 1 — Visibility | 9 | 0 | 1.1 – 1.9 |
-| 2 — Sizing | 9 | 0 | 2.1 – 2.9 |
+| 1 — Visibility | 9 | **9** | — shipped |
+| 2 — Sizing | 9 | 0 | 2.1 – 2.9 — **next** |
 | 3 — Size-aware content | 5 | 0 | 3.1 – 3.5 |
 | 4 — Reordering | 3 | 0 | 4.1 – 4.3 |
 
@@ -258,8 +270,10 @@ that says the feature is coming). Neither does anything.
 
 ## 6. Notable gaps
 
-1. **Two cards bypass the `Card` shell** (`NewsCard.tsx:122`, `WeatherCard.tsx:157`). Unhandled,
-   sizing is a no-op on two of nine cards and the bug looks like a CSS problem. Resolve in 1.3.
+1. ~~**Two cards bypass the `Card` shell.**~~ **Closed in 1.3.** Both local shims delegated to
+   the shared shell, which gained a `className` passthrough. Their only reason to exist was to
+   add `news-card` / `weather-card` classes that **appear nowhere in `styles.css`** — dead
+   classes duplicating a shell. Kept on the shared call for future styling, at zero cost.
 2. **Card internals are tuned for a 1×1 tile** (§2.3). P2 ships bigger cards containing the
    same content; P3 exists to close that, and the interim state should be a conscious
    choice, not a surprise in review.
@@ -312,9 +326,43 @@ Applies to every phase; the phase is not done until all of it passes.
 
 ---
 
-## 9. History
+## 9. Phase 1 implementation notes
+
+Written during the build; these are the things a reader of the plan alone would not predict.
+
+- **The registry is two files, not one.** A single `cardRegistry.ts` imported by both the
+  dashboard and the settings page put all nine card components on the **settings** bundle —
+  it grew from 9.29 kB to pulling a 38.73 kB chunk, to render a list of nine strings.
+  `cardCatalog.ts` now holds metadata and imports no components; `cardRegistry.ts` binds
+  keys to components and is imported only by the dashboard route. Settings is back to
+  9.29 kB + a 1.83 kB catalogue.
+- **`CARD_COMPONENTS` is typed `Record<CardKey, ComponentType>`.** Adding a key to the union
+  without a component is then a build error, which is the point of D3.
+- **Lenient read, strict write.** `parseHiddenCards` drops malformed JSON, non-arrays and
+  unrecognised keys rather than throwing, while `PATCH` rejects an unknown key with a 400. A
+  key left behind by a card we later remove is history and must not break a dashboard;
+  because we store *hidden* keys (D4), dropping an unrecognised one fails safe by **showing**
+  a card rather than hiding one. A bad key on the way in is a client bug worth surfacing.
+- **`PATCH` replaces the whole hidden set** rather than sending a delta. That makes the
+  request idempotent and avoids add/remove races between two open tabs.
+- **The dashboard loader awaits the layout**, unlike the settings route's fire-and-forget
+  prefetch. The layout decides both the card count and the column count, so rendering early
+  means painting the default nine and reflowing the entire grid.
+- **The two hand-rolled shells were only ever adding dead classes.** `news-card` and
+  `weather-card` appear nowhere in `styles.css`. Both now delegate to the shared `Card`,
+  which gained a `className` passthrough — the single hook P2's span classes will use.
+- **One deliberate visual change:** the News card now renders the `card-dot` accent, because
+  the shared shell always does and `--pillar-news` already existed for it. Every other card
+  had one; News was the outlier. Revert by giving `Card` a dot opt-out if that reads wrong.
+- **`.settings-disabled` was deleted** along with the teaser it existed for. `.span-2` is
+  still present and still dead — it is retired in 2.4, not here.
+
+---
+
+## 10. History
 
 | Date | Entry |
 |---|---|
 | 2026-08-21 | Card visibility scoped as Phase 1 of `integrations/homelab-telemetry.md` (D1 there), sizing explicitly deferred. |
 | 2026-08-22 | This document created. Audit of prior art; sizing pulled into scope as Phase 2; substrate decided (D1 here); phases 3–5 added. No code written. |
+| 2026-08-22 | **Phase 1 built and verified** (1.1–1.9). D2 corrected mid-build: rows are derived, not pinned at 3. Gap 1 closed. Implementation notes in §9. |

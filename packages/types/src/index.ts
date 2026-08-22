@@ -398,6 +398,70 @@ export interface UserSettings {
   updatedAt: EpochMs;
 }
 
+// ─── Dashboard layout ────────────────────────────────────────────────────────
+// Which cards appear on the dashboard, per user. See docs/ui-suite.md.
+
+/**
+ * The dashboard's cards, by key. Deliberately NOT the same set as `Pillar`
+ * above: that one is data-pillar-shaped (fitness/nutrition/sleep are separate
+ * data sources), whereas these are the tiles actually rendered on the grid.
+ * `health` is one card over three pillars; `summary` and `insights` are cards
+ * with no pillar of their own. Keep the two unions separate.
+ *
+ * These keys double as the CSS accent hook — `pillar-<key>` in styles.css sets
+ * `--card-accent` — so the union codifies something that already existed.
+ */
+export type CardKey =
+  | "weather"
+  | "summary"
+  | "perf"
+  | "calendar"
+  | "tasks"
+  | "health"
+  | "gaming"
+  | "insights"
+  | "news";
+
+/** Every card key, in the dashboard's fixed render order. */
+export const CARD_KEYS: readonly CardKey[] = [
+  "weather",
+  "summary",
+  "perf",
+  "calendar",
+  "tasks",
+  "health",
+  "gaming",
+  "insights",
+  "news",
+] as const;
+
+/** Runtime guard — the single place an unknown key is rejected. */
+export function isCardKey(value: unknown): value is CardKey {
+  return typeof value === "string" && (CARD_KEYS as readonly string[]).includes(value);
+}
+
+/**
+ * A user's dashboard layout. Stores the *exceptions* (D4): `hidden` lists the
+ * cards the user has turned off, so a card shipped after the row was written is
+ * visible by default and needs no backfill.
+ *
+ * `visible` is derived server-side (`CARD_KEYS` minus `hidden`, order
+ * preserved) so the client never has to reimplement that subtraction.
+ */
+export interface DashboardLayout {
+  hidden: CardKey[];
+  visible: CardKey[];
+}
+
+/** Body for PATCH /dashboard/layout. The full hidden set, not a delta. */
+export interface DashboardLayoutInput {
+  hidden: CardKey[];
+}
+
+export interface DashboardLayoutResponse {
+  layout: DashboardLayout;
+}
+
 /** Body for PUT /settings/units. */
 export interface SetUnitsInput {
   units: WeatherUnits;

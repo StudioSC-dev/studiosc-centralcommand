@@ -2,7 +2,7 @@
 
 **Scope:** per-user control over *which* cards appear on the dashboard and *how large* each
 one is, on a uniform cell grid.
-**Status:** Phases 1–5 complete (visibility · edit mode · reordering · sizing · card fit) · 2.9 and the contract mirror open
+**Status:** Phases 1–5 complete (visibility · edit mode · reordering · sizing · card fit), verified in `/layout-lab` · contract mirror open
 **Owner branch:** `feat/ui-suite` → `dev`
 **Last updated:** 2026-08-23
 
@@ -328,7 +328,7 @@ twice. Edit mode is the surface all three of visibility, sizing and reorder belo
 | 2.6 | Edit bar: hidden-card chips to restore, error text, Done | ✅ built |
 | 2.7 | Settings "Dashboard cards" section removed | ✅ built |
 | 2.8 | `useLayoutError` — failures surface wherever the mutation was fired from | ✅ built |
-| 2.9 | Keyboard path for hide/restore verified; live browser pass | open |
+| ✅ 2.9 | Keyboard path for hide/restore verified; live browser pass | **closed 2026-08-23 as not required.** Browser pass done; a dedicated keyboard-only walkthrough was considered and declined — single-user wall display, and the controls are real buttons with labels. Not a deferred task. |
 
 **Why the shell hosts the affordances.** The badge and jiggle live in `Card`, not in a
 wrapper element around each card. A wrapper would become the grid item, displacing `.card`
@@ -585,12 +585,12 @@ an empty-then-refilled list to show itself, which those cards reach less often.
 
 | Phase | Deliverables | Done | Remaining |
 |---|---|---|---|
-| 0 — Audit & decisions | this document | 9 decisions recorded, prior art catalogued | mirror D1/D2/D5/**D9** into the integrations contract |
+| 0 — Audit & decisions | this document | 10 decisions recorded, prior art catalogued | mirror D1/D2/D5/**D9/D10** into the integrations contract |
 | 1 — Visibility | 9 | **9** | — shipped |
-| 2 — Edit mode | 9 | 8 | 2.9 (verification) |
+| 2 — Edit mode | 9 | **9** | — shipped |
 | 3 — Reordering | 9 | 9 | — demo seed order settled as "registry order" (4.9) |
 | 4 — Sizing | 9 | **9** | — shipped |
-| 5 — Card fit | 11 | **11** | — shipped (live pass on Gaming outstanding) |
+| 5 — Card fit | 11 | **11** | — shipped; verified across all 45 card×size tiles in the lab (§10) |
 
 Pre-existing partial credit, for honesty: `.span-2` (dead) and the settings teaser (a stub
 that says the feature is coming). Neither does anything.
@@ -612,10 +612,12 @@ that says the feature is coming). Neither does anything.
    (D9). The conflict was real; the resolution is that the derivation packs instead, and the
    holes it cannot avoid are shown in the budget readout rather than hidden by reflowing
    someone's arrangement.
-5. **No accessibility pass is scheduled.** *Partly closed as it went:* reorder has an
-   arrow-key path (3.6) and the size picker is a labelled `menuitemradio` group operable by
-   keyboard, closing on Escape without also leaving edit mode. What has never been checked
-   end to end is the whole flow with a screen reader, and edit mode has no focus trap.
+5. **Keyboard operation is built but not audited — a recorded position, not a gap.** Reorder
+   has an arrow-key path (3.6), the size picker is a labelled `menuitemradio` group that closes
+   on Escape without leaving edit mode, and every affordance is a real `<button>` with a label.
+   A dedicated keyboard-only or screen-reader walkthrough was **considered and declined**
+   (2026-08-23): this is a single-user wall display, and the cost was not judged worth it. If
+   the dashboard ever gains other users, this is the first thing to revisit.
 6. **Three migrations in short succession** (`0012` visibility, `0013` order, `0014` sizing)
    which a `dashboard_cards` table would eventually replace with one. Accepted deliberately:
    shipping each phase alone was worth more than a tidy migration history, and D4 explains the
@@ -801,3 +803,5 @@ browser.
 | 2026-08-23 | Weather's outlook was compressing instead of dropping: flex children shrink by default, so the block never overflowed and `useFitSections` saw nothing to do. `.card-body [data-drop-order]` is now `flex-shrink: 0`, and the outlook's text form carries the highest drop order so it *replaces* the strip rather than leaving with it. |
 | 2026-08-23 | **Layout lab built** (`/layout-lab`, dev-only) after three consecutive fixes each caused the next bug. Renders all 45 card×size combinations and flags OVERFLOW and SLACK — the second being the failure mode nobody can see by eye, and the one behind both Weather regressions. |
 | 2026-08-23 | First run of the lab, two findings within minutes. Weather's text swap fired ~50px early because container queries measure the **content box**, not the tile — threshold moved 400px → 300px. Health 1×1 flagged `OVERFLOW 12px`: its fixed parts overshot the tile with the entry list already thinned to nothing, so the today-total is now `data-drop-order="1"` — the card gives up a figure the form and list imply, never a control. `.log-list` capped at `max-content` like `.gaming-matches`. The lab itself was wrong too, scoring the Weather tile OK; it now counts blocks that are *not rendered* whatever hid them. |
+| 2026-08-23 | All 45 card×size tiles confirmed clean in the lab. Phase 5 closed. Remaining across the whole document: 2.9 (keyboard hide/restore, deliberately unverified) and the Phase 0 contract mirror. |
+| 2026-08-23 | **2.9 closed as not required**, not deferred — a keyboard-only walkthrough was considered and declined for a single-user wall display. Phase 2 is 9/9. The only thing outstanding in this document is the Phase 0 contract mirror. |

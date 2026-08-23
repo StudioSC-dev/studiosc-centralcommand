@@ -436,7 +436,7 @@ in a shared primitive.
 | 5.8 | `.card` as a size container; display numerals + hero spacing on `cqh` clamps | ✅ built |
 | 5.9 | Fix `.gaming-matches-block` overlap — `min-height: 0` spilled content onto the disclaimer | ✅ built |
 | ✅ 5.10 | Audit the rest (Health, Gaming, Summary) and scale/mark their blocks | verified in-browser |
-| 5.11 | Size-*aware* content, as opposed to size-*safe*: a 2×2 card using its extra room well | **News done**; Gaming still fixed at 6 matches |
+| ✅ 5.11 | Size-*aware* content, as opposed to size-*safe*: a 2×2 card using its extra room well | News (paging) and Gaming (clamping) done — every list card now measures |
 
 **How the primitive works, and why it is built that way.** Item heights are not uniform — an
 insight's detail wraps, the calendar has a divider row, a task row grows while being edited —
@@ -491,6 +491,38 @@ end, so trimming cannot make it fit") was answered by paging rather than trimmin
 would reverse a recorded decision, so it stands until that is decided rather than being removed
 quietly.
 
+#### 5.11 — Gaming: the same problem, the other shape
+
+**Two shapes, two answers.** News has a pager, so measuring gives it a *page size*. Gaming is a
+"recent N" list with no pager, so measuring gives it a *row count* — the clamp already built
+for Calendar, Tasks and Insights (5.1–5.4), plus the `+N more` footer. `filtered.slice(0, 6)`
+is gone; `MAX_MATCH_ROWS = 30` replaces it as a DOM ceiling, not a display count.
+
+**The match list stopped scrolling.** `.gaming-matches` carried `overflow-y: auto`, which
+quietly exempted this card from the no-scroll rule — 6 matches in a short tile scrolled inside
+the list. It now clips, and the footer says what did not fit, which is what every other list
+card does.
+
+**The recent-form summary stayed on the full queue, deliberately.** `RecentForm` reads every
+match in the queue, not the visible ones. Its docstring said "from the visible matches", which
+was already untrue and would have become a trap: with a measured row count, a summary tied to
+what is on screen would change its win rate when the card was resized. A statistic that moves
+because a tile got taller is one nobody can trust. Comment corrected to say why.
+
+#### A latent bug in the primitive, found by applying it
+
+`useClampList` held its element in a `useRef`. Mutating a ref does not re-run an effect, so when
+a card renders its list **conditionally** — a League queue with no games, a calendar with
+nothing upcoming, a news tab with no headlines — the observers stayed bound to the previous,
+detached node. Switch away from an empty tab and back, and nothing fired again: `clippedCount`
+froze at its last value, so the list either showed a stale `+N more` or silently truncated with
+none at all.
+
+It is now a **callback ref backed by state**, so the effect follows node identity, and an
+unmounted list resets the count instead of leaving a stale one behind. Gaming's queue tabs are
+what exposed it, but the bug was already live in Calendar, Tasks and Insights — it just needed
+an empty-then-refilled list to show itself, which those cards reach less often.
+
 ### Phase 6 (optional) — Presets
 
 "Wall", "Focus", "Minimal" as named layouts. Cheap once P1–P4 exist, and the best answer to
@@ -507,7 +539,7 @@ quietly.
 | 2 — Edit mode | 9 | 8 | 2.9 (verification) |
 | 3 — Reordering | 9 | 9 | — demo seed order settled as "registry order" (4.9) |
 | 4 — Sizing | 9 | **9** | — shipped |
-| 5 — Card fit | 11 | 10 | 5.11 — News done; Gaming's fixed 6 matches is the remaining instance |
+| 5 — Card fit | 11 | **11** | — shipped (live pass on Gaming outstanding) |
 
 Pre-existing partial credit, for honesty: `.span-2` (dead) and the settings teaser (a stub
 that says the feature is coming). Neither does anything.
@@ -543,12 +575,12 @@ that says the feature is coming). Neither does anything.
    would genuinely benefit from a unit test — they were checked instead with a throwaway Node
    harness that replays D2's whole table plus the packing-hole cases. Flag if a test runner is
    ever adopted; that harness is the test, and it is not in the repo.
-8. **Card content is only partly size-*aware* (5.11).** News now measures its page size, so a
-   2×2 News card shows as many headlines as it has room for. **Gaming still slices to six
-   matches** (`GamingCard.tsx:130`) and Calendar's `MAX_EVENTS` is a DOM ceiling rather than a
-   display count, so a 2×2 League card is still six matches in double the space. Same fix
-   shape as News where a card has a list; the fixed *stacks* (Weather, Performance) have no
-   list to grow and would need something else.
+8. **Every *list* card is now size-aware; the fixed *stacks* are not.** News pages to fit,
+   Gaming clamps to fit, and Calendar/Tasks/Insights already did. Weather and Performance have
+   no list to grow — they scale with `cqh` clamps and drop `[data-drop-order]` blocks, so they
+   are size-*safe* but do not gain anything from extra room. Whether a bigger Weather card
+   should show more (an hourly strip, a longer outlook) is a product question, not a
+   fit question, and is not scheduled.
 9. **News's `scrollable` opt-out (5.7) is now inert.** Its list clips, so the body has nothing
    to scroll. Keeping or dropping it is a decision, not a cleanup — see 5.11.
 
@@ -653,3 +685,4 @@ Written during the build; these are the things a reader of the plan alone would 
 | 2026-08-23 | The `0012` miniflare trap recurred on `0014` — same cause, unrecognisable symptom (reorder failing while the dashboard rendered). §9 extended with the read/write asymmetry that makes it present as a broken feature. |
 | 2026-08-23 | **Phase 4 verified** (4.9). Live pass green at all three widths in both themes, spans confirmed on the two former hand-rolled shells, picker limits and the D9 asymmetry exercised, demo session confirmed read-only. B2 closed. |
 | 2026-08-23 | **5.10 verified**; **5.11 started** — News paging made size-aware. `PER_PAGE = 5` replaced by a measured page size via `useClampList`, and page *indices* replaced by an offset stack, because a measured page size makes an index point at different content after a resize. Gaming's fixed 6 matches is the remaining instance. |
+| 2026-08-23 | **5.11 completed** — Gaming's `slice(0, 6)` replaced by the clamp + `+N more`, and its match list stopped scrolling (it had quietly exempted itself from the no-scroll rule). Applying it exposed a latent bug in `useClampList`: a `useRef` element meant the observers never re-bound when a conditionally-rendered list remounted, freezing `clippedCount` — now a callback ref backed by state. Phase 5 complete. |

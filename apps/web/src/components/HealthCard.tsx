@@ -8,6 +8,8 @@ import type {
   SleepLogUpdate,
 } from "@central-command/types";
 import { Card } from "./Card";
+import { ClippedNote } from "./ClippedNote";
+import { useClampList } from "../lib/useClampList";
 import { InlineText } from "./inline";
 import {
   useDeleteFitness,
@@ -171,6 +173,9 @@ function SleepSection() {
     e.date ? withinLastDays(new Date(`${e.date}T00:00:00`).getTime(), 7, now) : false,
   );
   const olderCount = entries.length - recent.length;
+  // The entry list is the only part of this card that can give space back, so it
+  // is what absorbs a short tile — never the form, which carries the Log button.
+  const { ref: listRef, clippedCount } = useClampList<HTMLUListElement>();
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -207,7 +212,7 @@ function SleepSection() {
         </form>
       )}
       {log.isError && <p className="log-error">{log.error.message}</p>}
-      <ul className="log-list">
+      <ul className="log-list" ref={listRef}>
         {recent.map((entry) => (
           <SleepRow
             key={entry.id}
@@ -218,7 +223,7 @@ function SleepSection() {
           />
         ))}
       </ul>
-      {olderCount > 0 && <p className="log-older">{olderCount} older hidden</p>}
+      <ClippedNote count={clippedCount + olderCount} noun="entry" plural="entries" />
     </div>
   );
 }
@@ -274,6 +279,9 @@ function FitnessSection() {
   const todayMin = today.reduce((s, e) => s + e.durationMin, 0);
   const recent = entries.filter((e) => withinLastDays(e.loggedAt, 7, now));
   const olderCount = entries.length - recent.length;
+  // The entry list is the only part of this card that can give space back, so it
+  // is what absorbs a short tile — never the form, which carries the Log button.
+  const { ref: listRef, clippedCount } = useClampList<HTMLUListElement>();
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -306,7 +314,7 @@ function FitnessSection() {
         </form>
       )}
       {log.isError && <p className="log-error">{log.error.message}</p>}
-      <ul className="log-list">
+      <ul className="log-list" ref={listRef}>
         {recent.map((entry) => (
           <FitnessRow
             key={entry.id}
@@ -317,7 +325,7 @@ function FitnessSection() {
           />
         ))}
       </ul>
-      {olderCount > 0 && <p className="log-older">{olderCount} older hidden</p>}
+      <ClippedNote count={clippedCount + olderCount} noun="entry" plural="entries" />
     </div>
   );
 }
@@ -368,6 +376,9 @@ function NutritionSection() {
   // Nutrition is the busiest log (4–5 meals/day) — a tighter 3-day window.
   const recent = entries.filter((e) => withinLastDays(e.loggedAt, 3, now));
   const olderCount = entries.length - recent.length;
+  // The entry list is the only part of this card that can give space back, so it
+  // is what absorbs a short tile — never the form, which carries the Log button.
+  const { ref: listRef, clippedCount } = useClampList<HTMLUListElement>();
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -397,7 +408,7 @@ function NutritionSection() {
         </form>
       )}
       {log.isError && <p className="log-error">{log.error.message}</p>}
-      <ul className="log-list">
+      <ul className="log-list" ref={listRef}>
         {recent.map((entry) => (
           <NutritionRow
             key={entry.id}
@@ -408,7 +419,7 @@ function NutritionSection() {
           />
         ))}
       </ul>
-      {olderCount > 0 && <p className="log-older">{olderCount} older hidden</p>}
+      <ClippedNote count={clippedCount + olderCount} noun="entry" plural="entries" />
     </div>
   );
 }

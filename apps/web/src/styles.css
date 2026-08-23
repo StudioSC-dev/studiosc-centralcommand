@@ -1184,17 +1184,23 @@ button {
 }
 
 /* Multi-day outlook — horizontal card strip (matches the hourly forecast row). */
+/* Never scrolls, in either axis (D10). The chips used to be `flex: 1 0 auto`
+   over `overflow-x: auto`, so they kept their width and slid off the edge of a
+   narrow tile — invisible at 3 columns, obvious at 4. They now share the width
+   instead, and the container queries below drop whole days once sharing stops
+   being enough. */
 .weather-outlook {
   list-style: none;
   margin: 0.9rem 0 0;
   padding: 0;
   display: flex;
   gap: 0.5rem;
-  overflow-x: auto;
+  overflow: hidden;
 }
 
 .weather-outlook li {
-  flex: 1 0 auto;
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1212,6 +1218,31 @@ button {
 /* Highlight the "Today" cell with the weather accent rim. */
 .weather-outlook li:first-child {
   border-color: color-mix(in srgb, var(--card-accent) 45%, transparent);
+}
+
+/* Shed whole days once sharing the width stops being enough — five legible
+   chips beat five illegible ones, and the tile is the thing that decides.
+   Container queries, not media queries: `.card` is a size container (5.8), so
+   this responds to the *tile*, which is what actually changed when the grid
+   went to four columns. Padding tightens first so the drop happens later. */
+@container card (max-width: 460px) {
+  .weather-outlook li {
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+    font-size: 0.74rem;
+  }
+}
+
+@container card (max-width: 400px) {
+  .weather-outlook li:nth-child(n + 5) {
+    display: none;
+  }
+}
+
+@container card (max-width: 300px) {
+  .weather-outlook li:nth-child(n + 4) {
+    display: none;
+  }
 }
 
 .weather-outlook-day {
@@ -1246,27 +1277,6 @@ button {
   margin-top: 0.4rem;
   font-size: 0.85rem;
   color: var(--text-dim);
-}
-
-.weather-forecast {
-  list-style: none;
-  margin: 0.9rem 0 0;
-  padding: 0;
-  display: flex;
-  gap: 0.5rem;
-  overflow-x: auto;
-}
-
-.weather-forecast li {
-  flex: 1 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.5rem 0.6rem;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  font-size: 0.8rem;
 }
 
 .weather-pop {
@@ -1392,6 +1402,9 @@ button {
   color: var(--bad);
 }
 
+/* The card's give. The form above it is fixed — it carries the Log button and
+   must never be dropped or scrolled away — so this list is what absorbs a short
+   tile, thinning row by row via useClampList (D10). */
 .log-list {
   list-style: none;
   margin: 0;
@@ -1401,6 +1414,13 @@ button {
   gap: 0.15rem;
   font-size: 0.85rem;
   color: var(--text-dim);
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.log-list > li {
+  flex: 0 0 auto;
 }
 
 .log-item {
@@ -1478,12 +1498,6 @@ button {
 .inline-add:hover {
   opacity: 1;
   color: var(--text-dim);
-}
-
-.log-older {
-  margin: 0.5rem 0 0;
-  font-size: 0.72rem;
-  color: var(--text-faint);
 }
 
 /* ─── Calendar timeline ─────────────────────────────────────────────────────── */
@@ -2477,9 +2491,14 @@ button {
   box-shadow: var(--shadow);
 }
 
+/* Fills the card body so the entry list inside it has a definite height to be
+   measured against — without this the section is content-height and the clamp
+   has nothing to clamp to. */
 .health-section {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .health-stat {

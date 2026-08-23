@@ -2,7 +2,7 @@
 
 **Scope:** per-user control over *which* cards appear on the dashboard and *how large* each
 one is, on a uniform cell grid.
-**Status:** Phases 1–5 complete (visibility · edit mode · reordering · sizing · card fit), verified in `/layout-lab` · contract mirror open
+**Status:** Phases 1–6 complete (visibility · edit mode · reordering · sizing · card fit · presets) · **contract mirrored** · Phase 6 awaiting its live pass (§8)
 **Owner branch:** `feat/ui-suite` → `dev`
 **Last updated:** 2026-08-23
 
@@ -12,7 +12,10 @@ Companion documents:
   originating contract. Its **Phase 1 build order (1.1–1.9)** is the same work as this
   document's Phase 1, restated here with the sizing phases the contract deliberately
   deferred. **Decisions recorded here must be mirrored there**, because the homelab side
-  reads that file.
+  reads that file. **Mirrored 2026-08-23** as that file's **D11**, gathered as a single
+  decision because it has its own D1–D10 that collide by number with this document's — its D9
+  is cloud control, ours is grid packing; its D10 is the Kuma read path, ours is scroll policy.
+  **Never cite a `D<n>` by bare number across the two files.**
 - `HANDOVER.md` (gitignored) — the session narrative.
 
 ---
@@ -279,6 +282,37 @@ now sets `flex-shrink: 0`, which is what makes the whole drop mechanism observab
 open-ended list, never its controls — and when nothing is left to yield, a block is replaced
 by a summary of itself rather than clipped. A card with no list to thin needs either a
 `data-drop-order` block (Weather, Performance) or a place on the table above.
+
+### D11 — *deliberately unused in this document*
+
+`D11` is taken, in the **other** file. The mirror of this document's layout decisions lives in
+[`../../integrations/homelab-telemetry.md`](../../integrations/homelab-telemetry.md) as **its**
+D11(a)–(e), and that file already has its own D1–D10 meaning entirely different things from
+ours. Numbering a decision D11 *here* as well would make the one number ambiguous across the
+two files that reference each other most — the precise trap the mirror was written to avoid.
+So this document skips from D10 to D12. Cite cross-file decisions as `ui-suite D<n>` and
+`homelab-telemetry D<n>`, never bare.
+
+### D12 — Presets are constants, and they store the roster
+
+**Decided 2026-08-23, during Phase 6.** Two halves, and the second inverts D4 on purpose.
+
+**Constants, not storage.** The three built-in presets live in `packages/types` as a plain
+array. No migration, no fourth column, no endpoint — applying one is a single `PATCH` setting
+`hidden`, `order` and `sizes` together, so it inherits the optimistic path, the error surface,
+the demo write-block and the server budget check unchanged. This is why Phase 6 was cheap, and
+it is the reason *user-defined* presets are a separate phase: those need storage, and the right
+storage for them is the `dashboard_cards` table D4 keeps deferring.
+
+**A preset stores `visible`; a user's layout stores `hidden`.** The two need opposite defaults
+for the same event — a card that ships later. A user must get it without a backfill (D4); a
+preset must *not* silently absorb it, or Minimal grows a card every release. Wall gets both by
+naming the live constant (`visible: CARD_KEYS`) rather than spelling out a list, so a tenth card
+joins Wall by existing and stays out of the other two. **This is the property the Homelab card
+needs**, and it cost nothing.
+
+`visible` is also the order, because position affects packing (D9): the same cards at the same
+sizes in a different order can need a fourth row.
 
 ### D8 — Below the wall breakpoint, sizes collapse
 
@@ -574,10 +608,120 @@ unmounted list resets the count instead of leaving a stale one behind. Gaming's 
 what exposed it, but the bug was already live in Calendar, Tasks and Insights — it just needed
 an empty-then-refilled list to show itself, which those cards reach less often.
 
-### Phase 6 (optional) — Presets
+### Phase 6 — Presets
 
-"Wall", "Focus", "Minimal" as named layouts. Cheap once P1–P4 exist, and the best answer to
-"this is fiddly to configure". Not scheduled.
+Named arrangements applied in one gesture. Cheap once P1–P4 exist, and the best answer to
+"this is fiddly to configure": building the Focus wall by hand is four hides, three resizes
+and a drag — seven round trips, with the size picker refusing options along the way because
+the *order* is not right yet (D9). One button is the whole arrangement, as a single `PATCH`.
+
+| # | Deliverable | Where | Status |
+|---|---|---|---|
+| ✅ 6.1 | `LayoutPreset` type + `LAYOUT_PRESETS` (Wall · Focus · Minimal) | `packages/types` | built. **No migration** — see D12. |
+| ✅ 6.2 | `presetLayoutInput()` — a preset as a PATCH body | `packages/types` | built. Derives `hidden` from the live `CARD_KEYS`. |
+| ✅ 6.3 | `matchingPresetKey()` — which preset the layout *is* | `packages/types` | built. Without it the control is write-only. |
+| ✅ 6.4 | `useApplyPreset` — apply, plus `snapshot()` for undo | `apps/web` | built. Rides the existing layout mutation; no new endpoint. |
+| ✅ 6.5 | Preset row in the edit bar, with active state and Undo | `apps/web` | built. |
+| ✅ 6.6 | `PresetGlyph` — the arrangement drawn at its real derived shape | `apps/web` | built. |
+| ✅ 6.7 | Preset audit in `/layout-lab` | `apps/web` | built. Asserts fit, zero holes, round-trip, rows ≤ 3. |
+| ✅ 6.8 | Verification | — | typecheck + build green; harness green; §8 live pass pending. |
+
+**No API change, and no migration — this is the whole point of the phase being cheap.** A
+preset is not a new kind of state; it is one `PATCH` that happens to set `hidden`, `order` and
+`sizes` together. It therefore inherits the optimistic path, the shared error surface
+(`useLayoutError`), the demo write-block, and the server-side budget check for free. That last
+one is not incidental: the budget check only fires when the body carries `sizes` (D9's
+asymmetry), and a preset always does — so **applying a preset is validated where a hide or a
+reorder is not**, which is the correct side of that line for a write that sets everything at
+once.
+
+**The alternative considered and rejected:** a `preset` field on the wire, so the server
+resolves the name itself. It reads cleaner and would make the server the authority on what
+"Focus" means (D6). It was rejected because the preset table lives in `packages/types`, which
+both sides already import — the two cannot drift — and sending the resolved fields keeps the
+optimistic path byte-identical to every other layout write instead of adding a second one.
+
+#### 6.1 — Presets store the roster, not the exceptions
+
+**This inverts D4, deliberately, and it is the only decision in the phase that is not obvious.**
+
+A *user's* layout stores what they have hidden, so a card shipped later appears without a
+backfill. A *preset* must do the opposite: it stores `visible`, and `hidden` is derived by
+subtracting from the live `CARD_KEYS`.
+
+The two need opposite defaults for the same event. When the Homelab card ships:
+
+- If a preset stored `hidden`, the new card would appear in **every** preset — including
+  Minimal, whose entire premise is being small. A "Minimal" that grows a card every release is
+  not minimal.
+- Storing `visible` means a new card appears in **no** preset — which is wrong for Wall.
+
+Both are had at once by letting Wall name the constant rather than spell out a list:
+`visible: CARD_KEYS`. A tenth card joins Wall by existing, and stays out of Focus and Minimal
+until someone puts it there. **That is exactly the split the Homelab card needs**, and it costs
+nothing.
+
+`visible` doubles as the order, because the array *is* the arrangement. That matters more than
+it looks: packing depends on position (D9), so the same cards at the same sizes in a different
+order can need a fourth row. Focus's two 2×2s must lead.
+
+#### 6.2 — The presets, and why these three
+
+| Preset | Cards | Shape | Cells |
+|---|---|---|---|
+| **Wall** | all nine, 1×1 | 3 × 3 | 9/9 |
+| **Focus** | Today 2×2 · Calendar 2×2 · Tasks 2×1 · Weather 2×1 | 4 × 3 | 12/12 |
+| **Minimal** | Today 2×2 · Weather 1×2 | 3 × 2 | 6/6 |
+
+**All three pack with zero holes.** That is a requirement, not a coincidence: a preset is a
+promise that one click produces a *good* wall, and one that leaves dead cells undercuts the
+only reason to offer it. It is asserted in `/layout-lab` (6.7) rather than trusted.
+
+**Wall is exactly the shipped default** — no hidden, registry order, no sizes — so it doubles
+as "put it back" without a separate Reset control. Asserted too.
+
+#### 6.3 — Undo, and why only this gesture needs one
+
+Applying a preset is the **only** edit-mode gesture that discards an arrangement wholesale.
+Every other one — hide, restore, resize, reorder — acts on a single card and is undone by
+repeating it. So the preset row is the one place where "that wasn't what I meant" has no way
+back, and it carries an explicit Undo holding the layout as it was.
+
+The snapshot is dropped the moment `matchingPresetKey()` returns null — i.e. as soon as the
+user edits anything by hand. Past that point "Undo" would revert edits it never made, which is
+worse than not offering it.
+
+#### 6.4 — The glyph is a real grid, not an icon
+
+The first version reused the size picker's 3×2 filled-cell field, and **could not tell Wall
+from Minimal** — both fill it completely. What distinguishes presets is not how much of the
+grid is used but *where the card boundaries fall*.
+
+It is now one block per card on a real CSS grid at the preset's own derived shape, with
+placement left to `grid-auto-flow: row`. That is not laziness — it is the same non-dense row
+packing `gridShape()` simulates (D9), so the picture is produced by the mechanism it depicts
+and cannot drift from it. Change a preset and its glyph follows.
+
+#### Two things found while building this
+
+- **The long-press into edit mode was never demo-gated.** The header toggle has been hidden for
+  demo sessions since 2.2, but the 500 ms long-press (2.3) was not — so a demo visitor could
+  hold a card, enter edit mode, and meet a set of controls that can only 4xx. Pre-existing, and
+  fixed here rather than left, because presets put three of the most inviting buttons in the app
+  behind that same door. `canEdit` now requires `!demo`.
+- **The edit bar could not wrap.** `.edit-bar-inner` was a non-wrapping flex row and
+  `.edit-bar-list` took its max-content width, so a full hidden tray pushed the bar past its own
+  `max-width` and off the screen. It had never come up because hiding seven cards took seven
+  deliberate clicks — **Minimal now does it in one**, which is a state presets create rather
+  than merely expose.
+
+### Phase 7 (optional) — User-defined presets
+
+Saving the current arrangement under a name. Not scheduled, and **not free** the way Phase 6
+was: presets are constants today, so they cost no storage. User presets need a fourth layout
+column or the `dashboard_cards` table D4 keeps deferring — which is the point at which that
+consolidation is worth doing rather than adding a `card_presets` JSON column to a row that
+already has three.
 
 ---
 
@@ -585,12 +729,13 @@ an empty-then-refilled list to show itself, which those cards reach less often.
 
 | Phase | Deliverables | Done | Remaining |
 |---|---|---|---|
-| 0 — Audit & decisions | this document | 10 decisions recorded, prior art catalogued | mirror D1/D2/D5/**D9/D10** into the integrations contract |
+| 0 — Audit & decisions | this document | 10 decisions recorded, prior art catalogued | — **closed 2026-08-23**; mirrored into the contract as its **D11** (see below) |
 | 1 — Visibility | 9 | **9** | — shipped |
 | 2 — Edit mode | 9 | **9** | — shipped |
 | 3 — Reordering | 9 | 9 | — demo seed order settled as "registry order" (4.9) |
 | 4 — Sizing | 9 | **9** | — shipped |
 | 5 — Card fit | 11 | **11** | — shipped; verified across all 45 card×size tiles in the lab (§10) |
+| 6 — Presets | 8 | **8** | — built; typecheck/build/harness green, **live pass outstanding** |
 
 Pre-existing partial credit, for honesty: `.span-2` (dead) and the settings teaser (a stub
 that says the feature is coming). Neither does anything.
@@ -638,6 +783,17 @@ that says the feature is coming). Neither does anything.
    `.weather-outlook`) and `.log-older` (replaced by the always-rendered `ClippedNote`, which
    has the fixed height the measurement needs). `.span-2` was the same class of thing, retired
    in 4.4.
+11. **Presets are not user-definable.** Three constants, no way to save your own arrangement
+   under a name. Deliberate — that is the one thing in this feature that needs new storage, and
+   the right storage for it is the `dashboard_cards` consolidation D4 defers rather than a
+   fourth JSON column on a row that already has three. Scoped as Phase 7, not scheduled.
+12. **A preset overwrites a hand-made arrangement, and Undo is session-only.** It survives only
+   until the layout is edited by hand or edit mode closes — nothing is persisted. A user who
+   applies Focus, leaves, and comes back cannot get their old wall back. Acceptable for a
+   single-user wall display; the fix is Phase 7 (save the current arrangement first).
+13. **Presets are hidden below 720px** (1 column), where sizes collapse anyway (D8). A preset
+   whose point is its spans would be a lie there. What a preset should mean on a phone is
+   unanswered, and is a product question rather than a layout one.
 9. **News's `scrollable` opt-out (5.7) is now inert.** Its list clips, so the body has nothing
    to scroll. Keeping or dropping it is a decision, not a cleanup — see 5.11.
 
@@ -805,3 +961,5 @@ browser.
 | 2026-08-23 | First run of the lab, two findings within minutes. Weather's text swap fired ~50px early because container queries measure the **content box**, not the tile — threshold moved 400px → 300px. Health 1×1 flagged `OVERFLOW 12px`: its fixed parts overshot the tile with the entry list already thinned to nothing, so the today-total is now `data-drop-order="1"` — the card gives up a figure the form and list imply, never a control. `.log-list` capped at `max-content` like `.gaming-matches`. The lab itself was wrong too, scoring the Weather tile OK; it now counts blocks that are *not rendered* whatever hid them. |
 | 2026-08-23 | All 45 card×size tiles confirmed clean in the lab. Phase 5 closed. Remaining across the whole document: 2.9 (keyboard hide/restore, deliberately unverified) and the Phase 0 contract mirror. |
 | 2026-08-23 | **2.9 closed as not required**, not deferred — a keyboard-only walkthrough was considered and declined for a single-user wall display. Phase 2 is 9/9. The only thing outstanding in this document is the Phase 0 contract mirror. |
+| 2026-08-23 | **Phase 6 built — presets** (6.1–6.7). Wall / Focus / Minimal as constants in `packages/types`, applied as one `PATCH` with no new endpoint and **no migration**; D12 recorded. Presets store the *roster* rather than the exceptions — the inverse of D4 — so a card shipped later joins Wall (which names `CARD_KEYS`) and stays out of Focus and Minimal. All three pack with zero holes, asserted in `/layout-lab` rather than trusted, since the repo has no test runner (gap 7). Two pre-existing defects surfaced: the long-press into edit mode was never demo-gated (only the header toggle was), and the edit bar could not wrap — which had never mattered until Minimal made hiding seven cards a single click. |
+| 2026-08-23 | **Phase 0 closed — contract mirrored.** D1/D2/D5/D6/D9/D10 written into `integrations/homelab-telemetry.md` as its D11(a)–(e), under an explicit note that the two D-number sets collide and must never be cited bare across files. Four things there were **wrong**, not merely stale, and were corrected in place with the original struck rather than overwritten: the pinned-rows `ceil(N/3)` column rule, the prediction that order and sizing would force a `dashboard_cards` table, Phase 2's migration number (`0013` → `0015`, both consumed here), and span/reorder still listed as deliberately out of plan. Two new open items were raised **on the homelab side**: `HomelabCard` must arrive with a fit strategy under D11(e), and it takes `/layout-lab` from 45 tiles to 50. |

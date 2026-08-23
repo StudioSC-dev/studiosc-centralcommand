@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 /**
  * Hide the list items that do not *fully* fit the space the list has, and
@@ -27,11 +27,22 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * `flex: 1 1 0; min-height: 0; overflow: hidden`.
  */
 export function useClampList<T extends HTMLElement>() {
-  const ref = useRef<T | null>(null);
+  /**
+   * A callback ref, deliberately, rather than a `useRef` object.
+   *
+   * Several cards render the list *conditionally* — a League queue with no
+   * games, a calendar with nothing upcoming, a news tab with no headlines — so
+   * the element mounts and unmounts during normal use. Mutating a ref object
+   * does not re-run an effect, so the observers stayed bound to the previous,
+   * now-detached node: after switching away from an empty tab and back, nothing
+   * ever fired again and `clippedCount` silently froze at its last value. Node
+   * identity has to be state for the effect to follow it.
+   */
+  const [list, setList] = useState<T | null>(null);
   const [clippedCount, setClippedCount] = useState(0);
+  const ref = useCallback((element: T | null) => setList(element), []);
 
   const measure = useCallback(() => {
-    const list = ref.current;
     if (!list) return;
 
     // The list's own padding box is the space it may occupy; anything whose
@@ -48,11 +59,15 @@ export function useClampList<T extends HTMLElement>() {
     }
 
     setClippedCount((prev) => (prev === clipped ? prev : clipped));
-  }, []);
+  }, [list]);
 
   useEffect(() => {
-    const list = ref.current;
-    if (!list) return;
+    if (!list) {
+      // Nothing mounted: report nothing clipped, so a stale count from the
+      // previous list cannot outlive it.
+      setClippedCount(0);
+      return;
+    }
 
     measure();
 
@@ -75,7 +90,7 @@ export function useClampList<T extends HTMLElement>() {
       observer.disconnect();
       mutation.disconnect();
     };
-  }, [measure]);
+  }, [list, measure]);
 
   return { ref, clippedCount };
 }

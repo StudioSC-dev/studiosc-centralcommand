@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { GamingData, MatchQueue, MatchSummary, RankInfo } from "@central-command/types";
 import { Card } from "./Card";
+import { ClippedNote } from "./ClippedNote";
+import { useClampList } from "../lib/useClampList";
 import { RIOT_REGIONS, useConnectRiot, useGaming, useRefreshRiot } from "../lib/gaming";
 import { useProfile } from "../lib/profile";
 import { useNow } from "../lib/time";
@@ -47,7 +49,14 @@ function RankDetail({ r }: { r: RankInfo }) {
   );
 }
 
-/** Recent-form summary from the visible matches (for queues with no rank). */
+/**
+ * Recent-form summary for queues with no rank.
+ *
+ * Deliberately computed over *every* match in the queue, not the ones currently
+ * on screen. Now that the list length is measured, tying this to what is visible
+ * would make the win rate change when the card is resized — a statistic that
+ * moves because a tile got taller is a statistic nobody can trust.
+ */
 function RecentForm({ matches }: { matches: MatchSummary[] }) {
   if (matches.length === 0) {
     return <span className="perf-note">No recent games in this queue.</span>;
@@ -76,10 +85,18 @@ function LiveBadge({ startedAt }: { startedAt: number }) {
   );
 }
 
+/**
+ * A ceiling on rows in the DOM, not on rows shown — the match list ends where
+ * the tile ends, and `useClampList` measures where that is. This only bounds a
+ * very long backfill; the same demotion `MAX_EVENTS` got in 5.2.
+ */
+const MAX_MATCH_ROWS = 30;
+
 function Connected({ data }: { data: GamingData }) {
   const refresh = useRefreshRiot();
   const demo = useIsDemo();
   const [tab, setTab] = useState<MatchQueue>("solo");
+  const { ref: matchesRef, clippedCount } = useClampList<HTMLUListElement>();
 
   const ranked = tab === "solo" || tab === "flex" ? data.ranks.find((r) => r.queueType === tab) : undefined;
   const filtered = data.matches.filter((m) => m.queue === tab);
@@ -126,8 +143,8 @@ function Connected({ data }: { data: GamingData }) {
         {filtered.length === 0 ? (
           <p className="perf-note">No recent games in this queue.</p>
         ) : (
-          <ul className="gaming-matches">
-            {filtered.slice(0, 6).map((m) => (
+          <ul className="gaming-matches" ref={matchesRef}>
+            {filtered.slice(0, MAX_MATCH_ROWS).map((m) => (
               <li key={m.matchId} className={m.win ? "win" : "loss"}>
                 <span className="gaming-match-champ">{m.champion}</span>
                 <span className="gaming-match-dur">{fmtDuration(m.durationSec)}</span>
@@ -141,6 +158,7 @@ function Connected({ data }: { data: GamingData }) {
             ))}
           </ul>
         )}
+        {filtered.length > 0 && <ClippedNote count={clippedCount} noun="match" />}
       </div>
 
       <p className="perf-note">Match scores are a non-authoritative demo metric.</p>

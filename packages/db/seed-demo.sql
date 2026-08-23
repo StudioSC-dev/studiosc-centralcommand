@@ -28,10 +28,20 @@ INSERT INTO user_profiles (user_id, display_name, birthdate, sex, height_cm, wei
 VALUES ('demo0000-0000-7000-8000-000000000000', 'Alex Rivera', '1993-07-15', 'male', 178, 74, 'active', unixepoch('now') * 1000, unixepoch('now') * 1000);
 
 -- hidden_cards is NULL: the demo shows all nine cards, so a visitor sees the
--- full dashboard. The toggles themselves are visible but disabled for demo
--- sessions (demoReadOnly blocks the PATCH server-side regardless).
-INSERT INTO user_settings (user_id, timezone, home_lat, home_lon, location_label, units, hidden_cards, created_at, updated_at)
-VALUES ('demo0000-0000-7000-8000-000000000000', 'America/New_York', 40.71, -74.01, 'New York, NY', 'metric', NULL, unixepoch('now') * 1000, unixepoch('now') * 1000);
+-- full dashboard. Edit mode is hidden for demo sessions, and demoReadOnly
+-- blocks the PATCH server-side regardless.
+--
+-- card_sizes gives Weather a 2x2 hero tile, so a visitor sees that cards can be
+-- more than one size without having to be told. It is chosen to pack exactly:
+-- 8 remaining 1x1 cards + one 4-cell card = 12 cells, and Weather is first in
+-- registry order, so gridShape() derives a 4x3 wall with zero holes. A 2x2 card
+-- placed *late* in the order would push past three rows instead (the packing
+-- rule in docs/ui-suite.md D9) — the position matters as much as the size.
+--
+-- card_order stays NULL: registry order is the intended demo arrangement, and
+-- storing it would only freeze a default that is already correct.
+INSERT INTO user_settings (user_id, timezone, home_lat, home_lon, location_label, units, hidden_cards, card_order, card_sizes, created_at, updated_at)
+VALUES ('demo0000-0000-7000-8000-000000000000', 'America/New_York', 40.71, -74.01, 'New York, NY', 'metric', NULL, NULL, '{"weather":"2x2"}', unixepoch('now') * 1000, unixepoch('now') * 1000);
 
 -- ── Performance scores (last 30 days) ────────────────────────────────────────
 WITH RECURSIVE seq(n) AS (SELECT 0 UNION ALL SELECT n + 1 FROM seq WHERE n < 29)

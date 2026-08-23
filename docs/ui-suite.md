@@ -2,9 +2,9 @@
 
 **Scope:** per-user control over *which* cards appear on the dashboard and *how large* each
 one is, on a uniform cell grid.
-**Status:** Phases 0–4 built (visibility · edit mode · reordering · sizing) · live pass outstanding
+**Status:** Phases 0–4 complete (visibility · edit mode · reordering · sizing) · Phase 5 tail open
 **Owner branch:** `feat/ui-suite` → `dev`
-**Last updated:** 2026-08-22
+**Last updated:** 2026-08-23
 
 Companion documents:
 
@@ -365,7 +365,7 @@ packing has to respect it). This is the half the integrations contract explicitl
 | ✅ 4.6 | `PATCH` accepts `sizes`; server-side budget validation | `apps/api` | built. D6 — same `fitsGrid` the picker greys options with. |
 | ✅ 4.7 | Size picker **in edit mode** + budget readout in the edit bar | `apps/web` | built. Moved off Settings — see below. |
 | ✅ 4.8 | Breakpoint collapse rules | `apps/web/styles.css` | built. D8. |
-| 4.9 | Demo seed sizes + verification | — | seed built (Weather 2×2, packs 4×3 with zero holes); **live pass open**. |
+| ✅ 4.9 | Demo seed sizes + verification | — | verified. Demo Weather 2×2 packs 4×3 with zero holes; live pass green on §8. |
 
 **The picker moved from Settings to edit mode**, and the plan above still said "size picker in
 settings" because it was written before Phase 2 existed. Building it there would have been
@@ -471,8 +471,8 @@ at every tile size, so **Phase 4 sizing needed no retuning of it** — and did n
 | 1 — Visibility | 9 | **9** | — shipped |
 | 2 — Edit mode | 9 | 8 | 2.9 (verification) |
 | 3 — Reordering | 9 | 9 | — demo seed order settled as "registry order" (4.9) |
-| 4 — Sizing | 9 | 8 | 4.9 live pass — **next** |
-| 5 — Card fit | 11 | 9 | 5.10 – 5.11 (built early; forced by the no-scroll rule) |
+| 4 — Sizing | 9 | **9** | — shipped |
+| 5 — Card fit | 11 | 9 | 5.10 – 5.11 — **next**; 5.11 (size-*aware* content) is what D7 deferred |
 
 Pre-existing partial credit, for honesty: `.span-2` (dead) and the settings teaser (a stub
 that says the feature is coming). Neither does anything.
@@ -521,7 +521,7 @@ that says the feature is coming). Neither does anything.
 | # | Blocker | Blocks | Status |
 |---|---|---|---|
 | ~~B1~~ | ~~Drag library dependency~~ | — | **Closed 2026-08-22.** Reorder shipped on native pointer events; no package added. |
-| B2 | Confirmation of D1 (the 3×3 substrate) | P4 onward | **Decided here, pending review.** P1 is substrate-agnostic and can start regardless. |
+| ~~B2~~ | ~~Confirmation of D1 (the 3×3 substrate)~~ | — | **Closed 2026-08-23.** Four phases shipped on it, spans included; the unit grid held without amendment. |
 | B3 | The Homelab card (the tenth card) does not exist yet | Nothing here | Informational. This work is that card's prerequisite, not the reverse. |
 
 Note for sequencing: the integrations contract's Phase 2 (homelab snapshots + events) has
@@ -585,6 +585,15 @@ Written during the build; these are the things a reader of the plan alone would 
   snapshot on shutdown — it silently reverted `0012`, dropping both the column and its
   `d1_migrations` row while leaving all other data intact. `SELECT name FROM d1_migrations`
   is the reliable check; the column existing is not, because it can disappear later.
+
+  **It happened again in P4, to `0014`, and presented completely differently.** The dashboard
+  rendered perfectly and *reordering* was what broke, with an opaque
+  "An unexpected error occurred". The asymmetry is the tell and it is structural: the read
+  path degrades a missing column to `undefined → {}` and carries on, while `PATCH` writes all
+  three layout columns on every save regardless of which one changed — so the first symptom
+  of a reverted migration is a *write* failing, on a gesture unrelated to the migration.
+  Expect it to look like a broken feature, not a broken database. `PRAGMA
+  table_info(user_settings)` next to the `d1_migrations` query settles it in one command.
 - **`.settings-disabled` was deleted** along with the teaser it existed for. `.span-2` is
   still present and still dead — it is retired in 4.4, not here.
 
@@ -599,5 +608,7 @@ Written during the build; these are the things a reader of the plan alone would 
 | 2026-08-22 | **Phase 1 built and verified** (1.1–1.9). D2 corrected mid-build: rows are derived, not pinned at 3. Gap 1 closed. Implementation notes in §9. |
 | 2026-08-22 | **Reordering built** as Phase 3, ahead of sizing — drag on native pointer events plus arrow keys; B1 closed with no dependency. Sizing -> Phase 4. |
 | 2026-08-22 | **Edit mode built** as the new Phase 2, ahead of sizing — arrangement moved onto the dashboard; Settings section removed. Sizing → Phase 3, reorder → Phase 5. |
+| 2026-08-23 | **Phase 4 verified** (4.9). Live pass green at all three widths in both themes, spans confirmed on the two former hand-rolled shells, picker limits and the D9 asymmetry exercised, demo session confirmed read-only. B2 closed. |
+| 2026-08-23 | The `0012` miniflare trap recurred on `0014` — same cause, unrecognisable symptom (reorder failing while the dashboard rendered). §9 extended with the read/write asymmetry that makes it present as a broken feature. |
 | 2026-08-22 | **Sizing built** as Phase 4 (4.1–4.8). D9 added: `dense` dropped, and the grid shape now *packs* spans rather than counting cells — counting says yes to layouts four rows tall. Picker moved from Settings to edit mode; `gridShape()` moved to `packages/types` so the meter and the server validator are one function. Gaps 3 and 4 closed. |
 | 2026-08-22 | Browser pass. D2 corrected **again** (rows before columns — column-first made 3 cards a 6:1 letterbox). Cards were scrolling: Tasks and Insights rendered unbounded lists. Built `useClampList` (3.1) and applied it to Calendar, Tasks, Insights rather than tuning per-card constants. |

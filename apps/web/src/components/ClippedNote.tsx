@@ -9,10 +9,23 @@
  * Reserving the space unconditionally makes the available height constant, so
  * the measurement has a fixed point.
  */
-export function ClippedNote({ count, noun }: { count: number; noun: string }) {
+export function ClippedNote({
+  count,
+  noun,
+  /**
+   * Plural form, when appending `s` is wrong. It was right for every noun this
+   * started with — event, task, insight — and wrong for the first one added
+   * afterwards, which rendered "+4 more matchs" on the League card.
+   */
+  plural,
+}: {
+  count: number;
+  noun: string;
+  plural?: string;
+}) {
   return (
     <p className="list-clipped-note" aria-live="polite">
-      {count > 0 ? `+${count} more ${noun}${count === 1 ? "" : "s"}` : ""}
+      {count > 0 ? `+${count} more ${count === 1 ? noun : (plural ?? `${noun}s`)}` : ""}
     </p>
   );
 }

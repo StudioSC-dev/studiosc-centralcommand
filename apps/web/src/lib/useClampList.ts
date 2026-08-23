@@ -50,13 +50,20 @@ export function useClampList<T extends HTMLElement>() {
     const limit = list.getBoundingClientRect().top + list.clientHeight;
     let clipped = 0;
 
-    for (const child of Array.from(list.children) as HTMLElement[]) {
+    const children = Array.from(list.children) as HTMLElement[];
+    children.forEach((child, index) => {
+      // The first row is never hidden. On a tile too short for even one row
+      // every row measures as clipped, and the list then renders as blank space
+      // underneath a footer still claiming there is content — which is what a
+      // short News card actually did. A row cut off by the list's own clipping
+      // is honest about there being more; emptiness is not.
+      //
       // Sub-pixel tolerance: a row whose bottom lands exactly on the boundary
       // is visible, and fractional layout should not count it as clipped.
-      const fits = child.getBoundingClientRect().bottom <= limit + 0.5;
+      const fits = index === 0 || child.getBoundingClientRect().bottom <= limit + 0.5;
       child.classList.toggle("is-clipped", !fits);
       if (!fits) clipped += 1;
-    }
+    });
 
     setClippedCount((prev) => (prev === clipped ? prev : clipped));
   }, [list]);

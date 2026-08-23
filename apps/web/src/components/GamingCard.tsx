@@ -158,7 +158,9 @@ function Connected({ data }: { data: GamingData }) {
             ))}
           </ul>
         )}
-        {filtered.length > 0 && <ClippedNote count={clippedCount} noun="match" />}
+        {filtered.length > 0 && (
+          <ClippedNote count={clippedCount} noun="match" plural="matches" />
+        )}
       </div>
 
       <p className="perf-note">Match scores are a non-authoritative demo metric.</p>

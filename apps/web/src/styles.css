@@ -1220,11 +1220,16 @@ button {
   border-color: color-mix(in srgb, var(--card-accent) 45%, transparent);
 }
 
-/* Shed whole days once sharing the width stops being enough — five legible
-   chips beat five illegible ones, and the tile is the thing that decides.
-   Container queries, not media queries: `.card` is a size container (5.8), so
-   this responds to the *tile*, which is what actually changed when the grid
-   went to four columns. Padding tightens first so the drop happens later. */
+/* The same block said in words, for tiles too narrow for legible chips. Hidden
+   by default — the strip is the better rendering whenever it fits. */
+.weather-outlook-brief {
+  display: none;
+  margin: 0.9rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+/* Tighten first: a chip with less padding is still a readable chip. */
 @container card (max-width: 460px) {
   .weather-outlook li {
     padding-left: 0.35rem;
@@ -1233,15 +1238,17 @@ button {
   }
 }
 
+/* Then swap wholesale rather than degrade further. Dropping days one at a time
+   ends in a strip that is neither complete nor readable; one sentence that
+   still answers "will it rain" is worth more than three unreadable chips.
+   Container queries, not media queries: `.card` is a size container (5.8), so
+   this responds to the *tile*, which is what changed at four columns. */
 @container card (max-width: 400px) {
-  .weather-outlook li:nth-child(n + 5) {
+  .weather-outlook {
     display: none;
   }
-}
-
-@container card (max-width: 300px) {
-  .weather-outlook li:nth-child(n + 4) {
-    display: none;
+  .weather-outlook-brief {
+    display: block;
   }
 }
 
@@ -2291,6 +2298,14 @@ button {
   flex: 1 1 0;
   min-height: 0;
   overflow: hidden;
+  /* Grow to the space available (so the clamp has a bound to measure against),
+     but never past the rows actually present. Without the cap a queue with six
+     games in a tile with room for twelve stretched the list to full height and
+     pushed the disclaimer to the card's bottom edge, leaving a void between
+     them. With it, short lists sit under their heading and the spare room
+     collects at the end of the card, where it reads as "that is all there is"
+     rather than as something failing to load. */
+  max-height: max-content;
 }
 
 .gaming-match-champ {

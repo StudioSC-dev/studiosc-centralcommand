@@ -61,6 +61,36 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
+/**
+ * The outlook in words, for tiles too narrow to render legible day chips.
+ *
+ * Losing the strip is better than shrinking it past the point of being read —
+ * but losing it *silently* just leaves a hole. This says the same thing in one
+ * line: today's rain chance and range, plus the next wetter day if there is one,
+ * which is the part of a five-day strip anyone actually scans for.
+ */
+function briefOutlook(daily: readonly WeatherDailyEntry[], units: Units): string {
+  const today = daily[0];
+  if (!today) return "";
+
+  const parts = [
+    `Today ${Math.round(today.pop * 100)}% rain`,
+    `${fmtTemp(today.max, units)} / ${fmtTemp(today.min, units)}`,
+  ];
+
+  // Only worth naming a later day if it is wetter than today — otherwise the
+  // line is just repeating what the hero already says.
+  let wettest = -1;
+  for (let i = 1; i < daily.length; i++) {
+    if (daily[i]!.pop > (wettest === -1 ? today.pop : daily[wettest]!.pop)) wettest = i;
+  }
+  if (wettest > 0) {
+    parts.push(`${dayLabel(daily[wettest]!.date, wettest)} ${Math.round(daily[wettest]!.pop * 100)}%`);
+  }
+
+  return parts.join(" · ");
+}
+
 export function WeatherCard() {
   const { data, isPending, isError, error } = useWeather();
   const setUnits = useSetUnits();
@@ -132,6 +162,16 @@ export function WeatherCard() {
         <Detail label="Pressure" value={`${current.pressure} hPa`} />
         <Detail label="Visibility" value={fmtVisibility(current.visibility, units)} />
       </div>
+
+      {/* Two renderings of the same block, one chosen by tile width in CSS: the
+          chips while they are readable, the sentence once they are not. Both
+          carry the same drop order, so if the card runs out of *height* the
+          outlook still leaves as a unit. */}
+      {daily.length > 1 && (
+        <p className="weather-outlook-brief" data-drop-order="1">
+          {briefOutlook(daily, units)}
+        </p>
+      )}
 
       {daily.length > 1 && (
         <ul className="weather-outlook" data-drop-order="1">

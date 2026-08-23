@@ -234,6 +234,33 @@ ugly grid. Those two may therefore produce an over-budget wall; `gridShape()` al
 a renderable shape and flags `overflows`, and the edit bar's budget readout says so in words.
 This is the "warned not blocked" half of D5, given a precise boundary.
 
+### D10 — Two cards may scroll; every other card fits, in both axes
+
+**Decided 2026-08-23.** Scrolling is a property of the *content*, not of how a card happens to
+be laid out, so it is now a named list rather than a per-card accident:
+
+| Card | Scrolls | Why |
+|---|---|---|
+| **Today** | yes | A cross-pillar digest with no fixed length — the more pillars report, the longer it gets. |
+| **News** | yes | A feed has no natural end (5.7). |
+| everything else | **no** | Fits its tile, or thins/drops until it does. |
+
+**Weather is explicitly never scrollable, in either direction.** Its day strip was
+`flex: 1 0 auto` inside `overflow-x: auto`, so the chips kept their width and slid off the edge
+of a narrow tile. That was invisible at three columns and obvious at four. They now share the
+width, and container queries drop whole days when sharing stops being enough — five legible
+chips beat five illegible ones.
+
+**Health never scrolls either, and never sheds a control.** Its entry list is the only part
+that can give space back, so that is what absorbs a short tile; the quick-add form is fixed,
+because it carries the Log button and a submit control you cannot reach is a functional
+failure, not a cosmetic one. This is why the fix was a *clamp on the list* rather than
+`data-drop-order` marks: dropping blocks would eventually drop the form.
+
+**The general rule this encodes:** when a card must fit, the thing that yields is its
+open-ended list, never its controls. A card with no list to thin needs either a
+`data-drop-order` block (Weather, Performance) or a place on the table above.
+
 ### D8 — Below the wall breakpoint, sizes collapse
 
 At ≤1100px (2-column) horizontal spans clamp to the column count; at ≤720px (1-column)
@@ -398,10 +425,12 @@ miniature 3×2 cell field, which is faster to read than "2 × 1" and needs no ve
 Makes a bigger card *worth* being bigger, and a smaller one still correct. **Partly built
 early** (rows 5.1–5.9) because the no-scroll requirement forced it.
 
-**The rule: a card fits its tile — with one deliberate exception.** A wall display nobody is
-sitting at cannot be scrolled. **News is exempt**: a feed has no natural end, so no amount of
-trimming makes it "fit", and scrolling is what the content is for. It opts out with
-`<Card scrollable>`.
+**The rule: a card fits its tile — with two deliberate exceptions.** A wall display nobody is
+sitting at cannot be scrolled. **News and Today are exempt** (D10): a feed has no natural end
+and a cross-pillar digest grows with the number of pillars reporting, so no amount of trimming
+makes either "fit", and scrolling is what that content is for. Both opt out with
+`<Card scrollable>`. Everything else fits in **both axes** — the horizontal half went unnoticed
+until four-column tiles made Weather's day strip slide off its own edge.
 
 **Scale first, drop only as a last resort.** Shrinking type and spacing to fit the tile keeps
 every element on the card, which is what the card was designed to show; dropping a block is a
@@ -438,7 +467,7 @@ in a shared primitive.
 | 5.4 | Insights clamped — previously rendered **every** insight, unbounded | ✅ built |
 | 5.5 | `useFitSections` — the shell drops `[data-drop-order]` blocks until the body fits | ✅ built |
 | 5.6 | Weather (outlook → details → sun arc) and Performance (trend → vitals) marked | ✅ built |
-| 5.7 | News opted out via `<Card scrollable>` — a feed has no natural end | ✅ built |
+| 5.7 | News — and later Today — opted out via `<Card scrollable>` (D10) | ✅ built |
 | 5.8 | `.card` as a size container; display numerals + hero spacing on `cqh` clamps | ✅ built |
 | 5.9 | Fix `.gaming-matches-block` overlap — `min-height: 0` spilled content onto the disclaimer | ✅ built |
 | ✅ 5.10 | Audit the rest (Health, Gaming, Summary) and scale/mark their blocks | verified in-browser |
@@ -491,11 +520,8 @@ deliberately independent of the measured count (render from the offset up to a D
 30, same demotion `MAX_EVENTS` got in 5.2); making it depend on the measurement would be a
 feedback loop.
 
-**Left open on purpose:** News still passes `scrollable` (5.7). It is now inert — the list
-clips, so the body has nothing to scroll — and the argument for it ("a feed has no natural
-end, so trimming cannot make it fit") was answered by paging rather than trimming. Dropping it
-would reverse a recorded decision, so it stands until that is decided rather than being removed
-quietly.
+**Resolved by D10:** News keeps `scrollable`, now as a deliberate policy rather than a
+leftover — it and Today are the two cards allowed to scroll, and everything else must fit.
 
 #### 5.11 — Gaming: the same problem, the other shape
 
@@ -581,12 +607,15 @@ that says the feature is coming). Neither does anything.
    would genuinely benefit from a unit test — they were checked instead with a throwaway Node
    harness that replays D2's whole table plus the packing-hole cases. Flag if a test runner is
    ever adopted; that harness is the test, and it is not in the repo.
-8. **Every *list* card is now size-aware; the fixed *stacks* are not.** News pages to fit,
-   Gaming clamps to fit, and Calendar/Tasks/Insights already did. Weather and Performance have
-   no list to grow — they scale with `cqh` clamps and drop `[data-drop-order]` blocks, so they
-   are size-*safe* but do not gain anything from extra room. Whether a bigger Weather card
-   should show more (an hourly strip, a longer outlook) is a product question, not a
-   fit question, and is not scheduled.
+8. **Every card now fits; only some *gain* from extra room.** News pages to fit, Gaming and
+   Health clamp to fit, Calendar/Tasks/Insights already did, and Weather sheds days rather
+   than sliding them off the edge. What a *narrower* card should show is answered. What a
+   **bigger** card should show is not: a 2×2 Weather card still shows five days, just larger.
+   That is a product question rather than a fit question, and is not scheduled.
+10. **Dead CSS removed while here:** `.weather-forecast` (never rendered — the real strip is
+   `.weather-outlook`) and `.log-older` (replaced by the always-rendered `ClippedNote`, which
+   has the fixed height the measurement needs). `.span-2` was the same class of thing, retired
+   in 4.4.
 9. **News's `scrollable` opt-out (5.7) is now inert.** Its list clips, so the body has nothing
    to scroll. Keeping or dropping it is a decision, not a cleanup — see 5.11.
 
@@ -693,3 +722,4 @@ Written during the build; these are the things a reader of the plan alone would 
 | 2026-08-23 | **5.10 verified**; **5.11 started** — News paging made size-aware. `PER_PAGE = 5` replaced by a measured page size via `useClampList`, and page *indices* replaced by an offset stack, because a measured page size makes an index point at different content after a resize. Gaming's fixed 6 matches is the remaining instance. |
 | 2026-08-23 | **5.11 completed** — Gaming's `slice(0, 6)` replaced by the clamp + `+N more`, and its match list stopped scrolling (it had quietly exempted itself from the no-scroll rule). Applying it exposed a latent bug in `useClampList`: a `useRef` element meant the observers never re-bound when a conditionally-rendered list remounted, freezing `clippedCount` — now a callback ref backed by state. Phase 5 complete. |
 | 2026-08-23 | Two defects caught from screenshots of a real 12-cell layout. `ClippedNote` appended a bare `s` and rendered "+4 more matchs" — it now takes an optional plural. And on a tile too short for one row the clamp hid *every* row, leaving News blank under a "1–1 of 34" readout; `useClampList` now never hides the first row, so a clipped row is visible rather than absent. Both fixes are primitive-level and cover all four clamped cards. |
+| 2026-08-23 | **D10 recorded** after four-column tiles exposed two width failures. Weather's day strip was sliding off the edge (`flex: 1 0 auto` over `overflow-x: auto`) and Health's form wrapped and pushed its Log button out of reach. Scroll policy is now a named list — Today and News scroll, everything else fits in both axes — and Health's entry list clamps so the card yields its *list*, never its controls. |

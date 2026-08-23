@@ -93,6 +93,12 @@ export const userSettings = sqliteTable("user_settings", {
   // present, in registry order — so a card shipped later appears at the end for
   // existing users with no backfill. null / absent → registry order.
   cardOrder: text("card_order"),
+  // JSON object mapping CardKey -> CardSize for cards the user has resized away
+  // from the 1x1 default, e.g. '{"weather":"2x2"}'. Sparse by the same "store
+  // the exceptions" rule as hidden_cards / card_order (docs/ui-suite.md D4): a
+  // key absent from this map is 1x1, so a card shipped later needs no backfill.
+  // null / absent -> every card is 1x1.
+  cardSizes: text("card_sizes"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });

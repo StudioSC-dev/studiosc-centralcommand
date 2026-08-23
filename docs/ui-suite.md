@@ -2,7 +2,7 @@
 
 **Scope:** per-user control over *which* cards appear on the dashboard and *how large* each
 one is, on a uniform cell grid.
-**Status:** Phases 0–3 complete (visibility · edit mode · reordering) · Phase 4 (sizing) next
+**Status:** Phases 0–4 built (visibility · edit mode · reordering · sizing) · live pass outstanding
 **Owner branch:** `feat/ui-suite` → `dev`
 **Last updated:** 2026-08-22
 
@@ -42,7 +42,7 @@ more room than a 1×1 tile gives them.
 |---|---|---|
 | 3×3 viewport-filling grid | `styles.css:681` `.dashboard` | `repeat(3, minmax(0,1fr))` columns × `repeat(3, minmax(0,1fr))` rows, `height: calc(100vh - 56px - 1.8rem - 8px)`. No page scroll — overflow scrolls *inside* cards. |
 | Responsive step-down | `styles.css:712`, `:721` | ≤1100px → 2 columns, fixed `--card-h: 440px`, page scrolls. ≤720px → 1 column. |
-| `.span-2` class | `styles.css:706` | `grid-column: span 2`, plus a ≤720px override back to `span 1`. **Declared but applied to nothing** — the only pre-existing sizing primitive, and it is dead code. |
+| `.span-2` class | `styles.css:706` | `grid-column: span 2`, plus a ≤720px override back to `span 1`. **Declared but applied to nothing** — the only pre-existing sizing primitive, and it is dead code. *(Deleted in 4.4.)* |
 | Shared card shell | `components/Card.tsx` | `title` + `pillar` props → `<section class="card pillar-*">` with a non-scrolling title and a scrolling `.card-body`. |
 | Per-pillar accents | `styles.css:60-68` | Nine `--pillar-*` custom properties; `pillar-<key>` sets `--card-accent`. **The nine pillar keys already exist as a de facto card-key union** — see D3. |
 | Settings teaser | `routes/settings.tsx:358` | A `.settings-disabled` block reading *"Resizing cards and choosing which to enable/disable is under development."* This is the UI stub this work fills in. |
@@ -68,12 +68,12 @@ These came out of the audit and are the reason the phases are ordered the way th
 - **Card internals assume roughly one tile.** `GamingCard.tsx:130` slices to 6 matches;
   `CalendarCard.tsx:8` caps at `MAX_EVENTS = 10`; the League card's CSS is commented
   *"portioned layout … fits without scroll"*. A 2×2 League card would show six matches in
-  double the space. **Content that adapts to size is its own phase (P3)** and is explicitly
-  not smuggled into P2.
+  double the space. **Content that adapts to size is its own phase (P5)** and is explicitly
+  not smuggled into P4.
 - **The no-scroll invariant is load-bearing.** The wall layout's whole point is that the
   3×3 fits a secondary monitor with no page scroll. Variable spans can break this in a way
-  hiding cards cannot, which is why P2 carries a cell-budget rule (D5) rather than free-form
-  sizing.
+  hiding cards cannot, which is why P4 carries a cell-budget rule (D5/D9) rather than
+  free-form sizing.
 - **`user_settings` has no layout column**, and the latest migration is `0011_sweet_morph.sql`
   (16 tables). The next migration number is **`0012`**.
 
@@ -173,13 +173,18 @@ better shape, and the data migration is one real user plus the demo seed.
 
 ### D5 — A cell budget, enforced client-side, warned not blocked
 
-`sum(width × height)` across visible cards must not exceed `columns × 3`. The settings UI
-shows a budget meter. Over budget is **prevented** (the size option is disabled with a
-reason); under budget is **allowed** with a hint, because a deliberately sparse wall is a
-legitimate choice and `grid-auto-flow: dense` fills what it can.
+The visible cards must fit a grid of at most 4 columns × 3 rows. Over budget is
+**prevented** at the size picker (the option is disabled with a reason); under budget is
+**allowed** with a hint, because a deliberately sparse wall is a legitimate choice.
 
 This is what keeps "cards can be any size" from quietly reintroducing a page scrollbar on
 the wall display.
+
+**Amended by D9 while building**, in two ways. The rule was `sum(width × height) ≤ columns ×
+3`, and a sum is not sufficient — it ignores the hole a 2-wide card leaves when it will not
+fit in the rest of its row, so it approves layouts that render four rows tall. The budget is
+now a *packing* question. And the meter moved from the settings UI to the edit bar, along
+with everything else about layout.
 
 ### D6 — Server validates, client optimises
 
@@ -188,11 +193,38 @@ recomputed server-side. The client toggle is optimistic for feel, but a malforme
 never persists. Card visibility is a **preference, never a privacy boundary** — anything
 that must not be seen is filtered server-side, independent of layout.
 
-### D7 — Sizing does not change card content in P2
+### D7 — Sizing does not change card content in the sizing phase
 
 A resized card gets more space and the same content. Adapting item counts and internal
-layout to the available tile is **P3**, deliberately separated so P2 can ship on visual
-inspection alone.
+layout to the available tile is **P5**, deliberately separated so P4 can ship on visual
+inspection alone. It held: P4 changed no card's internals, and P5's measuring primitives
+needed no retuning for the new tile sizes.
+
+### D9 — No `dense` auto-flow; the shape is chosen to pack instead
+
+**Decided 2026-08-22, during Phase 4.** D5 assumed `grid-auto-flow: dense` would fill the
+holes a span leaves behind. Phase 3 invalidated that: dense fills a hole by pulling a *later*
+card forward, so the card you just dragged into position lands somewhere else. Order is now
+user-controlled and visible, and a layout mode that silently contradicts the gesture that
+produced it is worse than a gap. **Dense is off.**
+
+The holes are dealt with at derivation instead. `gridShape()` **packs** the spans — simulating
+`grid-auto-flow: row` exactly — and tries each column count from D2's preferred shape up to
+four, taking the first that fits in three rows. Counting cells alone would not do: `sum(w×h)
+≤ cols×rows` ignores the hole a 2-wide card leaves when it will not fit in the rest of its
+row, so it says yes to layouts that are four rows tall.
+
+**A consequence worth stating plainly: position affects fit.** Nine cards with a 2×2 first
+pack into a 4×3 wall with zero holes; the same nine with the 2×2 *last* need a fourth row.
+The size picker greys out what will not fit from where the card currently sits.
+
+**Three writes, one budget, two policies.** A *resize* that does not fit is refused — the
+alternatives are sitting right next to it in the picker, so refusing costs nothing. *Hiding*
+and *reordering* are never refused, because "you cannot restore this card until you shrink
+another one" is a dead end, and a reorder that fails halfway through a drag is worse than an
+ugly grid. Those two may therefore produce an over-budget wall; `gridShape()` always returns
+a renderable shape and flags `overflows`, and the edit bar's budget readout says so in words.
+This is the "warned not blocked" half of D5, given a precise boundary.
 
 ### D8 — Below the wall breakpoint, sizes collapse
 
@@ -319,25 +351,44 @@ requiring both on every write would let a reorder clobber a concurrent hide.
 
 ### Phase 4 — Sizing (spans)
 
-Depends on the P1 registry. This is the half the integrations contract explicitly deferred
+Depends on the P1 registry (every card in one shell) and on P3 (order is user-controlled, so
+packing has to respect it). This is the half the integrations contract explicitly deferred
 ("size and reorder become a separate follow-up"), pulled forward by this session's scope.
 
-| # | Deliverable | Where | Notes |
+| # | Deliverable | Where | Status |
 |---|---|---|---|
-| 2.1 | `user_settings.card_sizes` JSON column + migration **`0013`** | `packages/db` | D4. Sparse `{ key: "2x1" }` map; absent → `1x1`. |
-| 2.2 | `CardSize` union + size→span helper | `packages/types`, `packages/utils` | `1x1`, `2x1`, `1x2`, `2x2`, `3x1`. Closed set (D1). |
-| 2.3 | Cell-budget calculator | `packages/utils` | D5. Shared by client meter and server validation — one implementation, two callers. |
-| 2.4 | Size classes + `grid-auto-flow: dense` | `apps/web/styles.css` | Generalises the dead `.span-2` (§2.1) into the full set. Retire `.span-2`. |
-| 2.5 | Registry emits size class; both hand-rolled shells honour it | `apps/web` | The §2.3 finding lands here if not fully resolved in 1.3. |
-| 2.6 | `PATCH` accepts sizes; server-side budget validation | `apps/api` | D6. |
-| 2.7 | Size picker in settings + budget meter | `apps/web` | Over-budget options disabled with a reason (D5). |
-| 2.8 | Breakpoint collapse rules | `apps/web/styles.css` | D8. |
-| 2.9 | Demo seed sizes + verification | — | A non-trivial demo layout proves the feature to portfolio visitors. |
+| ✅ 4.1 | `user_settings.card_sizes` JSON column + migration **`0014_sticky_vanisher.sql`** | `packages/db` | built. `0013` was taken by `card_order`. |
+| ✅ 4.2 | `CardSize` union + `cardSpan()` / `cardSpans()` | `packages/types` | built. `1x1`, `2x1`, `1x2`, `2x2`, `3x1` — closed set (D1). |
+| ✅ 4.3 | Packing grid derivation + `fitsGrid` budget check | `packages/types` | built. `gridShape()` moved out of the route; one implementation, three callers. |
+| ✅ 4.4 | `.card-w2` / `.card-w3` / `.card-h2` span classes | `apps/web/styles.css` | built. `.span-2` retired. **No `dense`** — see D9. |
+| ✅ 4.5 | The shell emits the span class from `CardKeyContext` | `apps/web` | built. Both former hand-rolled shells inherit it via 1.3. |
+| ✅ 4.6 | `PATCH` accepts `sizes`; server-side budget validation | `apps/api` | built. D6 — same `fitsGrid` the picker greys options with. |
+| ✅ 4.7 | Size picker **in edit mode** + budget readout in the edit bar | `apps/web` | built. Moved off Settings — see below. |
+| ✅ 4.8 | Breakpoint collapse rules | `apps/web/styles.css` | built. D8. |
+| 4.9 | Demo seed sizes + verification | — | seed built (Weather 2×2, packs 4×3 with zero holes); **live pass open**. |
+
+**The picker moved from Settings to edit mode**, and the plan above still said "size picker in
+settings" because it was written before Phase 2 existed. Building it there would have been
+building it to delete it — exactly the trap that made edit mode Phase 2 in the first place. It
+now sits on the card next to the remove badge, in the shell, for the same reason that one does.
+
+**The budget calculator went to `packages/types`, not `packages/utils`.** `apps/web` depends on
+`types` and not on `utils`, and the layout logic it has to agree with the server about
+(`resolveCardOrder`, `CARD_KEYS`, `isCardKey`) is already there. Sending sizing to `utils`
+would have meant adding a workspace dependency to split one feature's rules across two
+packages. `gridShape()` moved out of `routes/index.tsx` for the same reason: the server needs
+it to validate the budget, and D5's whole point is that the meter and the validator are one
+function.
+
+**The picker is one row of glyphs, not a labelled list.** `.card` clips to its rounded corners,
+so a five-row dropdown would be cut off by the bottom of a short tile — and a short tile is
+precisely when someone reaches for a resize control. Each option draws the shape as a
+miniature 3×2 cell field, which is faster to read than "2 × 1" and needs no vertical space.
 
 ### Phase 5 — Card fit (cross-cutting)
 
 Makes a bigger card *worth* being bigger, and a smaller one still correct. **Partly built
-early** (see below) because the no-scroll requirement forced it.
+early** (rows 5.1–5.9) because the no-scroll requirement forced it.
 
 **The rule: a card fits its tile — with one deliberate exception.** A wall display nobody is
 sitting at cannot be scrolled. **News is exempt**: a feed has no natural end, so no amount of
@@ -350,7 +401,7 @@ worse outcome and is reserved for when scaling has bottomed out. Scaling is done
 **container query units**: `.card` is a size container (`container-type: size`), so contents
 size against *their own tile* rather than the viewport — e.g.
 `font-size: clamp(1.5rem, 15cqh, 2.85rem)`. No per-size rules to write, and it keeps working
-at whatever tiles Phase 2 introduces.
+at whatever tiles the sizing phase introduces.
 
 Below that, two fallback mechanisms, because cards come in two shapes:
 
@@ -367,23 +418,23 @@ Current drop orders: Weather `outlook → details → sun arc`; Performance `tre
 
  The naive implementation is a `slice(0, N)` per
 card, and it is wrong — every `N` encodes one tile size, so it is stale the moment the grid
-reshapes (P1) or a card is resized (P2). Retuning constants at every size is how the
+reshapes (P1) or a card is resized (P4). Retuning constants at every size is how the
 original overflow bug happened. So the content decides what to show by **measuring**, once,
 in a shared primitive.
 
 | # | Deliverable | Status |
 |---|---|---|
-| 3.1 | `useClampList` — hide rows that don't fully fit, report the count; `ClippedNote` footer | ✅ built |
-| 3.2 | Calendar clamped; `MAX_EVENTS` demoted from "what shows" to a DOM ceiling (10 → 30) | ✅ built |
-| 3.3 | Tasks clamped — previously rendered **every** task, unbounded | ✅ built |
-| 3.4 | Insights clamped — previously rendered **every** insight, unbounded | ✅ built |
-| 3.5 | `useFitSections` — the shell drops `[data-drop-order]` blocks until the body fits | ✅ built |
-| 3.6 | Weather (outlook → details → sun arc) and Performance (trend → vitals) marked | ✅ built |
-| 3.7 | News opted out via `<Card scrollable>` — a feed has no natural end | ✅ built |
-| 3.8 | `.card` as a size container; display numerals + hero spacing on `cqh` clamps | ✅ built |
-| 3.9 | Fix `.gaming-matches-block` overlap — `min-height: 0` spilled content onto the disclaimer | ✅ built |
-| 3.10 | Audit the rest (Health, Gaming, Summary) and scale/mark their blocks | open |
-| 3.11 | Size-*aware* content, as opposed to size-*safe*: a 2×2 card using its extra room well | open |
+| 5.1 | `useClampList` — hide rows that don't fully fit, report the count; `ClippedNote` footer | ✅ built |
+| 5.2 | Calendar clamped; `MAX_EVENTS` demoted from "what shows" to a DOM ceiling (10 → 30) | ✅ built |
+| 5.3 | Tasks clamped — previously rendered **every** task, unbounded | ✅ built |
+| 5.4 | Insights clamped — previously rendered **every** insight, unbounded | ✅ built |
+| 5.5 | `useFitSections` — the shell drops `[data-drop-order]` blocks until the body fits | ✅ built |
+| 5.6 | Weather (outlook → details → sun arc) and Performance (trend → vitals) marked | ✅ built |
+| 5.7 | News opted out via `<Card scrollable>` — a feed has no natural end | ✅ built |
+| 5.8 | `.card` as a size container; display numerals + hero spacing on `cqh` clamps | ✅ built |
+| 5.9 | Fix `.gaming-matches-block` overlap — `min-height: 0` spilled content onto the disclaimer | ✅ built |
+| 5.10 | Audit the rest (Health, Gaming, Summary) and scale/mark their blocks | open |
+| 5.11 | Size-*aware* content, as opposed to size-*safe*: a 2×2 card using its extra room well | open |
 
 **How the primitive works, and why it is built that way.** Item heights are not uniform — an
 insight's detail wraps, the calendar has a divider row, a task row grows while being edited —
@@ -402,8 +453,8 @@ real box. Two consequences:
   fit, which removes it again. Reserving the space unconditionally gives the measurement a
   fixed point.
 
-This is why 3.1 was worth building properly instead of tuning three constants: it is correct
-at every tile size, so **Phase 2 sizing needs no retuning of it**.
+This is why 5.1 was worth building properly instead of tuning three constants: it is correct
+at every tile size, so **Phase 4 sizing needed no retuning of it** — and did not get any.
 
 ### Phase 6 (optional) — Presets
 
@@ -419,8 +470,8 @@ at every tile size, so **Phase 2 sizing needs no retuning of it**.
 | 0 — Audit & decisions | this document | 8 decisions recorded, prior art catalogued | mirror D1/D2/D5 into the integrations contract |
 | 1 — Visibility | 9 | **9** | — shipped |
 | 2 — Edit mode | 9 | 8 | 2.9 (verification) |
-| 3 — Reordering | 9 | 8 | 3.9 (demo seed order); touch untested |
-| 4 — Sizing | 9 | 0 | 4.1 – 4.9 — **next** |
+| 3 — Reordering | 9 | 9 | — demo seed order settled as "registry order" (4.9) |
+| 4 — Sizing | 9 | 8 | 4.9 live pass — **next** |
 | 5 — Card fit | 11 | 9 | 5.10 – 5.11 (built early; forced by the no-scroll rule) |
 
 Pre-existing partial credit, for honesty: `.span-2` (dead) and the settings teaser (a stub
@@ -437,22 +488,29 @@ that says the feature is coming). Neither does anything.
 2. **Card internals are tuned for a 1×1 tile** (§2.3). *Partly closed:* the three unbounded
    list cards (Calendar, Tasks, Insights) now measure instead (3.1–3.4). The remaining cards
    are unaudited — 3.5.
-3. **Reordering may require a drag dependency.** Every serious grid-drag library is a new
-   `npm` package, which needs explicit approval per the repo's prime directives. The stated
-   preference is native HTML5 drag-and-drop or a settings-list reorder with buttons — no new
-   dependency. Unresolved; P4 scope depends on the answer.
-4. **Dense auto-flow can reorder cards visually.** `grid-auto-flow: dense` fills holes by
-   pulling later cards forward, so DOM order and visual order can diverge. Acceptable in P2
-   (order is not user-controlled yet); it becomes a real conflict in P4.3.
-5. **No accessibility pass is scheduled.** Toggles and size pickers need keyboard operation
-   and sensible labels; a reordering UI needs a keyboard path that is not drag. Should be
-   folded into 1.7 and 2.7 rather than bolted on.
-6. **Two migrations in short succession** (`0012` visibility, `0013` sizing) that P4 may
-   then replace with a table. Accepted deliberately: shipping P1 alone is worth more than a
-   tidy migration history, and D4 explains the eventual consolidation.
+3. ~~**Reordering may require a drag dependency.**~~ **Closed in P3** on native pointer
+   events; no package added. See B1.
+4. ~~**Dense auto-flow can reorder cards visually.**~~ **Closed in P4 by dropping dense**
+   (D9). The conflict was real; the resolution is that the derivation packs instead, and the
+   holes it cannot avoid are shown in the budget readout rather than hidden by reflowing
+   someone's arrangement.
+5. **No accessibility pass is scheduled.** *Partly closed as it went:* reorder has an
+   arrow-key path (3.6) and the size picker is a labelled `menuitemradio` group operable by
+   keyboard, closing on Escape without also leaving edit mode. What has never been checked
+   end to end is the whole flow with a screen reader, and edit mode has no focus trap.
+6. **Three migrations in short succession** (`0012` visibility, `0013` order, `0014` sizing)
+   which a `dashboard_cards` table would eventually replace with one. Accepted deliberately:
+   shipping each phase alone was worth more than a tidy migration history, and D4 explains the
+   consolidation. All three columns are nullable and sparse, so that migration is one real
+   user plus the demo seed.
 7. **No test coverage.** The repo has no test suite; verification is typecheck + build +
-   live inspection (§7). The budget calculator (2.3) is pure and the one piece that would
-   genuinely benefit from a unit test — flag if a test runner is ever adopted.
+   live inspection (§7). The packer and budget check (4.3) are pure and are the pieces that
+   would genuinely benefit from a unit test — they were checked instead with a throwaway Node
+   harness that replays D2's whole table plus the packing-hole cases. Flag if a test runner is
+   ever adopted; that harness is the test, and it is not in the repo.
+8. **Card content is still size-*safe*, not size-*aware* (5.11).** A 2×2 card now gets twice
+   the room and shows the same six matches, scaled up. That is D7 holding as designed, and it
+   is the next thing worth doing.
 
 ---
 
@@ -463,7 +521,7 @@ that says the feature is coming). Neither does anything.
 | # | Blocker | Blocks | Status |
 |---|---|---|---|
 | ~~B1~~ | ~~Drag library dependency~~ | — | **Closed 2026-08-22.** Reorder shipped on native pointer events; no package added. |
-| B2 | Confirmation of D1 (the 3×3 substrate) | P2 onward | **Decided here, pending review.** P1 is substrate-agnostic and can start regardless. |
+| B2 | Confirmation of D1 (the 3×3 substrate) | P4 onward | **Decided here, pending review.** P1 is substrate-agnostic and can start regardless. |
 | B3 | The Homelab card (the tenth card) does not exist yet | Nothing here | Informational. This work is that card's prerequisite, not the reverse. |
 
 Note for sequencing: the integrations contract's Phase 2 (homelab snapshots + events) has
@@ -481,8 +539,9 @@ Applies to every phase; the phase is not done until all of it passes.
 - **Live check at all three widths** — wall (≥1100px, no page scrollbar), 2-column, 1-column —
   in **both themes**.
 - **Confirm a demo session cannot `PATCH`** the layout (expect the `demoReadOnly` 4xx).
-- P2 additionally: confirm the cell budget cannot be exceeded via the UI, and that a
-  hand-crafted over-budget `PATCH` is rejected server-side.
+- P4 additionally: confirm the cell budget cannot be exceeded **via the size picker**, and
+  that a hand-crafted over-budget `sizes` `PATCH` is rejected server-side — while a *hide* or
+  *reorder* that overflows is still accepted and merely warned about (D9).
 
 ---
 
@@ -510,7 +569,8 @@ Written during the build; these are the things a reader of the plan alone would 
   means painting the default nine and reflowing the entire grid.
 - **The two hand-rolled shells were only ever adding dead classes.** `news-card` and
   `weather-card` appear nowhere in `styles.css`. Both now delegate to the shared `Card`,
-  which gained a `className` passthrough — the single hook P2's span classes will use.
+  which gained a `className` passthrough. P4's span classes went on the shell itself instead,
+  read from `CardKeyContext` — same principle, one fewer thing for a card to pass through.
 - **One deliberate visual change:** the News card now renders the `card-dot` accent, because
   the shared shell always does and `--pillar-news` already existed for it. Every other card
   had one; News was the outlier. Revert by giving `Card` a dot opt-out if that reads wrong.
@@ -526,7 +586,7 @@ Written during the build; these are the things a reader of the plan alone would 
   `d1_migrations` row while leaving all other data intact. `SELECT name FROM d1_migrations`
   is the reliable check; the column existing is not, because it can disappear later.
 - **`.settings-disabled` was deleted** along with the teaser it existed for. `.span-2` is
-  still present and still dead — it is retired in 2.4, not here.
+  still present and still dead — it is retired in 4.4, not here.
 
 ---
 
@@ -539,4 +599,5 @@ Written during the build; these are the things a reader of the plan alone would 
 | 2026-08-22 | **Phase 1 built and verified** (1.1–1.9). D2 corrected mid-build: rows are derived, not pinned at 3. Gap 1 closed. Implementation notes in §9. |
 | 2026-08-22 | **Reordering built** as Phase 3, ahead of sizing — drag on native pointer events plus arrow keys; B1 closed with no dependency. Sizing -> Phase 4. |
 | 2026-08-22 | **Edit mode built** as the new Phase 2, ahead of sizing — arrangement moved onto the dashboard; Settings section removed. Sizing → Phase 3, reorder → Phase 5. |
+| 2026-08-22 | **Sizing built** as Phase 4 (4.1–4.8). D9 added: `dense` dropped, and the grid shape now *packs* spans rather than counting cells — counting says yes to layouts four rows tall. Picker moved from Settings to edit mode; `gridShape()` moved to `packages/types` so the meter and the server validator are one function. Gaps 3 and 4 closed. |
 | 2026-08-22 | Browser pass. D2 corrected **again** (rows before columns — column-first made 3 cards a 6:1 letterbox). Cards were scrolling: Tasks and Insights rendered unbounded lists. Built `useClampList` (3.1) and applied it to Calendar, Tasks, Insights rather than tuning per-card constants. |

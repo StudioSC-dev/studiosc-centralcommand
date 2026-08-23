@@ -707,6 +707,124 @@ export interface DashboardLayoutResponse {
   layout: DashboardLayout;
 }
 
+// ─── Layout presets ──────────────────────────────────────────────────────────
+// docs/ui-suite.md Phase 6. A preset is a whole arrangement under one name —
+// which cards, in what order, at what size — applied in a single write.
+
+export type LayoutPresetKey = "wall" | "focus" | "minimal";
+
+/**
+ * A named arrangement of the dashboard.
+ *
+ * **Presets declare `visible`, not `hidden` — the opposite of how a *user's*
+ * layout is stored (D4), and deliberately so.** The two need opposite defaults
+ * for a card that ships later. A user's row stores the exceptions so a new card
+ * appears without a backfill; a preset stores the roster so a new card cannot
+ * silently gatecrash an arrangement whose whole point is being small. "Minimal"
+ * that grows a card every release is not minimal.
+ *
+ * The one preset that *should* absorb new cards gets it for free by naming the
+ * live constant: `wall` is `CARD_KEYS`, so a tenth card joins it by existing.
+ * That is exactly the split the Homelab card needs — it lands on the wall, and
+ * stays out of Focus and Minimal until someone puts it there.
+ *
+ * `visible` doubles as the order: the array *is* the arrangement, front to back.
+ * That matters because packing depends on position (D9) — the same cards at the
+ * same sizes in a different order can need a fourth row.
+ */
+export interface LayoutPreset {
+  key: LayoutPresetKey;
+  label: string;
+  /** One line, shown as the control's title. Says what the preset is *for*. */
+  description: string;
+  /** The roster, in render order. Everything else is hidden. */
+  visible: readonly CardKey[];
+  /** Sizes for the visible cards. Sparse — absent means `1x1` (D4). */
+  sizes: CardSizes;
+}
+
+/**
+ * The built-in presets.
+ *
+ * All three are verified to pack with **zero holes** at their derived shape —
+ * a preset that left the wall ragged would undercut the reason to offer one.
+ * `/layout-lab` asserts this at dev time, since the repo has no test runner.
+ */
+export const LAYOUT_PRESETS: readonly LayoutPreset[] = [
+  {
+    key: "wall",
+    label: "Wall",
+    description: "Everything, evenly. The full 3 × 3 secondary-monitor view.",
+    // Named, not spelled out: this is the preset that should grow when a card
+    // ships. 9 cards × 1×1 → 3 × 3, exactly full.
+    visible: CARD_KEYS,
+    sizes: {},
+  },
+  {
+    key: "focus",
+    label: "Focus",
+    description: "The working day — what's on, what's due, and the conditions for it.",
+    // 4 + 4 + 2 + 2 = 12 cells → 4 × 3, exactly full. Order is load-bearing:
+    // the two 2×2s must lead, or the 2×1s wrap into a fourth row (D9).
+    visible: ["summary", "calendar", "tasks", "weather"],
+    sizes: { summary: "2x2", calendar: "2x2", tasks: "2x1", weather: "2x1" },
+  },
+  {
+    key: "minimal",
+    label: "Minimal",
+    description: "A glance and nothing else — the day, and the weather it happens in.",
+    // 4 + 2 = 6 cells → 3 × 2, exactly full.
+    visible: ["summary", "weather"],
+    sizes: { summary: "2x2", weather: "1x2" },
+  },
+] as const;
+
+export function layoutPreset(key: string): LayoutPreset | undefined {
+  return LAYOUT_PRESETS.find((preset) => preset.key === key);
+}
+
+/**
+ * A preset as a PATCH body — the exact three fields the layout endpoint takes.
+ *
+ * `hidden` is *derived* here rather than stored on the preset, which is what
+ * makes the roster-vs-exceptions split above work: subtracting from the live
+ * `CARD_KEYS` means a card this preset has never heard of is hidden by default,
+ * while `wall` (whose roster *is* `CARD_KEYS`) hides nothing, forever.
+ *
+ * The order sent is the roster followed by everything else, so a hidden card
+ * keeps a defined place to reappear in when it is restored.
+ */
+export function presetLayoutInput(preset: LayoutPreset): Required<DashboardLayoutInput> {
+  const visible = new Set(preset.visible);
+  return {
+    hidden: CARD_KEYS.filter((key) => !visible.has(key)),
+    order: resolveCardOrder(preset.visible),
+    sizes: normaliseCardSizes(preset.sizes),
+  };
+}
+
+/**
+ * Which preset the current layout *is*, if any.
+ *
+ * Without this the control is write-only: three buttons that never indicate
+ * which one you are looking at, so the only way to tell is to remember. Only
+ * the visible cards are compared — their order and their sizes. A hidden card's
+ * position is not observable, so letting it break the match would mean a layout
+ * that looks exactly like Minimal refusing to admit that it is.
+ */
+export function matchingPresetKey(layout: DashboardLayout): LayoutPresetKey | null {
+  const sizesMatch = (visible: readonly CardKey[], a: CardSizes, b: CardSizes): boolean =>
+    visible.every((key) => (a[key] ?? DEFAULT_CARD_SIZE) === (b[key] ?? DEFAULT_CARD_SIZE));
+
+  for (const preset of LAYOUT_PRESETS) {
+    if (layout.visible.length !== preset.visible.length) continue;
+    if (!layout.visible.every((key, i) => preset.visible[i] === key)) continue;
+    if (!sizesMatch(layout.visible, layout.sizes, preset.sizes)) continue;
+    return preset.key;
+  }
+  return null;
+}
+
 /** Body for PUT /settings/units. */
 export interface SetUnitsInput {
   units: WeatherUnits;

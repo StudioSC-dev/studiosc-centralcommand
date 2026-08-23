@@ -146,7 +146,8 @@ Two properties fall out of the corrected rule and are worth keeping:
 - **No shape is a letterbox.** The worst aspect deviation is a *portrait* tile (3 cards),
   which is the safe direction — it yields empty space, not overflow.
 
-Implemented as `gridShape()` in `routes/index.tsx`. **Mirror this into the contract**, where
+Implemented as `gridShape()`, which moved to `packages/types` in 4.3 so the server can
+validate the cell budget against the same derivation. **Mirror this into the contract**, where
 the original pinned-rows rule is still on record.
 
 ### D3 — `CardKey` is a closed union in `packages/types`, and the nine pillar keys are it
@@ -168,8 +169,9 @@ key → non-default size). A card absent from both gets the default: visible, 1�
 A new card therefore appears for every existing user automatically, with no backfill and no
 per-release row rewrite. This is exactly what the Homelab card needs, and it is why storage
 is a **JSON column on `user_settings`** rather than a `dashboard_cards` table — one
-migration, no joins, no rows to backfill. When reordering lands (P4) a table becomes the
-better shape, and the data migration is one real user plus the demo seed.
+migration, no joins, no rows to backfill. It held for all three columns (`hidden_cards`,
+`card_order`, `card_sizes`); a `dashboard_cards` table becomes the better shape only if
+per-card state keeps growing, and that data migration is one real user plus the demo seed.
 
 ### D5 — A cell budget, enforced client-side, warned not blocked
 
@@ -255,7 +257,7 @@ This is the integrations contract's build order 1.1–1.9 verbatim.
 | ✅ 1.6 | Variable-count grid CSS | `apps/web` | D2. `gridShape()` derives rows then cols; passed to `.dashboard` as `--dash-cols` / `--dash-rows`. |
 | ✅ 1.7 | Settings toggles section | `apps/web` | Replaces the `.settings-disabled` teaser at `routes/settings.tsx:358`. Where the feature becomes usable rather than merely present. |
 | ✅ 1.8 | Demo default layout | `packages/db/seed-demo.sql` | Demo shows all nine. |
-| ✅ 1.9 | Verification | — | See §7. |
+| ✅ 1.9 | Verification | — | See §8. |
 
 ### Phase 2 — Edit mode (in place, on the dashboard)
 
@@ -299,7 +301,7 @@ ordering matters: it was built and removed inside a day.
 
 Pulled ahead of sizing. **Reorder is strictly simpler before spans exist:** every tile is
 1x1, so a move is an index splice. Once cards can be 2x1 or 2x2, reorder has to solve
-placement *and* packing together — the hard case the plan had parked at 5.3. Doing it now
+placement *and* packing together — the hard case the plan had parked for later. Doing it now
 solves it once, in its easy form, and sizing then extends a working reorder instead of the
 reverse. It also completes edit mode: a jiggling card that will not move is a half-promise.
 
@@ -313,7 +315,7 @@ reverse. It also completes edit mode: a jiggling card that will not move is a ha
 | 3.6 | Arrow-key reordering on each slot | built |
 | 3.7 | Drop-target and picked-up styling; jiggle suppressed while dragging | built |
 | 3.8 | Live browser pass — drag, drop, keyboard, persistence across reload | verified |
-| 3.9 | Demo seed order | open |
+| ✅ 3.9 | Demo seed order | settled in 4.9 — registry order *is* the demo arrangement; storing it would freeze a default that is already correct. |
 
 **Bug found in the browser pass (fixed):** drag selected the wrong target because the hit
 test measured `grid.children` — which in edit mode are the `.card-slot` wrappers. Those are
@@ -433,8 +435,8 @@ in a shared primitive.
 | 5.7 | News opted out via `<Card scrollable>` — a feed has no natural end | ✅ built |
 | 5.8 | `.card` as a size container; display numerals + hero spacing on `cqh` clamps | ✅ built |
 | 5.9 | Fix `.gaming-matches-block` overlap — `min-height: 0` spilled content onto the disclaimer | ✅ built |
-| 5.10 | Audit the rest (Health, Gaming, Summary) and scale/mark their blocks | open |
-| 5.11 | Size-*aware* content, as opposed to size-*safe*: a 2×2 card using its extra room well | open |
+| ✅ 5.10 | Audit the rest (Health, Gaming, Summary) and scale/mark their blocks | verified in-browser |
+| 5.11 | Size-*aware* content, as opposed to size-*safe*: a 2×2 card using its extra room well | **News done**; Gaming still fixed at 6 matches |
 
 **How the primitive works, and why it is built that way.** Item heights are not uniform — an
 insight's detail wraps, the calendar has a divider row, a task row grows while being edited —
@@ -456,6 +458,39 @@ real box. Two consequences:
 This is why 5.1 was worth building properly instead of tuning three constants: it is correct
 at every tile size, so **Phase 4 sizing needed no retuning of it** — and did not get any.
 
+#### 5.11 — News: the first size-*aware* card
+
+**Symptom that started it:** a News card grown to 2×2 still showed five headlines, with the
+pager stranded mid-card and dead space beneath it. The cause was `PER_PAGE = 5` — precisely
+the `slice(0, N)` this phase exists to reject, sitting in the one card that had opted out of
+fit (5.7) and therefore never met the primitive that would have caught it.
+
+**The page now ends where the tile ends.** `.news-list` fills the space between the tabs and
+the pager and clips (`flex: 1 1 0; min-height: 0; overflow: hidden` — the shape `useClampList`
+requires), the clamp reports how many rows do not fit, and the page size is what is left. No
+constant, no retuning, correct at every tile size and at every breakpoint.
+
+**Offsets, not page indices — the part worth remembering.** Once page size is measured it
+changes when the card is resized, and a page *index* under a variable page size points at
+different content each time: resize a News card and "page 3" silently becomes a different three
+articles. An offset is an item, so the page keeps starting at the headline it started at and
+simply shows more or fewer. "Back" needs a stack rather than a subtraction, because the
+previous page's size may differ from this one's. The readout says `1–5 of 23` for the same
+reason — a page *count* is not a fixed quantity any more.
+
+**Two edges handled:** a tile too short for even one headline would measure everything as
+clipped and give a page size of zero, so "next" would advance by nothing and strand the reader
+— floored at one, which then clips visibly rather than lying. And the rendered window is
+deliberately independent of the measured count (render from the offset up to a DOM ceiling of
+30, same demotion `MAX_EVENTS` got in 5.2); making it depend on the measurement would be a
+feedback loop.
+
+**Left open on purpose:** News still passes `scrollable` (5.7). It is now inert — the list
+clips, so the body has nothing to scroll — and the argument for it ("a feed has no natural
+end, so trimming cannot make it fit") was answered by paging rather than trimming. Dropping it
+would reverse a recorded decision, so it stands until that is decided rather than being removed
+quietly.
+
 ### Phase 6 (optional) — Presets
 
 "Wall", "Focus", "Minimal" as named layouts. Cheap once P1–P4 exist, and the best answer to
@@ -467,12 +502,12 @@ at every tile size, so **Phase 4 sizing needed no retuning of it** — and did n
 
 | Phase | Deliverables | Done | Remaining |
 |---|---|---|---|
-| 0 — Audit & decisions | this document | 8 decisions recorded, prior art catalogued | mirror D1/D2/D5 into the integrations contract |
+| 0 — Audit & decisions | this document | 9 decisions recorded, prior art catalogued | mirror D1/D2/D5/**D9** into the integrations contract |
 | 1 — Visibility | 9 | **9** | — shipped |
 | 2 — Edit mode | 9 | 8 | 2.9 (verification) |
 | 3 — Reordering | 9 | 9 | — demo seed order settled as "registry order" (4.9) |
 | 4 — Sizing | 9 | **9** | — shipped |
-| 5 — Card fit | 11 | 9 | 5.10 – 5.11 — **next**; 5.11 (size-*aware* content) is what D7 deferred |
+| 5 — Card fit | 11 | 10 | 5.11 — News done; Gaming's fixed 6 matches is the remaining instance |
 
 Pre-existing partial credit, for honesty: `.span-2` (dead) and the settings teaser (a stub
 that says the feature is coming). Neither does anything.
@@ -486,8 +521,8 @@ that says the feature is coming). Neither does anything.
    add `news-card` / `weather-card` classes that **appear nowhere in `styles.css`** — dead
    classes duplicating a shell. Kept on the shared call for future styling, at zero cost.
 2. **Card internals are tuned for a 1×1 tile** (§2.3). *Partly closed:* the three unbounded
-   list cards (Calendar, Tasks, Insights) now measure instead (3.1–3.4). The remaining cards
-   are unaudited — 3.5.
+   list cards (Calendar, Tasks, Insights) now measure instead (5.1–5.4). Health, Gaming and
+   Summary remain unaudited — 5.10.
 3. ~~**Reordering may require a drag dependency.**~~ **Closed in P3** on native pointer
    events; no package added. See B1.
 4. ~~**Dense auto-flow can reorder cards visually.**~~ **Closed in P4 by dropping dense**
@@ -504,13 +539,18 @@ that says the feature is coming). Neither does anything.
    consolidation. All three columns are nullable and sparse, so that migration is one real
    user plus the demo seed.
 7. **No test coverage.** The repo has no test suite; verification is typecheck + build +
-   live inspection (§7). The packer and budget check (4.3) are pure and are the pieces that
+   live inspection (§8). The packer and budget check (4.3) are pure and are the pieces that
    would genuinely benefit from a unit test — they were checked instead with a throwaway Node
    harness that replays D2's whole table plus the packing-hole cases. Flag if a test runner is
    ever adopted; that harness is the test, and it is not in the repo.
-8. **Card content is still size-*safe*, not size-*aware* (5.11).** A 2×2 card now gets twice
-   the room and shows the same six matches, scaled up. That is D7 holding as designed, and it
-   is the next thing worth doing.
+8. **Card content is only partly size-*aware* (5.11).** News now measures its page size, so a
+   2×2 News card shows as many headlines as it has room for. **Gaming still slices to six
+   matches** (`GamingCard.tsx:130`) and Calendar's `MAX_EVENTS` is a DOM ceiling rather than a
+   display count, so a 2×2 League card is still six matches in double the space. Same fix
+   shape as News where a card has a list; the fixed *stacks* (Weather, Performance) have no
+   list to grow and would need something else.
+9. **News's `scrollable` opt-out (5.7) is now inert.** Its list clips, so the body has nothing
+   to scroll. Keeping or dropping it is a decision, not a cleanup — see 5.11.
 
 ---
 
@@ -608,7 +648,8 @@ Written during the build; these are the things a reader of the plan alone would 
 | 2026-08-22 | **Phase 1 built and verified** (1.1–1.9). D2 corrected mid-build: rows are derived, not pinned at 3. Gap 1 closed. Implementation notes in §9. |
 | 2026-08-22 | **Reordering built** as Phase 3, ahead of sizing — drag on native pointer events plus arrow keys; B1 closed with no dependency. Sizing -> Phase 4. |
 | 2026-08-22 | **Edit mode built** as the new Phase 2, ahead of sizing — arrangement moved onto the dashboard; Settings section removed. Sizing → Phase 3, reorder → Phase 5. |
-| 2026-08-23 | **Phase 4 verified** (4.9). Live pass green at all three widths in both themes, spans confirmed on the two former hand-rolled shells, picker limits and the D9 asymmetry exercised, demo session confirmed read-only. B2 closed. |
-| 2026-08-23 | The `0012` miniflare trap recurred on `0014` — same cause, unrecognisable symptom (reorder failing while the dashboard rendered). §9 extended with the read/write asymmetry that makes it present as a broken feature. |
 | 2026-08-22 | **Sizing built** as Phase 4 (4.1–4.8). D9 added: `dense` dropped, and the grid shape now *packs* spans rather than counting cells — counting says yes to layouts four rows tall. Picker moved from Settings to edit mode; `gridShape()` moved to `packages/types` so the meter and the server validator are one function. Gaps 3 and 4 closed. |
 | 2026-08-22 | Browser pass. D2 corrected **again** (rows before columns — column-first made 3 cards a 6:1 letterbox). Cards were scrolling: Tasks and Insights rendered unbounded lists. Built `useClampList` (3.1) and applied it to Calendar, Tasks, Insights rather than tuning per-card constants. |
+| 2026-08-23 | The `0012` miniflare trap recurred on `0014` — same cause, unrecognisable symptom (reorder failing while the dashboard rendered). §9 extended with the read/write asymmetry that makes it present as a broken feature. |
+| 2026-08-23 | **Phase 4 verified** (4.9). Live pass green at all three widths in both themes, spans confirmed on the two former hand-rolled shells, picker limits and the D9 asymmetry exercised, demo session confirmed read-only. B2 closed. |
+| 2026-08-23 | **5.10 verified**; **5.11 started** — News paging made size-aware. `PER_PAGE = 5` replaced by a measured page size via `useClampList`, and page *indices* replaced by an offset stack, because a measured page size makes an index point at different content after a resize. Gaming's fixed 6 matches is the remaining instance. |

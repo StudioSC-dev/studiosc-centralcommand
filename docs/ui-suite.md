@@ -36,7 +36,7 @@ more room than a 1×1 tile gives them.
 
 ## 2. What exists today (audit, 2026-08-22)
 
-### 2.1 Already implemented *(snapshot taken before Phase 1; §10 records what changed)*
+### 2.1 Already implemented *(snapshot taken before Phase 1; §11 records what changed)*
 
 | Thing | Where | Note |
 |---|---|---|
@@ -625,7 +625,8 @@ that says the feature is coming). Neither does anything.
    live inspection (§8). The packer and budget check (4.3) are pure and are the pieces that
    would genuinely benefit from a unit test — they were checked instead with a throwaway Node
    harness that replays D2's whole table plus the packing-hole cases. Flag if a test runner is
-   ever adopted; that harness is the test, and it is not in the repo.
+   ever adopted; that harness is the test, and it is not in the repo. **The layout half now has
+   `/layout-lab`** (§10) — not a test, but the contact sheet that makes fit failures visible.
 8. **Every card now fits; only some *gain* from extra room.** News pages to fit, Gaming and
    Health clamp to fit, Calendar/Tasks/Insights already did, and Weather sheds days rather
    than sliding them off the edge. What a *narrower* card should show is answered. What a
@@ -664,6 +665,7 @@ Applies to every phase; the phase is not done until all of it passes.
   then `seed:demo:local`; CI applies remote on deploy.
 - **Live check at all three widths** — wall (≥1100px, no page scrollbar), 2-column, 1-column —
   in **both themes**.
+- **`/layout-lab` clean** for any change touching card fit: no `OVERFLOW`, no `SLACK` (§10).
 - **Confirm a demo session cannot `PATCH`** the layout (expect the `demoReadOnly` 4xx).
 - P4 additionally: confirm the cell budget cannot be exceeded **via the size picker**, and
   that a hand-crafted over-budget `sizes` `PATCH` is rejected server-side — while a *hide* or
@@ -725,7 +727,47 @@ Written during the build; these are the things a reader of the plan alone would 
 
 ---
 
-## 10. History
+## 10. The layout lab (`/layout-lab`)
+
+Dev-only route, unlinked from the app and redirected away in production builds. Renders **every
+card at every size** — nine by five — in tiles the real grid would produce, with a column-count
+control for the shapes that matter.
+
+**Why it exists.** Every layout change up to this point was verified against whichever one or
+two combinations happened to be on screen, and three consecutive fixes each introduced the next
+bug: `overflow: hidden` turned a squeeze into a silent crop, `flex-shrink: 0` turned the crop
+into over-dropping. That is not bad luck, it is the method — fixing layout from a screenshot of
+one card in one state.
+
+**The asymmetry it corrects.** There are two failure directions and only one is visible.
+Overflow announces itself: cropped content looks broken. **Slack does not** — a card that gave
+up its outlook and left 200px unused just looks like a card with little to say. Both bugs that
+prompted this page were of the second kind, and both were found by eye, by luck.
+
+So each tile reports what a screenshot cannot:
+
+| Verdict | Meaning |
+|---|---|
+| `OVERFLOW npx` | Content is cropped — the fit pass ran out of droppable blocks, or none were marked. |
+| `SLACK npx · gave up …` | Content was dropped **while space went unused**. The expensive, invisible one. |
+| `scrolls` | The card opted in (News, Today — D10). Overflow here is the design. |
+| `fits · dropped n, clipped n` | Adapted correctly: it gave something up and used the room it had. |
+| `empty npx` | Nothing dropped, but a lot of dead space — usually a data limit rather than a layout fault. |
+
+**How it measures.** It observes `class` attribute changes as well as size, because the
+interesting events — `.is-dropped` and `.is-clipped` being toggled by the fit hooks — change no
+box at all, so a `ResizeObserver` alone would never see them. Reports are compared before being
+committed to state, since an observer watching classes that re-renders on every read is a loop
+waiting to happen.
+
+**What it is not.** Not a test suite: nothing fails CI, nothing is automated, it still needs
+eyes. It is a contact sheet. Its value is that one screenshot of it covers 45 combinations
+instead of one, which is the actual bottleneck when the person changing the CSS cannot see the
+browser.
+
+---
+
+## 11. History
 
 | Date | Entry |
 |---|---|
@@ -744,3 +786,4 @@ Written during the build; these are the things a reader of the plan alone would 
 | 2026-08-23 | **D10 recorded** after four-column tiles exposed two width failures. Weather's day strip was sliding off the edge (`flex: 1 0 auto` over `overflow-x: auto`) and Health's form wrapped and pushed its Log button out of reach. Scroll policy is now a named list — Today and News scroll, everything else fits in both axes — and Health's entry list clamps so the card yields its *list*, never its controls. |
 | 2026-08-23 | Weather's outlook gained a text fallback (D10): below 400px of tile the day strip is replaced by a one-line summary rather than degrading into unreadable chips. `.gaming-matches` capped at `max-content` so a queue with fewer games than fit no longer stretches to full height and strands the disclaimer at the card's bottom edge. |
 | 2026-08-23 | Weather's outlook was compressing instead of dropping: flex children shrink by default, so the block never overflowed and `useFitSections` saw nothing to do. `.card-body [data-drop-order]` is now `flex-shrink: 0`, and the outlook's text form carries the highest drop order so it *replaces* the strip rather than leaving with it. |
+| 2026-08-23 | **Layout lab built** (`/layout-lab`, dev-only) after three consecutive fixes each caused the next bug. Renders all 45 card×size combinations and flags OVERFLOW and SLACK — the second being the failure mode nobody can see by eye, and the one behind both Weather regressions. |

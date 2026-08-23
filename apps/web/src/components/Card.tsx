@@ -2,6 +2,7 @@ import { useRef, type ReactNode } from "react";
 import { cardSpan } from "@central-command/types";
 import { useFitSections } from "../lib/useFitSections";
 import { useCardKey, useEditMode } from "../lib/editMode";
+import { useIsDemo } from "../lib/auth";
 import { useCardSize, useToggleCard } from "../lib/dashboard";
 import { CardSizePicker } from "./CardSizePicker";
 
@@ -47,9 +48,16 @@ export function Card({ title, children, pillar, className: extra, scrollable }: 
   const { editing, start } = useEditMode();
   const { toggle } = useToggleCard();
   const size = useCardSize();
+  const demo = useIsDemo();
   const pressTimer = useRef<number | null>(null);
 
-  const canEdit = cardKey !== null;
+  // A demo session's layout is read-only — `demoReadOnly` blocks every non-GET
+  // server-side, so edit mode there is a set of controls that can only fail.
+  // The header toggle has always been hidden for demo; the long-press was not,
+  // which left a way in that no visible affordance advertised. Found while
+  // adding presets, which put three of the most inviting buttons in the app
+  // behind that same door.
+  const canEdit = cardKey !== null && !demo;
 
   const cancelPress = () => {
     if (pressTimer.current !== null) {

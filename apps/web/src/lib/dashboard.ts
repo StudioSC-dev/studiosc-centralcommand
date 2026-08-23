@@ -8,13 +8,16 @@ import {
 import {
   DEFAULT_CARD_SIZE,
   fitsGrid,
+  matchingPresetKey,
   normaliseCardSizes,
+  presetLayoutInput,
   resolveCardOrder,
   type CardKey,
   type CardSize,
   type CardSizes,
   type DashboardLayoutInput,
   type DashboardLayoutResponse,
+  type LayoutPreset,
 } from "@central-command/types";
 import { apiGet, apiPatch } from "./api";
 import { useCardKey } from "./editMode";
@@ -199,5 +202,37 @@ export function useToggleCard() {
         : [...hidden, key];
       setHidden.mutate({ hidden: next });
     },
+  };
+}
+
+/**
+ * Apply a named preset, and report which one the dashboard currently is.
+ *
+ * Rides the same mutation as every other layout write (D6): a preset is not a
+ * new kind of state, it is one `PATCH` that happens to set all three fields at
+ * once. That also means it inherits the optimistic path, the shared error
+ * surface, and the server-side budget check for free — and because the write
+ * carries `sizes`, that budget check actually fires, which it does not for a
+ * bare hide or reorder.
+ *
+ * `snapshot()` exists for undo. Applying a preset is the only gesture in edit
+ * mode that discards an arrangement wholesale — every other one moves, hides or
+ * resizes a single card — so it is the only one where "that wasn't what I
+ * wanted" cannot be walked back by repeating the gesture.
+ */
+export function useApplyPreset() {
+  const { data } = useDashboardLayout();
+  const setLayout = useSetHiddenCards();
+  const layout = data?.layout;
+
+  return {
+    ...setLayout,
+    /** Which preset the dashboard currently is, or null for a custom arrangement. */
+    active: layout ? matchingPresetKey(layout) : null,
+    /** The current layout as a PATCH body — capture before applying, to undo. */
+    snapshot: (): Required<DashboardLayoutInput> | null =>
+      layout ? { hidden: layout.hidden, order: layout.order, sizes: layout.sizes } : null,
+    apply: (preset: LayoutPreset) => setLayout.mutate(presetLayoutInput(preset)),
+    restore: (input: DashboardLayoutInput) => setLayout.mutate(input),
   };
 }

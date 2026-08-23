@@ -14,6 +14,7 @@ import { CardKeyContext, useEditMode } from "../lib/editMode";
 import { cardsFor } from "../components/cardRegistry";
 import { CARD_CATALOG } from "../components/cardCatalog";
 import { DemoBanner } from "../components/DemoBanner";
+import { LayoutPresets } from "../components/LayoutPresets";
 
 export const Route = createFileRoute("/")({
   // Gate: must have a session (else /login) and a completed profile (else /onboarding).
@@ -147,13 +148,18 @@ function CardSlot({
 }
 
 /**
- * Edit-mode bar: the cards you've hidden, and the way out.
+ * Edit-mode bar: the presets, the cards you've hidden, and the way out.
  *
  * Hiding a card removes the very thing you'd click to get it back, so an
  * inventory of what's hidden is not a nicety — without it, hiding is one-way.
  * It floats over the grid rather than sitting in the layout, because the grid
  * is sized to fill the viewport exactly and giving it a strip would reflow
  * every card the moment you entered edit mode.
+ *
+ * The bar now carries two scales of control, separated by a rule: presets act
+ * on the whole arrangement, the hidden tray on one card. They sit together
+ * because both are things you do to the dashboard rather than to a card, which
+ * is the line that decides what lives here and what lives in the shell.
  */
 function EditBar({
   hidden,
@@ -186,6 +192,10 @@ function EditBar({
             ? " — too tall for one screen"
             : spare > 0 && ` — ${spare} empty`}
         </span>
+
+        <LayoutPresets />
+
+        <span className="edit-bar-rule" aria-hidden="true" />
 
         {hiddenCards.length === 0 ? (
           <p className="edit-bar-hint">

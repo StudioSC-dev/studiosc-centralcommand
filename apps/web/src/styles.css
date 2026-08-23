@@ -3098,6 +3098,8 @@ button {
 .edit-bar-inner {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 0.7rem;
   padding: 0.55rem 0.7rem 0.55rem 0.9rem;
   border: 1px solid var(--glass-border);
@@ -3116,6 +3118,11 @@ button {
   white-space: nowrap;
 }
 
+/* `min-width: 0` so the tray wraps *inside* the bar instead of forcing it wider.
+   A flex item defaults to its max-content width, so without this the bar grows
+   past its own max-width and the chips run off the screen. It only started
+   mattering with presets: hiding seven cards used to take seven deliberate
+   clicks, and Minimal now does it in one. */
 .edit-bar-list {
   list-style: none;
   margin: 0;
@@ -3123,6 +3130,8 @@ button {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .edit-chip {
@@ -3169,6 +3178,64 @@ button {
 .edit-budget.is-over {
   color: var(--warn);
   font-weight: 600;
+}
+
+/* ─── Layout presets (edit mode) ─────────────────────────────────────────────
+   Whole arrangements under one name (docs/ui-suite.md Phase 6). Styled as edit
+   chips, because they sit in the same bar and do the same kind of thing as the
+   restore chips — the difference is scale, which the separator carries. */
+
+/* Separates the two scales of control in the bar: presets act on the whole
+   arrangement, the hidden tray on one card. */
+.edit-bar-rule {
+  width: 1px;
+  align-self: stretch;
+  margin: 0.1rem 0.1rem;
+  background: var(--glass-border);
+}
+
+.preset-chip.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.preset-undo {
+  color: var(--text-dim);
+}
+
+/* The arrangement, drawn at the shape it derives — the cell *boundaries* are
+   what tell the presets apart, so the gap between blocks is the signal and is
+   never allowed to collapse. */
+.preset-glyph {
+  display: grid;
+  grid-template-columns: repeat(var(--preset-cols, 3), 1fr);
+  grid-template-rows: repeat(var(--preset-rows, 3), 1fr);
+  gap: 1px;
+  width: 15px;
+  height: 13px;
+  flex: none;
+}
+
+.preset-glyph-cell {
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0.55;
+}
+
+.preset-chip:hover .preset-glyph-cell,
+.preset-chip.is-active .preset-glyph-cell {
+  opacity: 0.9;
+}
+
+/* Below the wall breakpoint the bar has no room for three more chips, and
+   sizes collapse there anyway (D8) — a preset's whole point is its spans, so
+   offering one that cannot take effect would be a lie. */
+@media (max-width: 720px) {
+  .preset-chip,
+  .edit-bar-rule {
+    display: none;
+  }
 }
 
 .edit-done {
@@ -3323,6 +3390,26 @@ button {
 
 .lab-idle {
   color: var(--text-faint);
+}
+
+/* The preset audit — a table of assertions, not tiles, so it reads as a list
+   rather than joining the contact sheet below it. */
+.lab-preset-audit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.lab-preset-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  font-size: 0.8rem;
 }
 
 /* `display: grid` so the card stretches to exactly the tile, the way a grid

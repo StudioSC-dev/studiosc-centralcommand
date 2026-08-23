@@ -69,10 +69,22 @@ function useTileReport<T extends HTMLElement>() {
       const body = node.querySelector<HTMLElement>(".card-body");
       if (!body) return;
 
+      // Count blocks that are *not rendered*, whatever hid them — the fit pass
+      // (`.is-dropped`) or a container query. Counting only `.is-dropped` missed
+      // Weather swapping its day strip for text on a tile with 50px of width to
+      // spare, and scored that tile OK. What matters is that content is gone,
+      // not which mechanism removed it.
+      //
+      // `[data-fallback]` blocks are excluded: they are alternate renderings of
+      // another block, so the hidden one is always the half that isn't showing.
+      const droppable = Array.from(
+        node.querySelectorAll<HTMLElement>("[data-drop-order]:not([data-fallback])"),
+      );
+
       const next: TileReport = {
         overflow: Math.max(0, body.scrollHeight - body.clientHeight),
         slack: Math.max(0, body.clientHeight - body.scrollHeight),
-        dropped: node.querySelectorAll("[data-drop-order].is-dropped").length,
+        dropped: droppable.filter((el) => el.getClientRects().length === 0).length,
         clipped: node.querySelectorAll(".is-clipped").length,
         scrollable: body.classList.contains("is-scrollable"),
       };

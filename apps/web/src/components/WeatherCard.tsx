@@ -187,7 +187,7 @@ export function WeatherCard() {
           five-day strip can almost always afford one line saying whether it
           will rain. Hidden by CSS whenever the strip is actually showing. */}
       {daily.length > 1 && (
-        <p className="weather-outlook-brief" data-drop-order="4">
+        <p className="weather-outlook-brief" data-drop-order="4" data-fallback>
           {briefOutlook(daily, units)}
         </p>
       )}

@@ -80,9 +80,20 @@ export function HealthCard() {
   );
 }
 
+/**
+ * Today's total for the active section.
+ *
+ * Droppable, and the only droppable thing on this card. At 1×1 the fixed parts
+ * — tabs, quick-add form, footer — overshot the tile by ~12px with the entry
+ * list already thinned to nothing, so something had to give and the list had
+ * nothing left to give. This is the right thing to lose: the form is how you
+ * add data and the list is what you added, while this is a figure both of them
+ * imply. Measured by the fit pass rather than a height threshold, so it comes
+ * back the moment the card is tall enough to hold it.
+ */
 function TodayStat({ value, label }: { value: string; label: string }) {
   return (
-    <div className="health-stat">
+    <div className="health-stat" data-drop-order="1">
       <span className="health-stat-value">{value}</span>
       <span className="health-stat-label">{label}</span>
     </div>

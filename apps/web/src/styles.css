@@ -1247,8 +1247,18 @@ button {
   display: block;
 }
 
+/* NOTE: container queries measure the container's **content box**, not its tile.
+   `.card` has 1.5rem of horizontal padding, so these thresholds sit ~48px below
+   the tile width they correspond to — a 404px tile queries as 356px. The first
+   version of this swapped to text at 400px and so fired on a tile with 50px of
+   width to spare and 200px of height unused.
+
+   The floor is arithmetic, not taste: five chips plus four 8px gaps need about
+   5 × 54 + 32 ≈ 300px of content box before a chip stops fitting "Today", an
+   icon, a percentage and a hi/lo. */
+
 /* Tighten first: a chip with less padding is still a readable chip. */
-@container card (max-width: 460px) {
+@container card (max-width: 400px) {
   .weather-outlook li {
     padding-left: 0.35rem;
     padding-right: 0.35rem;
@@ -1261,7 +1271,7 @@ button {
    still answers "will it rain" is worth more than three unreadable chips.
    Container queries, not media queries: `.card` is a size container (5.8), so
    this responds to the *tile*, which is what changed at four columns. */
-@container card (max-width: 400px) {
+@container card (max-width: 300px) {
   .weather-outlook {
     display: none;
   }
@@ -1442,6 +1452,11 @@ button {
   flex: 1 1 0;
   min-height: 0;
   overflow: hidden;
+  /* Grow into the space available so the clamp has a bound to measure against,
+     but never past the rows actually present — otherwise a section with two
+     entries in a tall tile stretches to full height and strands its footer at
+     the bottom edge with a void above it. Same cap as `.gaming-matches`. */
+  max-height: max-content;
 }
 
 .log-list > li {

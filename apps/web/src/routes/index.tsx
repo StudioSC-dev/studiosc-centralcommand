@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { CARD_KEYS } from "@central-command/types";
+import { CARD_KEYS, cardSpans, gridShape, type GridShape } from "@central-command/types";
 import { meQueryOptions } from "../lib/auth";
 import {
   dashboardLayoutQueryOptions,
@@ -30,27 +30,6 @@ export const Route = createFileRoute("/")({
   component: Dashboard,
 });
 
-/**
- * Grid shape for a given number of visible cards (docs/ui-suite.md D2).
- *
- * **Rows first, then columns.** Rows grow only once each row is full, so the
- * grid fills across before it fills down. That matters because the viewport is
- * a widescreen: deriving columns first made three cards a 1×3, giving every
- * card the full window width at a third of its height — roughly 6:1, against
- * the ~2:1 tile the cards are actually designed for, which stretches their
- * contents badly. Filling columns first makes three cards a 3×1 instead, and
- * every count lands near the reference tile's proportions.
- *
- * Columns are capped at 4: past twelve cells the tiles are too narrow to read
- * on a wall display, and that is the honest ceiling.
- */
-export function gridShape(count: number): { cols: number; rows: number } {
-  if (count <= 0) return { cols: 1, rows: 1 };
-  const rows = Math.min(3, Math.ceil(count / 3));
-  const cols = Math.min(4, Math.ceil(count / rows));
-  return { cols, rows };
-}
-
 function Dashboard() {
   const { data } = useDashboardLayout();
   const { editing, stop } = useEditMode();
@@ -61,8 +40,13 @@ function Dashboard() {
   // cache being evicted mid-session.
   const visible = data?.layout.visible ?? CARD_KEYS;
   const hidden = data?.layout.hidden ?? [];
+  const sizes = data?.layout.sizes ?? {};
   const cards = cardsFor(visible);
-  const { cols, rows } = gridShape(cards.length);
+  // Derived from the cards' *spans*, not their count: a 2×2 card asks for four
+  // cells, and the shape has to pack them rather than divide by three. Lives in
+  // `@central-command/types` because the server validates size writes against
+  // the same packing (docs/ui-suite.md D5) and two copies would drift.
+  const shape = gridShape(cardSpans(cards.map((card) => card.key), sizes));
 
   return (
     <>
@@ -70,7 +54,7 @@ function Dashboard() {
       <section
         ref={gridRef}
         className={`dashboard${editing ? " is-editing" : ""}${drag ? " is-dragging" : ""}`}
-        style={{ "--dash-cols": cols, "--dash-rows": rows } as CSSProperties}
+        style={{ "--dash-cols": shape.cols, "--dash-rows": shape.rows } as CSSProperties}
         {...(editing ? { onPointerMove: handlers.onPointerMove } : {})}
         {...(editing ? { onPointerUp: handlers.onPointerUp } : {})}
         {...(editing ? { onPointerCancel: handlers.onPointerCancel } : {})}
@@ -94,7 +78,7 @@ function Dashboard() {
         ))}
       </section>
 
-      {editing && <EditBar hidden={hidden} onDone={stop} />}
+      {editing && <EditBar hidden={hidden} shape={shape} onDone={stop} />}
     </>
   );
 }
@@ -171,14 +155,38 @@ function CardSlot({
  * is sized to fill the viewport exactly and giving it a strip would reflow
  * every card the moment you entered edit mode.
  */
-function EditBar({ hidden, onDone }: { hidden: readonly string[]; onDone: () => void }) {
+function EditBar({
+  hidden,
+  shape,
+  onDone,
+}: {
+  hidden: readonly string[];
+  shape: GridShape;
+  onDone: () => void;
+}) {
   const { toggle } = useToggleCard();
   const error = useLayoutError();
   const hiddenCards = CARD_CATALOG.filter((c) => hidden.includes(c.key));
+  const spare = shape.capacity - shape.cells;
 
   return (
     <div className="edit-bar" role="region" aria-label="Edit dashboard layout">
       <div className="edit-bar-inner">
+        {/* The cell budget (D5), as a readout rather than a gate. The size
+            picker is where over-budget is actually prevented; this is what
+            explains the empty tiles, and what warns after a *restore* — which
+            is allowed to overflow on purpose, so that hiding a card is never
+            one-way. */}
+        <span
+          className={`edit-budget${shape.overflows ? " is-over" : ""}`}
+          title={`${shape.cols} × ${shape.rows} grid`}
+        >
+          {shape.cells}/{shape.capacity} cells
+          {shape.overflows
+            ? " — too tall for one screen"
+            : spare > 0 && ` — ${spare} empty`}
+        </span>
+
         {hiddenCards.length === 0 ? (
           <p className="edit-bar-hint">
             Tap <span aria-hidden="true">–</span> on a card to hide it.

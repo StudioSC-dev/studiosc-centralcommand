@@ -1,7 +1,9 @@
 import { useRef, type ReactNode } from "react";
+import { cardSpan } from "@central-command/types";
 import { useFitSections } from "../lib/useFitSections";
 import { useCardKey, useEditMode } from "../lib/editMode";
-import { useToggleCard } from "../lib/dashboard";
+import { useCardSize, useToggleCard } from "../lib/dashboard";
+import { CardSizePicker } from "./CardSizePicker";
 
 /** Hold this long on a card to enter edit mode, as on a phone home screen. */
 const LONG_PRESS_MS = 500;
@@ -44,6 +46,7 @@ export function Card({ title, children, pillar, className: extra, scrollable }: 
   const cardKey = useCardKey();
   const { editing, start } = useEditMode();
   const { toggle } = useToggleCard();
+  const size = useCardSize();
   const pressTimer = useRef<number | null>(null);
 
   const canEdit = cardKey !== null;
@@ -61,10 +64,18 @@ export function Card({ title, children, pillar, className: extra, scrollable }: 
     pressTimer.current = window.setTimeout(start, LONG_PRESS_MS);
   };
 
+  // Spans go on the card itself because the card *is* the grid item — edit mode
+  // wraps it in a `display: contents` slot precisely so nothing else ever is.
+  // Emitted as separate width/height classes rather than one per size, so the
+  // five-size union costs three classes and adding a size costs none.
+  const { w, h } = cardSpan(size);
+
   const className = [
     "card",
     pillar && `pillar-${pillar}`,
     editing && canEdit && "is-editing",
+    w > 1 && `card-w${w}`,
+    h > 1 && `card-h${h}`,
     extra,
   ]
     .filter(Boolean)
@@ -82,6 +93,8 @@ export function Card({ title, children, pillar, className: extra, scrollable }: 
       // A drag across the card is a scroll or a selection, not a hold.
       onPointerMove={cancelPress}
     >
+      {editing && canEdit && <CardSizePicker cardKey={cardKey} title={title} size={size} />}
+
       {editing && canEdit && (
         <button
           type="button"

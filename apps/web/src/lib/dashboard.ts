@@ -6,12 +6,18 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import {
+  DEFAULT_CARD_SIZE,
+  fitsGrid,
+  normaliseCardSizes,
   resolveCardOrder,
   type CardKey,
+  type CardSize,
+  type CardSizes,
   type DashboardLayoutInput,
   type DashboardLayoutResponse,
 } from "@central-command/types";
 import { apiGet, apiPatch } from "./api";
+import { useCardKey } from "./editMode";
 
 const LAYOUT_MUTATION_KEY = ["dashboard-layout", "set-hidden"] as const;
 
@@ -58,12 +64,14 @@ export function useSetHiddenCards() {
       // grid doesn't twitch when the response lands.
       const hidden = input.hidden ?? previous?.layout.hidden ?? [];
       const order = resolveCardOrder(input.order ?? previous?.layout.order ?? []);
+      const sizes = normaliseCardSizes(input.sizes ?? previous?.layout.sizes);
       const hiddenSet = new Set(hidden);
       qc.setQueryData<DashboardLayoutResponse>(dashboardLayoutQueryOptions.queryKey, {
         layout: {
           hidden: order.filter((key) => hiddenSet.has(key)),
           order,
           visible: order.filter((key) => !hiddenSet.has(key)),
+          sizes,
         },
       });
 
@@ -128,6 +136,52 @@ export function useMoveCard() {
     const order = layout.order.map((key) => (hiddenSet.has(key) ? key : visible[cursor++]!));
 
     setLayout.mutate({ order });
+  };
+}
+
+/**
+ * The size of the card currently rendering.
+ *
+ * Read from context rather than passed down, because the dashboard route does
+ * not own the `<Card>` element — each card component renders its own shell. The
+ * key comes from `CardKeyContext` (already supplied for the remove badge), so a
+ * card gets its span class without knowing anything about sizing, and both of
+ * the formerly hand-rolled shells inherit it for free by delegating to `Card`.
+ *
+ * Outside the dashboard `useCardKey()` is null and every card is `1x1`.
+ */
+export function useCardSize(): CardSize {
+  const key = useCardKey();
+  const { data } = useDashboardLayout();
+  if (!key) return DEFAULT_CARD_SIZE;
+  return data?.layout.sizes[key] ?? DEFAULT_CARD_SIZE;
+}
+
+/**
+ * Resize one card, and answer which sizes it may take.
+ *
+ * `allows` runs the same `fitsGrid` the server validates with, against the
+ * layout as it stands, so an option is greyed out exactly when the write would
+ * be refused (D5/D6). Cheap enough to call per option per render: five
+ * candidates over at most a dozen cells.
+ */
+export function useSetCardSize() {
+  const { data } = useDashboardLayout();
+  const setLayout = useSetHiddenCards();
+  const layout = data?.layout;
+
+  const withSize = (key: CardKey, size: CardSize): CardSizes =>
+    normaliseCardSizes({ ...layout?.sizes, [key]: size });
+
+  return {
+    ...setLayout,
+    /** Would the dashboard still fit the wall with this card at this size? */
+    allows: (key: CardKey, size: CardSize): boolean =>
+      layout ? fitsGrid(layout.visible, withSize(key, size)) : false,
+    setSize: (key: CardKey, size: CardSize) => {
+      if (!layout || (layout.sizes[key] ?? DEFAULT_CARD_SIZE) === size) return;
+      setLayout.mutate({ sizes: withSize(key, size) });
+    },
   };
 }
 

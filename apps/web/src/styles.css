@@ -761,9 +761,27 @@ button {
   }
 }
 
-/* Cards that benefit from extra width (e.g. news thumbnails). */
-.span-2 {
+/* Card spans (docs/ui-suite.md D1). Width and height are separate classes, so
+   the five-size union costs three rules instead of five and a new size costs
+   none. Emitted by the Card shell from the user's stored size — which is why
+   every card had to be routed through that shell first.
+
+   Deliberately NOT paired with `grid-auto-flow: dense` (D9). Dense fills the
+   holes a span leaves behind by pulling later cards forward, which was fine
+   while order was fixed but silently contradicts a drag now that the user
+   controls it — the card you just moved would land somewhere else. An honest
+   hole is better than a reorder that lies, and gridShape() minimises them by
+   choosing the column count that packs best. */
+.card-w2 {
   grid-column: span 2;
+}
+
+.card-w3 {
+  grid-column: span 3;
+}
+
+.card-h2 {
+  grid-row: span 2;
 }
 
 /* Narrower screens step down to 2, then 1 column. Below the 3-col wall layout we
@@ -775,14 +793,26 @@ button {
     grid-auto-rows: var(--card-h);
     height: auto;
   }
+  /* D8: horizontal spans clamp to the column count — a 3-wide card in a 2-column
+     grid would otherwise overflow the container entirely. Vertical spans are
+     kept: rows are a fixed height here and the page scrolls, so there is room. */
+  .card-w2,
+  .card-w3 {
+    grid-column: span 2;
+  }
 }
 
 @media (max-width: 720px) {
   .dashboard {
     grid-template-columns: minmax(0, 1fr);
   }
-  .span-2 {
+  /* One column, one card, one row: at phone width every span is noise. */
+  .card-w2,
+  .card-w3 {
     grid-column: span 1;
+  }
+  .card-h2 {
+    grid-row: span 1;
   }
 }
 
@@ -2864,6 +2894,106 @@ button {
   color: var(--bad);
 }
 
+/* ─── Card size picker (edit mode) ──────────────────────────────────────────── */
+
+/* Sits immediately left of the remove badge, inside the card for the same
+   reason: `.card` clips to its rounded corners, so anything at a negative
+   offset is cut off. */
+.card-size {
+  position: absolute;
+  top: 0.55rem;
+  right: 2.5rem;
+  z-index: 2;
+}
+
+.card-size-button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.card-size-button:hover,
+.card-size-button[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* One short row, opening down-left from the button. A vertical list of five
+   labelled options would be ~140px tall and `.card` clips to its rounded
+   corners, so on a short tile the bottom options would simply be invisible —
+   and a short tile is precisely when someone reaches for this. */
+.card-size-menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0.3rem;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--shadow);
+}
+
+.card-size-option {
+  display: grid;
+  place-items: center;
+  padding: 0.34rem 0.4rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  cursor: pointer;
+}
+
+.card-size-option:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.card-size-option.is-current {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Disabled means "no room on the grid", not "broken" — dimmed, still readable,
+   and the reason is in the tooltip (D5). */
+.card-size-option:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* A miniature of the shape: a 3×2 field of cells with the span filled in. The
+   label alone makes you translate "2 × 1" into a picture; this is the picture. */
+.size-glyph {
+  display: grid;
+  grid-template-columns: repeat(3, 4px);
+  grid-template-rows: repeat(2, 4px);
+  gap: 1px;
+  flex: 0 0 auto;
+}
+
+.size-glyph-cell {
+  border-radius: 1px;
+  background: color-mix(in srgb, currentColor 22%, transparent);
+}
+
+.size-glyph-cell.is-on {
+  background: currentColor;
+}
+
 /* Floats over the grid rather than sitting in it: the grid is sized to fill the
    viewport exactly, so giving this a strip of its own would reflow every card
    the moment edit mode opened. */
@@ -2935,6 +3065,21 @@ button {
   font-size: 0.75rem;
   color: var(--bad);
   white-space: nowrap;
+}
+
+/* The cell budget readout. Informational by default — a sparse wall is a
+   legitimate choice (D5) — and only coloured once the grid no longer fits one
+   screen, which restoring a card is allowed to cause. */
+.edit-budget {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.edit-budget.is-over {
+  color: var(--warn);
+  font-weight: 600;
 }
 
 .edit-done {

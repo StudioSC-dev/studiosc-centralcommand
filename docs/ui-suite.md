@@ -2,7 +2,7 @@
 
 **Scope:** per-user control over *which* cards appear on the dashboard and *how large* each
 one is, on a uniform cell grid.
-**Status:** Phases 0–4 complete (visibility · edit mode · reordering · sizing) · Phase 5 tail open
+**Status:** Phases 1–5 complete (visibility · edit mode · reordering · sizing · card fit) · 2.9 and the contract mirror open
 **Owner branch:** `feat/ui-suite` → `dev`
 **Last updated:** 2026-08-23
 
@@ -145,6 +145,12 @@ Two properties fall out of the corrected rule and are worth keeping:
   start scrolling.
 - **No shape is a letterbox.** The worst aspect deviation is a *portrait* tile (3 cards),
   which is the safe direction — it yields empty space, not overflow.
+
+**Read this table as cards only while every card is 1×1.** From Phase 4 the shape is driven by
+*cells*, not card count, so the counts above are the special case where the two coincide. Nine
+cards with one 2×2 is 12 cells and derives a **4×3** — the same shape this table attributes to
+ten-to-twelve cards. Confirmed in the browser (hide three, enlarge one, restore the three), and
+it reads correctly because 12 cells in a 4×3 is exactly full with no holes.
 
 Implemented as `gridShape()`, which moved to `packages/types` in 4.3 so the server can
 validate the cell budget against the same derivation. **Mirror this into the contract**, where
@@ -686,3 +692,4 @@ Written during the build; these are the things a reader of the plan alone would 
 | 2026-08-23 | **Phase 4 verified** (4.9). Live pass green at all three widths in both themes, spans confirmed on the two former hand-rolled shells, picker limits and the D9 asymmetry exercised, demo session confirmed read-only. B2 closed. |
 | 2026-08-23 | **5.10 verified**; **5.11 started** — News paging made size-aware. `PER_PAGE = 5` replaced by a measured page size via `useClampList`, and page *indices* replaced by an offset stack, because a measured page size makes an index point at different content after a resize. Gaming's fixed 6 matches is the remaining instance. |
 | 2026-08-23 | **5.11 completed** — Gaming's `slice(0, 6)` replaced by the clamp + `+N more`, and its match list stopped scrolling (it had quietly exempted itself from the no-scroll rule). Applying it exposed a latent bug in `useClampList`: a `useRef` element meant the observers never re-bound when a conditionally-rendered list remounted, freezing `clippedCount` — now a callback ref backed by state. Phase 5 complete. |
+| 2026-08-23 | Two defects caught from screenshots of a real 12-cell layout. `ClippedNote` appended a bare `s` and rendered "+4 more matchs" — it now takes an optional plural. And on a tile too short for one row the clamp hid *every* row, leaving News blank under a "1–1 of 34" readout; `useClampList` now never hides the first row, so a clipped row is visible rather than absent. Both fixes are primitive-level and cover all four clamped cards. |

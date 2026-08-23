@@ -257,8 +257,17 @@ because it carries the Log button and a submit control you cannot reach is a fun
 failure, not a cosmetic one. This is why the fix was a *clamp on the list* rather than
 `data-drop-order` marks: dropping blocks would eventually drop the form.
 
+**When a block cannot shrink further, say it in words rather than shrinking it anyway.**
+Weather's day strip degrades in two steps: chips tighten, then below 400px of *tile* the strip
+is replaced wholesale by one line — today's rain chance and range, plus the next wetter day.
+Dropping days one at a time ends in a strip that is neither complete nor readable; a sentence
+that still answers "will it rain" is worth more than three unreadable chips. Both renderings
+carry the same `data-drop-order`, so if the card runs out of *height* the outlook still leaves
+as a unit.
+
 **The general rule this encodes:** when a card must fit, the thing that yields is its
-open-ended list, never its controls. A card with no list to thin needs either a
+open-ended list, never its controls — and when nothing is left to yield, a block is replaced
+by a summary of itself rather than clipped. A card with no list to thin needs either a
 `data-drop-order` block (Weather, Performance) or a place on the table above.
 
 ### D8 — Below the wall breakpoint, sizes collapse
@@ -723,3 +732,4 @@ Written during the build; these are the things a reader of the plan alone would 
 | 2026-08-23 | **5.11 completed** — Gaming's `slice(0, 6)` replaced by the clamp + `+N more`, and its match list stopped scrolling (it had quietly exempted itself from the no-scroll rule). Applying it exposed a latent bug in `useClampList`: a `useRef` element meant the observers never re-bound when a conditionally-rendered list remounted, freezing `clippedCount` — now a callback ref backed by state. Phase 5 complete. |
 | 2026-08-23 | Two defects caught from screenshots of a real 12-cell layout. `ClippedNote` appended a bare `s` and rendered "+4 more matchs" — it now takes an optional plural. And on a tile too short for one row the clamp hid *every* row, leaving News blank under a "1–1 of 34" readout; `useClampList` now never hides the first row, so a clipped row is visible rather than absent. Both fixes are primitive-level and cover all four clamped cards. |
 | 2026-08-23 | **D10 recorded** after four-column tiles exposed two width failures. Weather's day strip was sliding off the edge (`flex: 1 0 auto` over `overflow-x: auto`) and Health's form wrapped and pushed its Log button out of reach. Scroll policy is now a named list — Today and News scroll, everything else fits in both axes — and Health's entry list clamps so the card yields its *list*, never its controls. |
+| 2026-08-23 | Weather's outlook gained a text fallback (D10): below 400px of tile the day strip is replaced by a one-line summary rather than degrading into unreadable chips. `.gaming-matches` capped at `max-content` so a queue with fewer games than fit no longer stretches to full height and strands the disclaimer at the card's bottom edge. |

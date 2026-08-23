@@ -1,8 +1,11 @@
 import {
   CARD_KEYS,
   isCardKey,
+  isCardSize,
+  normaliseCardSizes,
   resolveCardOrder,
   type CardKey,
+  type CardSizes,
   type DashboardLayout,
 } from "@central-command/types";
 
@@ -61,6 +64,31 @@ export function parseCardOrder(raw: string | null | undefined): CardKey[] {
 }
 
 /**
+ * Read the stored `card_sizes` JSON. Lenient in the same way as the two key
+ * lists above: an unparseable blob, a stale key, or a size we no longer offer
+ * all degrade to "that card is 1x1" rather than throwing. Because the map holds
+ * only the exceptions (docs/ui-suite.md D4), dropping an entry fails safe — the
+ * card comes back at its default size instead of at some impossible span.
+ */
+export function parseCardSizes(raw: string | null | undefined): CardSizes {
+  if (!raw) return {};
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return {};
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
+
+  const sizes: CardSizes = {};
+  for (const [key, size] of Object.entries(parsed as Record<string, unknown>)) {
+    if (isCardKey(key) && isCardSize(size)) sizes[key] = size;
+  }
+  return normaliseCardSizes(sizes);
+}
+
+/**
  * Expand the stored state into the full layout.
  *
  * `order` is resolved to a total order (unknown keys appended in registry
@@ -70,6 +98,7 @@ export function parseCardOrder(raw: string | null | undefined): CardKey[] {
 export function toLayout(
   hidden: readonly CardKey[],
   storedOrder: readonly CardKey[] = [],
+  sizes: CardSizes = {},
 ): DashboardLayout {
   const hiddenSet = new Set(hidden);
   const order = resolveCardOrder(storedOrder);
@@ -77,6 +106,9 @@ export function toLayout(
     hidden: order.filter((key) => hiddenSet.has(key)),
     order,
     visible: order.filter((key) => !hiddenSet.has(key)),
+    // Normalised on the way out as well as in, so a GET returns exactly what a
+    // PATCH stored and the client's optimistic guess cannot drift from it.
+    sizes: normaliseCardSizes(sizes),
   };
 }
 
@@ -84,4 +116,11 @@ export function toLayout(
  * column empty rather than holding an empty array. */
 export function serialiseKeys(keys: readonly CardKey[]): string | null {
   return keys.length === 0 ? null : JSON.stringify(keys);
+}
+
+/** As `serialiseKeys`, for the sparse size map. Normalised first, so a map of
+ * nothing but `1x1` entries stores as `null` rather than `{}`. */
+export function serialiseSizes(sizes: CardSizes): string | null {
+  const clean = normaliseCardSizes(sizes);
+  return Object.keys(clean).length === 0 ? null : JSON.stringify(clean);
 }

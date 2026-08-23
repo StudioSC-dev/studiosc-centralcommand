@@ -20,6 +20,8 @@ export interface SettingsInput {
   hiddenCards?: string | null;
   /** JSON array of CardKeys in the user's preferred order, or null for default. */
   cardOrder?: string | null;
+  /** JSON object of CardKey → CardSize for resized cards, or null for all 1x1. */
+  cardSizes?: string | null;
 }
 
 /**

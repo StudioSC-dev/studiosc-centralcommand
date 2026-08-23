@@ -454,6 +454,8 @@ export interface DashboardLayout {
   order: CardKey[];
   /** `order` minus `hidden`. Derived server-side so the client never re-derives it. */
   visible: CardKey[];
+  /** Sparse: only cards resized away from `1x1`. Absent → `1x1` (D4). */
+  sizes: CardSizes;
 }
 
 /**
@@ -480,6 +482,216 @@ export function resolveCardOrder(stored: readonly CardKey[]): CardKey[] {
   return ordered;
 }
 
+// ─── Card sizing (spans) ─────────────────────────────────────────────────────
+// docs/ui-suite.md Phase 4. Cards are whole numbers of identical tiles on a
+// unit grid (D1), so a size is just a `WxH` span of the default cell.
+
+/**
+ * The sizes a card may take, as `<width>x<height>` in grid cells.
+ *
+ * A closed set on purpose (D1): the dashboard is a wall of uniform widgets, and
+ * free-form spans buy the ability to make it ragged. Everything here fits the
+ * 4×3 ceiling with room to spare, and `3x1` is the widest because a full-width
+ * banner is the only shape a 3-column reference grid cannot otherwise express.
+ */
+export type CardSize = "1x1" | "2x1" | "1x2" | "2x2" | "3x1";
+
+export const CARD_SIZES: readonly CardSize[] = ["1x1", "2x1", "1x2", "2x2", "3x1"] as const;
+
+/** The size a card gets when it is absent from the stored map (D4). */
+export const DEFAULT_CARD_SIZE: CardSize = "1x1";
+
+export function isCardSize(value: unknown): value is CardSize {
+  return typeof value === "string" && (CARD_SIZES as readonly string[]).includes(value);
+}
+
+/** Sparse map of the *exceptions* — cards not at `1x1`. */
+export type CardSizes = Partial<Record<CardKey, CardSize>>;
+
+/** A size expanded into grid cells. */
+export interface CardSpan {
+  w: number;
+  h: number;
+}
+
+const CARD_SIZE_SPANS: Record<CardSize, CardSpan> = {
+  "1x1": { w: 1, h: 1 },
+  "2x1": { w: 2, h: 1 },
+  "1x2": { w: 1, h: 2 },
+  "2x2": { w: 2, h: 2 },
+  "3x1": { w: 3, h: 1 },
+};
+
+/** Cells a size occupies. The union is closed, so this never has to guess. */
+export function cardSpan(size: CardSize | undefined): CardSpan {
+  return CARD_SIZE_SPANS[size ?? DEFAULT_CARD_SIZE];
+}
+
+/** The spans of a card list, in render order — the packer's only input. */
+export function cardSpans(keys: readonly CardKey[], sizes: CardSizes): CardSpan[] {
+  return keys.map((key) => cardSpan(sizes[key]));
+}
+
+// ─── Grid derivation ─────────────────────────────────────────────────────────
+
+/** The reference wall: three across, three down, one card per cell. */
+const REFERENCE_COLS = 3;
+
+/** Past twelve cells the tiles are too narrow to read across a room (D2). */
+export const MAX_GRID_COLS = 4;
+
+/** Rows never exceed three, so a tile is never shorter than on the full wall (D2). */
+export const MAX_GRID_ROWS = 3;
+
+/** Hard stop for the packer — far above any shape the size set can produce. */
+const PACK_ROW_CEILING = 64;
+
+export interface GridShape {
+  cols: number;
+  rows: number;
+  /** Cells the cards actually occupy. */
+  cells: number;
+  /** Cells the derived shape offers — `cols * rows`. */
+  capacity: number;
+  /** True when the cards could not be packed into `MAX_GRID_ROWS` rows. */
+  overflows: boolean;
+}
+
+/**
+ * Rows needed to lay `spans` out in `cols` columns, as CSS grid would.
+ *
+ * Mirrors `grid-auto-flow: row` *without* `dense`: the cursor only ever moves
+ * forward, so a card that will not fit in the rest of its row starts a new one
+ * and leaves a hole rather than a later card being pulled back to fill it. That
+ * is deliberate — see D9. Returns `null` if a card is wider than the grid.
+ */
+function packRows(spans: readonly CardSpan[], cols: number): number | null {
+  if (spans.some((span) => span.w > cols)) return null;
+
+  const occupied = new Set<string>();
+  const taken = (row: number, col: number, span: CardSpan): boolean => {
+    for (let r = 0; r < span.h; r++) {
+      for (let c = 0; c < span.w; c++) {
+        if (occupied.has(`${row + r},${col + c}`)) return true;
+      }
+    }
+    return false;
+  };
+
+  let row = 0;
+  let col = 0;
+  let rows = 0;
+
+  for (const span of spans) {
+    while (row < PACK_ROW_CEILING) {
+      if (col + span.w > cols) {
+        row++;
+        col = 0;
+        continue;
+      }
+      if (!taken(row, col, span)) break;
+      col++;
+    }
+    if (row >= PACK_ROW_CEILING) return null;
+
+    for (let r = 0; r < span.h; r++) {
+      for (let c = 0; c < span.w; c++) occupied.add(`${row + r},${col + c}`);
+    }
+    rows = Math.max(rows, row + span.h);
+    col += span.w;
+  }
+
+  return rows;
+}
+
+/**
+ * The grid shape for a list of card spans (D2, extended for sizing).
+ *
+ * **Rows first, then columns.** Rows grow only once each row is full, so the
+ * grid fills across before it fills down — the viewport is a widescreen, and
+ * deriving columns first made three cards a 1×3, giving every card the full
+ * window width at a third of its height (roughly 6:1 against the ~2:1 tile the
+ * cards are designed for). With every card 1×1 this reproduces D2's table
+ * exactly; spans only ever widen the starting guess.
+ *
+ * From that guess it *packs* rather than counting cells, because holes are
+ * real: a 2-wide card at the end of a row pushes to the next one and leaves the
+ * remainder of its row empty. Columns are added until the cards fit in three
+ * rows.
+ *
+ * **It always returns a renderable shape.** If nothing fits in three rows the
+ * widest grid is returned with `overflows: true` — a visibly too-tall wall the
+ * user can see and fix, never a gesture that refuses to complete. Only the size
+ * picker (and the PATCH behind it) treats `overflows` as a hard no; hiding and
+ * reordering are allowed to produce it, because the alternative is a dead end
+ * where a card cannot be restored without first shrinking another.
+ */
+export function gridShape(spans: readonly CardSpan[]): GridShape {
+  if (spans.length === 0) return { cols: 1, rows: 1, cells: 0, capacity: 1, overflows: false };
+
+  const cells = spans.reduce((total, span) => total + span.w * span.h, 0);
+  const widest = Math.max(...spans.map((span) => span.w));
+  const tallest = Math.max(...spans.map((span) => span.h));
+
+  const preferredRows = Math.max(
+    tallest,
+    Math.min(MAX_GRID_ROWS, Math.ceil(cells / REFERENCE_COLS)),
+  );
+  const startCols = Math.max(widest, Math.min(MAX_GRID_COLS, Math.ceil(cells / preferredRows)));
+
+  let fallback: GridShape | null = null;
+  for (let cols = startCols; cols <= MAX_GRID_COLS; cols++) {
+    const rows = packRows(spans, cols);
+    if (rows === null) continue;
+    const shape: GridShape = {
+      cols,
+      rows,
+      cells,
+      capacity: cols * rows,
+      overflows: rows > MAX_GRID_ROWS,
+    };
+    if (!shape.overflows) return shape;
+    // Keep the widest attempt: more columns can only ever need fewer rows.
+    fallback = shape;
+  }
+
+  return (
+    fallback ?? {
+      cols: MAX_GRID_COLS,
+      rows: MAX_GRID_ROWS,
+      cells,
+      capacity: MAX_GRID_COLS * MAX_GRID_ROWS,
+      overflows: true,
+    }
+  );
+}
+
+/**
+ * Does this set of visible cards fit the wall? The cell budget of D5, expressed
+ * as a packing question rather than a sum, because `sum(w × h) <= cols × rows`
+ * is not sufficient on its own — it ignores the holes packing leaves behind.
+ *
+ * Shared by the client's size picker and the server's PATCH validation, so a
+ * disabled option and a rejected write can never disagree.
+ */
+export function fitsGrid(keys: readonly CardKey[], sizes: CardSizes): boolean {
+  return !gridShape(cardSpans(keys, sizes)).overflows;
+}
+
+/**
+ * Drop `1x1` entries so storage only ever holds the exceptions (D4), and
+ * discard keys the layout does not know. Applied on the way in *and* on the way
+ * out, so what a GET returns is exactly what a PATCH stored.
+ */
+export function normaliseCardSizes(sizes: CardSizes | undefined): CardSizes {
+  const clean: CardSizes = {};
+  for (const key of CARD_KEYS) {
+    const size = sizes?.[key];
+    if (size !== undefined && size !== DEFAULT_CARD_SIZE && isCardSize(size)) clean[key] = size;
+  }
+  return clean;
+}
+
 /**
  * Body for PATCH /dashboard/layout. Both fields are full replacements, not
  * deltas — idempotent, and no add/remove races between two open tabs. Either may
@@ -488,6 +700,7 @@ export function resolveCardOrder(stored: readonly CardKey[]): CardKey[] {
 export interface DashboardLayoutInput {
   hidden?: CardKey[];
   order?: CardKey[];
+  sizes?: CardSizes;
 }
 
 export interface DashboardLayoutResponse {

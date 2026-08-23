@@ -760,6 +760,19 @@ box at all, so a `ResizeObserver` alone would never see them. Reports are compar
 committed to state, since an observer watching classes that re-renders on every read is a loop
 waiting to happen.
 
+**Container queries measure the *content box*.** `.card` carries 1.5rem of horizontal padding,
+so a threshold sits ~48px below the tile width it appears to name: a 404px tile queries as
+356px. Weather's text swap was written at 400px and therefore fired on a tile with 50px of
+width to spare and 200px of height unused. Thresholds here are arithmetic, not taste — five
+chips plus four 8px gaps need about 300px of content box before a chip stops fitting its label,
+icon, percentage and hi/lo.
+
+**It counts what is *not rendered*, not what was dropped.** The first version counted only
+`.is-dropped` and so scored that same Weather tile OK, because a container query had hidden the
+strip rather than the fit pass. What matters is that content is gone, not which mechanism
+removed it. Alternate renderings mark themselves `data-fallback` and are excluded, since one
+half of a pair is always hidden by design.
+
 **What it is not.** Not a test suite: nothing fails CI, nothing is automated, it still needs
 eyes. It is a contact sheet. Its value is that one screenshot of it covers 45 combinations
 instead of one, which is the actual bottleneck when the person changing the CSS cannot see the
@@ -787,3 +800,4 @@ browser.
 | 2026-08-23 | Weather's outlook gained a text fallback (D10): below 400px of tile the day strip is replaced by a one-line summary rather than degrading into unreadable chips. `.gaming-matches` capped at `max-content` so a queue with fewer games than fit no longer stretches to full height and strands the disclaimer at the card's bottom edge. |
 | 2026-08-23 | Weather's outlook was compressing instead of dropping: flex children shrink by default, so the block never overflowed and `useFitSections` saw nothing to do. `.card-body [data-drop-order]` is now `flex-shrink: 0`, and the outlook's text form carries the highest drop order so it *replaces* the strip rather than leaving with it. |
 | 2026-08-23 | **Layout lab built** (`/layout-lab`, dev-only) after three consecutive fixes each caused the next bug. Renders all 45 card×size combinations and flags OVERFLOW and SLACK — the second being the failure mode nobody can see by eye, and the one behind both Weather regressions. |
+| 2026-08-23 | First run of the lab, two findings within minutes. Weather's text swap fired ~50px early because container queries measure the **content box**, not the tile — threshold moved 400px → 300px. Health 1×1 flagged `OVERFLOW 12px`: its fixed parts overshot the tile with the entry list already thinned to nothing, so the today-total is now `data-drop-order="1"` — the card gives up a figure the form and list imply, never a control. `.log-list` capped at `max-content` like `.gaming-matches`. The lab itself was wrong too, scoring the Weather tile OK; it now counts blocks that are *not rendered* whatever hid them. |

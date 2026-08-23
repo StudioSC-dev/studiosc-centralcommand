@@ -3206,19 +3206,27 @@ button {
 
 /* The arrangement, drawn at the shape it derives — the cell *boundaries* are
    what tell the presets apart, so the gap between blocks is the signal and is
-   never allowed to collapse. */
+   never allowed to collapse.
+
+   Sized by the worst case, not the average. Focus derives four columns, so its
+   cells are the narrowest any preset produces: at the first attempt's 15px the
+   whole glyph was ~3px per cell and the bottom row of bars disappeared, which
+   left Minimal's wide-block-plus-narrow-bar reading as two similar bars — the
+   exact distinction the glyph exists to draw. 22px keeps a 4-column cell above
+   4px. Height stops at 18px because `.edit-chip` is ~19px of content box and a
+   taller glyph would grow the chip rather than sit inside it. */
 .preset-glyph {
   display: grid;
   grid-template-columns: repeat(var(--preset-cols, 3), 1fr);
   grid-template-rows: repeat(var(--preset-rows, 3), 1fr);
-  gap: 1px;
-  width: 15px;
-  height: 13px;
+  gap: 1.5px;
+  width: 22px;
+  height: 18px;
   flex: none;
 }
 
 .preset-glyph-cell {
-  border-radius: 1px;
+  border-radius: 1.5px;
   background: currentColor;
   opacity: 0.55;
 }

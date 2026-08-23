@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { CARD_SIZES, cardSpan, type CardSize } from "@central-command/types";
+import {
+  CARD_SIZES,
+  LAYOUT_PRESETS,
+  cardSpan,
+  cardSpans,
+  gridShape,
+  matchingPresetKey,
+  presetLayoutInput,
+  type CardSize,
+  type LayoutPreset,
+} from "@central-command/types";
 import { meQueryOptions } from "../lib/auth";
 import { CARD_REGISTRY } from "../components/cardRegistry";
 
@@ -192,6 +202,8 @@ function LayoutLab() {
         </div>
       </header>
 
+      <PresetAudit />
+
       {CARD_REGISTRY.map((card) => (
         <section key={card.key} className="lab-card-group">
           <h2 className="lab-card-name">{card.label}</h2>
@@ -252,4 +264,83 @@ function LabTile({
       </div>
     </div>
   );
+}
+
+
+/**
+ * Presets, checked rather than eyeballed.
+ *
+ * A preset is a promise that one click produces a *good* wall, so a preset that
+ * packs raggedly — or worse, overflows into a fourth row — undercuts the only
+ * reason to offer one. There is no test runner in this repo (docs/ui-suite.md
+ * gap 7), and this page is already the place layout claims get checked, so the
+ * assertion lives here where it is seen rather than in a harness that isn't.
+ *
+ * Four things are asserted per preset, and each has a way of going wrong that
+ * is silent otherwise:
+ *
+ * - **fits** — the server would accept the write at all.
+ * - **holes** — packing leaves no dead cells. Position matters (D9), so simply
+ *   reordering a preset's roster can introduce a hole without changing a size.
+ * - **round-trip** — the layout it produces identifies back as itself, so the
+ *   active-state highlight is not quietly always off.
+ * - **rows ≤ 3** — it still fits one screen.
+ */
+function PresetAudit() {
+  const rows = LAYOUT_PRESETS.map((preset) => audit(preset));
+  const failures = rows.filter((row) => !row.ok).length;
+
+  return (
+    <section className="lab-card-group">
+      <h2 className="lab-card-name">
+        Presets{" "}
+        <span className={`lab-verdict lab-${failures === 0 ? "ok" : "bad"}`}>
+          {failures === 0 ? "all pass" : `${failures} FAILING`}
+        </span>
+      </h2>
+      <div className="lab-preset-audit">
+        {rows.map((row) => (
+          <div key={row.key} className="lab-preset-row">
+            <span className={`lab-verdict lab-${row.ok ? "ok" : "bad"}`}>
+              {row.ok ? "PASS" : "FAIL"}
+            </span>
+            <strong>{row.label}</strong>
+            <span className="lab-note">
+              {row.cols} × {row.rows} · {row.cells}/{row.capacity} cells ·{" "}
+              {row.holes === 0 ? "no holes" : `${row.holes} HOLE(S)`} ·{" "}
+              {row.fits ? "fits" : "DOES NOT FIT"} ·{" "}
+              {row.roundTrip ? "round-trips" : "NO ROUND-TRIP"}
+            </span>
+            <span className="lab-note">{row.visible.join(" · ")}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function audit(preset: LayoutPreset) {
+  const input = presetLayoutInput(preset);
+  const hidden = new Set(input.hidden);
+  const visible = input.order.filter((key) => !hidden.has(key));
+  const shape = gridShape(cardSpans(visible, input.sizes));
+  const holes = shape.capacity - shape.cells;
+  const fits = !shape.overflows;
+  const roundTrip =
+    matchingPresetKey({ hidden: input.hidden, order: input.order, visible, sizes: input.sizes }) ===
+    preset.key;
+
+  return {
+    key: preset.key,
+    label: preset.label,
+    visible,
+    cols: shape.cols,
+    rows: shape.rows,
+    cells: shape.cells,
+    capacity: shape.capacity,
+    holes,
+    fits,
+    roundTrip,
+    ok: fits && holes === 0 && roundTrip && shape.rows <= 3,
+  };
 }

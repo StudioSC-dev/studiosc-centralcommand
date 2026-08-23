@@ -912,6 +912,17 @@ button {
   scrollbar-gutter: stable;
 }
 
+/* A droppable block must never shrink.
+   `.card-body` is a flex column, so its children shrink by default rather than
+   overflow — which means a squeezed block silently compresses (and, if it clips,
+   silently loses content) while `scrollHeight` still equals `clientHeight`.
+   useFitSections decides what to drop by asking whether the body overflows, so
+   a shrinking block hides the very signal that would have dropped it. Weather's
+   day strip was compressing to half a chip this way instead of being replaced. */
+.card-body [data-drop-order] {
+  flex-shrink: 0;
+}
+
 /* A section dropped because the card body could not fit it. `display: none`
    (unlike the row-level `.is-clipped`) because here we want the space back —
    and the body's own box is fixed by the card, so removing a child cannot
@@ -1220,13 +1231,20 @@ button {
   border-color: color-mix(in srgb, var(--card-accent) 45%, transparent);
 }
 
-/* The same block said in words, for tiles too narrow for legible chips. Hidden
-   by default — the strip is the better rendering whenever it fits. */
+/* The same block said in words. Hidden by default — the strip is the better
+   rendering whenever it fits — and shown in exactly the two cases where it
+   doesn't: the fit pass dropped the strip (too short), or the tile is too narrow
+   for legible chips (below). Keyed off `.is-dropped` on the strip rather than a
+   second measurement, so the swap is whatever the fit pass already decided. */
 .weather-outlook-brief {
   display: none;
   margin: 0.9rem 0 0;
   font-size: 0.8rem;
   color: var(--text-dim);
+}
+
+.weather-outlook.is-dropped ~ .weather-outlook-brief {
+  display: block;
 }
 
 /* Tighten first: a chip with less padding is still a readable chip. */

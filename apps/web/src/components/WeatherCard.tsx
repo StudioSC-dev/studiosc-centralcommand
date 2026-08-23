@@ -163,16 +163,6 @@ export function WeatherCard() {
         <Detail label="Visibility" value={fmtVisibility(current.visibility, units)} />
       </div>
 
-      {/* Two renderings of the same block, one chosen by tile width in CSS: the
-          chips while they are readable, the sentence once they are not. Both
-          carry the same drop order, so if the card runs out of *height* the
-          outlook still leaves as a unit. */}
-      {daily.length > 1 && (
-        <p className="weather-outlook-brief" data-drop-order="1">
-          {briefOutlook(daily, units)}
-        </p>
-      )}
-
       {daily.length > 1 && (
         <ul className="weather-outlook" data-drop-order="1">
           {daily.map((d, i) => (
@@ -188,6 +178,18 @@ export function WeatherCard() {
             </li>
           ))}
         </ul>
+      )}
+
+      {/* The outlook said in words, and the *last* thing this card gives up.
+          It sits after the strip and carries the highest drop order on purpose:
+          the fit pass drops the strip first, this takes its place, and only if
+          the tile is smaller still does it go too. A card that has lost its
+          five-day strip can almost always afford one line saying whether it
+          will rain. Hidden by CSS whenever the strip is actually showing. */}
+      {daily.length > 1 && (
+        <p className="weather-outlook-brief" data-drop-order="4">
+          {briefOutlook(daily, units)}
+        </p>
       )}
     </Card>
   );

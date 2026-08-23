@@ -258,12 +258,22 @@ failure, not a cosmetic one. This is why the fix was a *clamp on the list* rathe
 `data-drop-order` marks: dropping blocks would eventually drop the form.
 
 **When a block cannot shrink further, say it in words rather than shrinking it anyway.**
-Weather's day strip degrades in two steps: chips tighten, then below 400px of *tile* the strip
-is replaced wholesale by one line — today's rain chance and range, plus the next wetter day.
-Dropping days one at a time ends in a strip that is neither complete nor readable; a sentence
-that still answers "will it rain" is worth more than three unreadable chips. Both renderings
-carry the same `data-drop-order`, so if the card runs out of *height* the outlook still leaves
-as a unit.
+Weather's day strip has a text form — today's rain chance and range, plus the next wetter day
+— shown in the two cases the strip cannot serve: the tile is too narrow for legible chips
+(container query, 400px), or too short and the fit pass dropped the strip. The text carries the
+*highest* drop order, so it is the last thing the card gives up: strip first, sentence in its
+place, and only on a smaller tile still does the sentence go too. The swap is keyed off
+`.is-dropped` on the strip, so it follows whatever the fit pass already decided rather than
+measuring a second time.
+
+**A droppable block must never shrink — the trap under all of this.** `.card-body` is a flex
+column, so its children shrink by default rather than overflow. `useFitSections` decides what
+to drop by asking whether the body overflows, so a block that quietly compresses hides the very
+signal that would have dropped it: the day strip squeezed to half a chip and clipped its own
+content while `scrollHeight` still equalled `clientHeight`, and the fit pass concluded
+everything fit. It went unnoticed for as long as the strip carried `overflow-x: auto`, which
+turned the squeeze into a scrollbar instead of a silent crop. `.card-body [data-drop-order]`
+now sets `flex-shrink: 0`, which is what makes the whole drop mechanism observable.
 
 **The general rule this encodes:** when a card must fit, the thing that yields is its
 open-ended list, never its controls — and when nothing is left to yield, a block is replaced
@@ -733,3 +743,4 @@ Written during the build; these are the things a reader of the plan alone would 
 | 2026-08-23 | Two defects caught from screenshots of a real 12-cell layout. `ClippedNote` appended a bare `s` and rendered "+4 more matchs" — it now takes an optional plural. And on a tile too short for one row the clamp hid *every* row, leaving News blank under a "1–1 of 34" readout; `useClampList` now never hides the first row, so a clipped row is visible rather than absent. Both fixes are primitive-level and cover all four clamped cards. |
 | 2026-08-23 | **D10 recorded** after four-column tiles exposed two width failures. Weather's day strip was sliding off the edge (`flex: 1 0 auto` over `overflow-x: auto`) and Health's form wrapped and pushed its Log button out of reach. Scroll policy is now a named list — Today and News scroll, everything else fits in both axes — and Health's entry list clamps so the card yields its *list*, never its controls. |
 | 2026-08-23 | Weather's outlook gained a text fallback (D10): below 400px of tile the day strip is replaced by a one-line summary rather than degrading into unreadable chips. `.gaming-matches` capped at `max-content` so a queue with fewer games than fit no longer stretches to full height and strands the disclaimer at the card's bottom edge. |
+| 2026-08-23 | Weather's outlook was compressing instead of dropping: flex children shrink by default, so the block never overflowed and `useFitSections` saw nothing to do. `.card-body [data-drop-order]` is now `flex-shrink: 0`, and the outlook's text form carries the highest drop order so it *replaces* the strip rather than leaving with it. |

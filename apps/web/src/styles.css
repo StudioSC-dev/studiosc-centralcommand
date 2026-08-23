@@ -3212,3 +3212,107 @@ button {
 .dashboard.is-editing {
   touch-action: none;
 }
+
+/* ─── Layout lab (dev only) ─────────────────────────────────────────────────── */
+
+/* Not a product surface: no glass, no accent, deliberately plain so the cards
+   under inspection are the only thing that looks designed. */
+.lab {
+  max-width: 1920px;
+  margin: 0 auto;
+  padding-bottom: 4rem;
+}
+
+.lab-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 0.9rem 0 1rem;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.lab-head h1 {
+  margin: 0 0 0.3rem;
+  font-size: 1.1rem;
+}
+
+.lab-note {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.lab-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+}
+
+.lab-card-group {
+  margin-top: 2rem;
+}
+
+.lab-card-name {
+  margin: 0 0 0.6rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+/* Sizes sit side by side and the row scrolls: a 3-wide tile next to four others
+   is wider than any screen, and wrapping them would put tiles of different
+   heights in the same visual row, which reads as a layout bug that isn't one. */
+.lab-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.75rem;
+}
+
+.lab-tile-wrap {
+  flex: 0 0 auto;
+}
+
+.lab-tile-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.72rem;
+}
+
+.lab-size {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.lab-verdict {
+  font-weight: 600;
+}
+
+.lab-ok {
+  color: var(--good);
+}
+
+.lab-warn {
+  color: var(--warn);
+}
+
+.lab-bad {
+  color: var(--bad);
+}
+
+.lab-idle {
+  color: var(--text-faint);
+}
+
+/* `display: grid` so the card stretches to exactly the tile, the way a grid
+   item does on the real dashboard — `.card` needs a definite height for its
+   `container-type: size` to work at all. */
+.lab-tile {
+  display: grid;
+}

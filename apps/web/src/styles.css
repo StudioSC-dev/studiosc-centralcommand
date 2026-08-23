@@ -1731,6 +1731,11 @@ button {
   color: var(--text-dim);
 }
 
+/* Fills whatever height the tile leaves between the tabs and the pager, and
+   clips — the shape `useClampList` requires, and what makes the page size
+   measured rather than a constant. Before this the list was content-height, so
+   a taller News card kept showing five headlines and left the pager stranded
+   mid-card with dead space beneath it. */
 .news-list {
   list-style: none;
   margin: 0;
@@ -1738,12 +1743,23 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.news-tabs,
+.news-pager {
+  flex: 0 0 auto;
 }
 
 .news-item {
   display: flex;
   gap: 0.7rem;
   align-items: flex-start;
+  /* Never compress: a clipped row keeps its box (`visibility: hidden`), and a
+     shrinking row would change the very heights useClampList measures. */
+  flex: 0 0 auto;
 }
 
 .news-thumb {

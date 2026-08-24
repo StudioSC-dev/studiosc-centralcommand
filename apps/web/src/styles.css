@@ -610,8 +610,64 @@ button {
   font-size: 0.85rem;
 }
 
-.settings-disabled {
-  opacity: 0.6;
+/* ─── Dashboard card toggles (settings) ─────────────────────────────────────── */
+
+.card-toggles {
+  list-style: none;
+  margin: 0.9rem 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.card-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.card-toggle-label:hover {
+  background: var(--surface-2);
+}
+
+.card-toggle-label:has(input:disabled) {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* Dim the row when the card is off, so the list reads at a glance. */
+.card-toggle-label:has(input:not(:checked)) .card-toggle-text {
+  opacity: 0.5;
+}
+
+.card-toggle-label input {
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+  cursor: inherit;
+}
+
+.card-toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.card-toggle-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.card-toggle-desc {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  opacity: 0.75;
 }
 
 .about-links {
@@ -680,13 +736,16 @@ button {
 
 .dashboard {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  /* Wall-display layout: three equal rows that fill the viewport height, so the
-     whole 3×3 grid fits on screen with NO page scroll and each card grows as
-     tall as the monitor allows. Overflow scrolls inside individual cards
-     (expected for News and a busy Calendar). The 8px trims sub-pixel rounding +
-     the header border so it never tips into a page scrollbar. */
-  grid-template-rows: repeat(3, minmax(0, 1fr));
+  /* Column and row counts are derived from the number of visible cards and set
+     as inline custom properties by routes/index.tsx (see gridShape()). The
+     fallbacks keep the historic 3×3 if the layout query has not resolved. */
+  grid-template-columns: repeat(var(--dash-cols, 3), minmax(0, 1fr));
+  /* Wall-display layout: equal rows that fill the viewport height, so the whole
+     grid fits on screen with NO page scroll and each card grows as tall as the
+     monitor allows. Overflow scrolls inside individual cards (expected for News
+     and a busy Calendar). The 8px trims sub-pixel rounding + the header border
+     so it never tips into a page scrollbar. */
+  grid-template-rows: repeat(var(--dash-rows, 3), minmax(0, 1fr));
   height: calc(100vh - 56px - 1.8rem - 8px);
   gap: var(--gap);
   align-items: stretch;
@@ -702,9 +761,33 @@ button {
   }
 }
 
-/* Cards that benefit from extra width (e.g. news thumbnails). */
-.span-2 {
+/* Card spans (docs/ui-suite.md D1). Width and height are separate classes, so
+   the five-size union costs three rules instead of five and a new size costs
+   none. Emitted by the Card shell from the user's stored size — which is why
+   every card had to be routed through that shell first.
+
+   Deliberately NOT paired with `grid-auto-flow: dense` (D9). Dense fills the
+   holes a span leaves behind by pulling later cards forward, which was fine
+   while order was fixed but silently contradicts a drag now that the user
+   controls it — the card you just moved would land somewhere else. An honest
+   hole is better than a reorder that lies, and gridShape() minimises them by
+   choosing the column count that packs best. */
+.card-w2 {
   grid-column: span 2;
+}
+
+.card-w3 {
+  grid-column: span 3;
+}
+
+.card-h2 {
+  grid-row: span 2;
+}
+
+/* A full-height column (D14). `MAX_GRID_ROWS` is 3, so this is the tallest span
+   the grid can express and it always reaches both edges of the wall. */
+.card-h3 {
+  grid-row: span 3;
 }
 
 /* Narrower screens step down to 2, then 1 column. Below the 3-col wall layout we
@@ -716,14 +799,27 @@ button {
     grid-auto-rows: var(--card-h);
     height: auto;
   }
+  /* D8: horizontal spans clamp to the column count — a 3-wide card in a 2-column
+     grid would otherwise overflow the container entirely. Vertical spans are
+     kept: rows are a fixed height here and the page scrolls, so there is room. */
+  .card-w2,
+  .card-w3 {
+    grid-column: span 2;
+  }
 }
 
 @media (max-width: 720px) {
   .dashboard {
     grid-template-columns: minmax(0, 1fr);
   }
-  .span-2 {
+  /* One column, one card, one row: at phone width every span is noise. */
+  .card-w2,
+  .card-w3 {
     grid-column: span 1;
+  }
+  .card-h2,
+  .card-h3 {
+    grid-row: span 1;
   }
 }
 
@@ -732,6 +828,13 @@ button {
 .card {
   /* Default accent; pillar-* classes override --card-accent per card. */
   --card-accent: var(--accent);
+  /* Size container: card contents scale to THIS tile, not to the viewport, via
+     cq units. That is what lets a card shrink to fit instead of shedding
+     elements, and it keeps working at whatever tile sizes Phase 2 introduces —
+     no per-size rules to write. Safe here because a card's height is always
+     definite (a grid row), which `container-type: size` requires. */
+  container-type: size;
+  container-name: card;
   position: relative;
   /* Own stacking context so the sheen's negative z-index stays inside the card. */
   isolation: isolate;
@@ -805,10 +908,47 @@ button {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* Cards fit their tile by default — a wall display nobody is sitting at
+     cannot be scrolled. useFitSections drops [data-drop-order] blocks until the
+     body fits; a card with none marked still scrolls, visibly, which beats
+     silently clipping a card nobody has audited. `.is-scrollable` is the
+     deliberate opt-out — Today, which really scrolls, and News, which pages
+     against a measured list and only needs the drop pass to stay out of it
+     (D10, and see CardProps.scrollable). */
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-gutter: stable;
+}
+
+/* Keep body text out of the scrollbar's lane on the cards that scroll by design.
+   `scrollbar-gutter: stable` above reserves the track so the layout doesn't jump
+   when it appears — but it reserves nothing for an *overlay* scrollbar (Windows
+   11 Fluent, macOS), which is painted over the content box and drew straight
+   across the Today card's event titles. Padding sits between the content and the
+   track in both models, so it clears an overlay bar and gives a classic one some
+   breathing room. */
+.card-body.is-scrollable {
+  padding-right: 0.6rem;
+}
+
+/* A droppable block must never shrink.
+   `.card-body` is a flex column, so its children shrink by default rather than
+   overflow — which means a squeezed block silently compresses (and, if it clips,
+   silently loses content) while `scrollHeight` still equals `clientHeight`.
+   useFitSections decides what to drop by asking whether the body overflows, so
+   a shrinking block hides the very signal that would have dropped it. Weather's
+   day strip was compressing to half a chip this way instead of being replaced. */
+.card-body [data-drop-order] {
+  flex-shrink: 0;
+}
+
+/* A section dropped because the card body could not fit it. `display: none`
+   (unlike the row-level `.is-clipped`) because here we want the space back —
+   and the body's own box is fixed by the card, so removing a child cannot
+   resize it and cannot loop the observer that dropped it. */
+.is-dropped {
+  display: none !important;
 }
 
 .card-title {
@@ -909,8 +1049,8 @@ button {
 .weather-hero {
   display: flex;
   align-items: center;
-  gap: 0.9rem;
-  padding: 0.7rem 0.85rem;
+  gap: clamp(0.4rem, 3cqh, 0.9rem);
+  padding: clamp(0.3rem, 2.5cqh, 0.7rem) 0.85rem;
   margin: 0 -0.25rem 0.4rem;
   border-radius: var(--radius-inner);
   border: 1px solid var(--glass-border);
@@ -975,7 +1115,9 @@ button {
 }
 
 .weather-temp {
-  font-size: 2.85rem;
+  /* Scales with the tile: ~2.85rem at the 3x3 reference (~307px tall), smaller
+     on a shorter tile, capped so it never gets silly on a large one. */
+  font-size: clamp(1.5rem, 15cqh, 2.85rem);
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1;
@@ -1073,17 +1215,23 @@ button {
 }
 
 /* Multi-day outlook — horizontal card strip (matches the hourly forecast row). */
+/* Never scrolls, in either axis (D10). The chips used to be `flex: 1 0 auto`
+   over `overflow-x: auto`, so they kept their width and slid off the edge of a
+   narrow tile — invisible at 3 columns, obvious at 4. They now share the width
+   instead, and the container queries below drop whole days once sharing stops
+   being enough. */
 .weather-outlook {
   list-style: none;
   margin: 0.9rem 0 0;
   padding: 0;
   display: flex;
   gap: 0.5rem;
-  overflow-x: auto;
+  overflow: hidden;
 }
 
 .weather-outlook li {
-  flex: 1 0 auto;
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1101,6 +1249,55 @@ button {
 /* Highlight the "Today" cell with the weather accent rim. */
 .weather-outlook li:first-child {
   border-color: color-mix(in srgb, var(--card-accent) 45%, transparent);
+}
+
+/* The same block said in words. Hidden by default — the strip is the better
+   rendering whenever it fits — and shown in exactly the two cases where it
+   doesn't: the fit pass dropped the strip (too short), or the tile is too narrow
+   for legible chips (below). Keyed off `.is-dropped` on the strip rather than a
+   second measurement, so the swap is whatever the fit pass already decided. */
+.weather-outlook-brief {
+  display: none;
+  margin: 0.9rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.weather-outlook.is-dropped ~ .weather-outlook-brief {
+  display: block;
+}
+
+/* NOTE: container queries measure the container's **content box**, not its tile.
+   `.card` has 1.5rem of horizontal padding, so these thresholds sit ~48px below
+   the tile width they correspond to — a 404px tile queries as 356px. The first
+   version of this swapped to text at 400px and so fired on a tile with 50px of
+   width to spare and 200px of height unused.
+
+   The floor is arithmetic, not taste: five chips plus four 8px gaps need about
+   5 × 54 + 32 ≈ 300px of content box before a chip stops fitting "Today", an
+   icon, a percentage and a hi/lo. */
+
+/* Tighten first: a chip with less padding is still a readable chip. */
+@container card (max-width: 400px) {
+  .weather-outlook li {
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+    font-size: 0.74rem;
+  }
+}
+
+/* Then swap wholesale rather than degrade further. Dropping days one at a time
+   ends in a strip that is neither complete nor readable; one sentence that
+   still answers "will it rain" is worth more than three unreadable chips.
+   Container queries, not media queries: `.card` is a size container (5.8), so
+   this responds to the *tile*, which is what changed at four columns. */
+@container card (max-width: 300px) {
+  .weather-outlook {
+    display: none;
+  }
+  .weather-outlook-brief {
+    display: block;
+  }
 }
 
 .weather-outlook-day {
@@ -1135,27 +1332,6 @@ button {
   margin-top: 0.4rem;
   font-size: 0.85rem;
   color: var(--text-dim);
-}
-
-.weather-forecast {
-  list-style: none;
-  margin: 0.9rem 0 0;
-  padding: 0;
-  display: flex;
-  gap: 0.5rem;
-  overflow-x: auto;
-}
-
-.weather-forecast li {
-  flex: 1 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.5rem 0.6rem;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  font-size: 0.8rem;
 }
 
 .weather-pop {
@@ -1281,6 +1457,9 @@ button {
   color: var(--bad);
 }
 
+/* The card's give. The form above it is fixed — it carries the Log button and
+   must never be dropped or scrolled away — so this list is what absorbs a short
+   tile, thinning row by row via useClampList (D10). */
 .log-list {
   list-style: none;
   margin: 0;
@@ -1290,6 +1469,18 @@ button {
   gap: 0.15rem;
   font-size: 0.85rem;
   color: var(--text-dim);
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  /* Grow into the space available so the clamp has a bound to measure against,
+     but never past the rows actually present — otherwise a section with two
+     entries in a tall tile stretches to full height and strands its footer at
+     the bottom edge with a void above it. Same cap as `.gaming-matches`. */
+  max-height: max-content;
+}
+
+.log-list > li {
+  flex: 0 0 auto;
 }
 
 .log-item {
@@ -1367,12 +1558,6 @@ button {
 .inline-add:hover {
   opacity: 1;
   color: var(--text-dim);
-}
-
-.log-older {
-  margin: 0.5rem 0 0;
-  font-size: 0.72rem;
-  color: var(--text-faint);
 }
 
 /* ─── Calendar timeline ─────────────────────────────────────────────────────── */
@@ -1506,6 +1691,11 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
+  /* Clamped list: take the space left in the card body and clip, so the card
+     itself never scrolls. useClampList hides the rows that don't fully fit. */
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .cal-event {
@@ -1615,6 +1805,11 @@ button {
   color: var(--text-dim);
 }
 
+/* Fills whatever height the tile leaves between the tabs and the pager, and
+   clips — the shape `useClampList` requires, and what makes the page size
+   measured rather than a constant. Before this the list was content-height, so
+   a taller News card kept showing five headlines and left the pager stranded
+   mid-card with dead space beneath it. */
 .news-list {
   list-style: none;
   margin: 0;
@@ -1622,12 +1817,23 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.news-tabs,
+.news-pager {
+  flex: 0 0 auto;
 }
 
 .news-item {
   display: flex;
   gap: 0.7rem;
   align-items: flex-start;
+  /* Never compress: a clipped row keeps its box (`visibility: hidden`), and a
+     shrinking row would change the very heights useClampList measures. */
+  flex: 0 0 auto;
 }
 
 .news-thumb {
@@ -1721,7 +1927,7 @@ button {
 }
 
 .perf-score {
-  font-size: 2.8rem;
+  font-size: clamp(1.5rem, 15cqh, 2.8rem);
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1;
@@ -1738,7 +1944,7 @@ button {
 }
 
 .perf-bars {
-  margin-top: 0.85rem;
+  margin-top: clamp(0.3rem, 3cqh, 0.85rem);
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
@@ -1952,6 +2158,9 @@ button {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  /* Never compress: a clipped row still holds its box (`visibility: hidden`),
+     and a shrinking row would change the very heights the clamp measures. */
+  flex: 0 0 auto;
   font-size: 0.85rem;
   padding: 0.25rem 0.5rem;
   border-radius: var(--radius-inner);
@@ -2111,6 +2320,11 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+  /* `min-height: 0` above lets this shrink below its content (needed so the
+     match list can give space back). Without clipping, that content — the
+     empty-state line especially — spilled out and overlapped the disclaimer
+     underneath. Contain it. */
+  overflow: hidden;
 }
 
 .gaming-matches-head {
@@ -2128,12 +2342,23 @@ button {
   letter-spacing: 0;
 }
 
+/* Clips rather than scrolls: the card fits its tile, and a wall display nobody
+   is sitting at cannot be scrolled. `useClampList` hides the rows that do not
+   fully fit and the "+N more" footer says how many — which also means the match
+   count follows the tile instead of the old fixed `slice(0, 6)`. */
 .gaming-matches-block .gaming-matches {
   margin: 0;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
-  overflow-y: auto;
-  scrollbar-width: thin;
+  overflow: hidden;
+  /* Grow to the space available (so the clamp has a bound to measure against),
+     but never past the rows actually present. Without the cap a queue with six
+     games in a tile with room for twelve stretched the list to full height and
+     pushed the disclaimer to the card's bottom edge, leaving a void between
+     them. With it, short lists sit under their heading and the spare room
+     collects at the end of the card, where it reads as "that is all there is"
+     rather than as something failing to load. */
+  max-height: max-content;
 }
 
 .gaming-match-champ {
@@ -2158,14 +2383,14 @@ button {
 .today-next {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  padding-bottom: 0.9rem;
-  margin-bottom: 0.9rem;
+  gap: 0.12rem;
+  padding-bottom: 0.7rem;
+  margin-bottom: 0.7rem;
   border-bottom: 1px solid var(--border);
 }
 
 .today-next-label {
-  font-size: 0.66rem;
+  font-size: 0.62rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--accent);
@@ -2173,33 +2398,33 @@ button {
 }
 
 .today-next-title {
-  font-size: 1.35rem;
+  font-size: 1.15rem;
   font-weight: 650;
   line-height: 1.2;
 }
 
 .today-next-when {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--text-dim);
 }
 
 .today-empty {
-  margin: 0 0 0.9rem;
+  margin: 0 0 0.7rem;
   color: var(--text-dim);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
 .today-shape {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.3rem;
 }
 
 .today-gauge-row {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
 }
 
 .today-gauge-label {
@@ -2211,7 +2436,7 @@ button {
 }
 
 .today-gauge-track {
-  height: 0.5rem;
+  height: 0.4rem;
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-2) 55%, transparent);
   box-shadow: inset 0 1px 1px var(--glass-rim-bottom);
@@ -2227,8 +2452,8 @@ button {
 
 /* Today's schedule — past events struck through to show what's crossed off. */
 .today-events {
-  margin-top: 1rem;
-  padding-top: 0.85rem;
+  margin-top: 0.8rem;
+  padding-top: 0.7rem;
   border-top: 1px solid var(--border);
 }
 
@@ -2236,7 +2461,7 @@ button {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-faint);
@@ -2254,18 +2479,18 @@ button {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.25rem;
 }
 
 .today-event {
   display: flex;
   align-items: baseline;
-  gap: 0.6rem;
-  font-size: 0.85rem;
+  gap: 0.55rem;
+  font-size: 0.8rem;
 }
 
 .today-event-time {
-  flex: 0 0 4rem;
+  flex: 0 0 3.6rem;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
@@ -2289,7 +2514,7 @@ button {
 }
 
 .today-event-tag {
-  font-size: 0.6rem;
+  font-size: 0.56rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 700;
@@ -2334,9 +2559,14 @@ button {
   box-shadow: var(--shadow);
 }
 
+/* Fills the card body so the entry list inside it has a definite height to be
+   measured against — without this the section is content-height and the clamp
+   has nothing to clamp to. */
 .health-section {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .health-stat {
@@ -2366,6 +2596,11 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+  /* Clamped list: take the space left in the card body and clip, so the card
+     itself never scrolls. useClampList hides the rows that don't fully fit. */
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .insight {
@@ -2413,6 +2648,12 @@ button {
   grid-template-columns: 1fr auto auto auto auto;
   column-gap: 0.4rem;
   row-gap: 0.1rem;
+  /* Clamped list — see .insight-list. `align-content: start` keeps rows at
+     their natural height instead of stretching to fill the flex space. */
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  align-content: start;
 }
 
 /* Row = three borderless columns + a trailing done-circle:
@@ -2664,4 +2905,701 @@ button {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ─── Clamped lists ─────────────────────────────────────────────────────────── */
+
+/* A row that does not fully fit its card. `visibility` rather than `display`:
+   the box is preserved, so the next measurement can still tell that the row
+   would fit again once the card grows — and toggling it cannot itself change
+   layout, which is what would otherwise loop the ResizeObserver that set it. */
+.is-clipped {
+  visibility: hidden;
+}
+
+/* Always present, always the same height — see ClippedNote for why. */
+.list-clipped-note {
+  flex: 0 0 auto;
+  min-height: 1.15rem;
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+}
+
+/* ─── Dashboard edit mode ───────────────────────────────────────────────────── */
+
+/* Cards are inert while arranging: a click is for hiding a card, not for
+   paging the news or ticking a task off. The title and the remove badge stay
+   live so the card is still identifiable and actionable. */
+.dashboard.is-editing .card-body {
+  pointer-events: none;
+  user-select: none;
+}
+
+.card.is-editing {
+  /* Lifted and restless — the phone-home-screen idiom for "you can rearrange
+     this now". Alternate offsets so neighbouring cards fall out of phase
+     instead of wobbling in unison. */
+  animation: card-jiggle 0.32s ease-in-out infinite alternate;
+  cursor: grab;
+}
+
+.card.is-editing:nth-child(even) {
+  animation-delay: -0.16s;
+}
+
+@keyframes card-jiggle {
+  from {
+    transform: rotate(-0.28deg) translateY(-1px);
+  }
+  to {
+    transform: rotate(0.28deg) translateY(1px);
+  }
+}
+
+/* The motion is decoration, not information — the badge and the edit bar carry
+   the meaning, so removing it costs nothing. */
+@media (prefers-reduced-motion: reduce) {
+  .card.is-editing {
+    animation: none;
+    outline: 1px dashed color-mix(in srgb, var(--card-accent) 60%, transparent);
+    outline-offset: 3px;
+  }
+}
+
+.card-remove {
+  /* Inside the card, not overhanging it: `.card` sets `overflow: hidden` to clip
+     its own rounded corners, so a badge at negative offsets would be cut off.
+     Top-right rather than top-left — the title row's left is occupied by the
+     pillar dot and the heading, its right is empty on every card. */
+  position: absolute;
+  top: 0.55rem;
+  right: 0.6rem;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.card-remove svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  fill: none;
+}
+
+.card-remove:hover {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+/* ─── Card size picker (edit mode) ──────────────────────────────────────────── */
+
+/* Sits immediately left of the remove badge, inside the card for the same
+   reason: `.card` clips to its rounded corners, so anything at a negative
+   offset is cut off. */
+.card-size {
+  position: absolute;
+  top: 0.55rem;
+  right: 2.5rem;
+  z-index: 2;
+}
+
+.card-size-button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.card-size-button:hover,
+.card-size-button[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* One short row, opening down-left from the button. A vertical list of five
+   labelled options would be ~140px tall and `.card` clips to its rounded
+   corners, so on a short tile the bottom options would simply be invisible —
+   and a short tile is precisely when someone reaches for this. */
+.card-size-menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0.3rem;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--shadow);
+}
+
+.card-size-option {
+  display: grid;
+  place-items: center;
+  padding: 0.34rem 0.4rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  cursor: pointer;
+}
+
+.card-size-option:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.card-size-option.is-current {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Disabled means "no room on the grid", not "broken" — dimmed, still readable,
+   and the reason is in the tooltip (D5). */
+.card-size-option:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* A miniature of the shape: a 3×3 field of cells with the span filled in. The
+   label alone makes you translate "2 × 1" into a picture; this is the picture.
+
+   Three rows rather than two since `1x3` joined the union (D14) — a 2-row field
+   cannot draw a 3-tall span, and it would have drawn it as `1x2`, which is a
+   different option sitting next to it in the same menu. */
+.size-glyph {
+  display: grid;
+  grid-template-columns: repeat(3, 4px);
+  grid-template-rows: repeat(3, 4px);
+  gap: 1px;
+  flex: 0 0 auto;
+}
+
+.size-glyph-cell {
+  border-radius: 1px;
+  background: color-mix(in srgb, currentColor 22%, transparent);
+}
+
+.size-glyph-cell.is-on {
+  background: currentColor;
+}
+
+/* Floats over the grid rather than sitting in it: the grid is sized to fill the
+   viewport exactly, so giving this a strip of its own would reflow every card
+   the moment edit mode opened. */
+.edit-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 1.1rem;
+  transform: translateX(-50%);
+  z-index: 20;
+  max-width: min(92vw, 1100px);
+}
+
+.edit-bar-inner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.7rem 0.55rem 0.9rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--shadow);
+}
+
+.edit-bar-label,
+.edit-bar-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* `min-width: 0` so the tray wraps *inside* the bar instead of forcing it wider.
+   A flex item defaults to its max-content width, so without this the bar grows
+   past its own max-width and the chips run off the screen. It only started
+   mattering with presets: hiding seven cards used to take seven deliberate
+   clicks, and Minimal now does it in one. */
+.edit-bar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* The chip is the item, not the `li`. Left as a block box the `li` stretches to
+   the row and adds inline descender space under an inline-flex button, so the
+   pill inside it no longer sits where the row centres it. */
+.edit-bar-list > li {
+  display: flex;
+  align-items: center;
+}
+
+/* Every chip in the bar is one height, set here rather than left to whatever
+   each chip happens to contain. Only the preset glyph is taller than a line of
+   text, so without this it alone drove its chip's box and the preset pills sat
+   at a different height from Undo, the hidden-card chips and Done — all of them
+   centred on the same line, but not sharing top and bottom edges, which is what
+   reads as "not aligned". 29px is the glyph (18px) plus padding and border, and
+   it happens to match `.edit-done`, so the whole bar squares up. */
+.edit-chip {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 29px;
+  gap: 0.4rem;
+  padding: 0.28rem 0.6rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.edit-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.edit-chip-add {
+  font-size: 0.95rem;
+  line-height: 1;
+  color: var(--text-faint);
+}
+
+.edit-bar-error {
+  font-size: 0.75rem;
+  color: var(--bad);
+  white-space: nowrap;
+}
+
+/* The cell budget readout. Informational by default — a sparse wall is a
+   legitimate choice (D5) — and only coloured once the grid no longer fits one
+   screen, which restoring a card is allowed to cause. */
+.edit-budget {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.edit-budget.is-over {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+/* ─── Layout presets (edit mode) ─────────────────────────────────────────────
+   Whole arrangements under one name (docs/ui-suite.md Phase 6). Styled as edit
+   chips, because they sit in the same bar and do the same kind of thing as the
+   restore chips — the difference is scale, which the separator carries. */
+
+/* Separates the two scales of control in the bar: presets act on the whole
+   arrangement, the hidden tray on one card. */
+.edit-bar-rule {
+  width: 1px;
+  align-self: stretch;
+  margin: 0.1rem 0.1rem;
+  background: var(--glass-border);
+}
+
+.preset-chip.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.preset-undo {
+  color: var(--text-dim);
+}
+
+/* The arrangement, drawn at the shape it derives — the cell *boundaries* are
+   what tell the presets apart, so the gap between blocks is the signal and is
+   never allowed to collapse.
+
+   Sized by the worst case, not the average. Focus derives four columns, so its
+   cells are the narrowest any preset produces: at the first attempt's 15px the
+   whole glyph was ~3px per cell and the bottom row of bars disappeared, which
+   left Minimal's wide-block-plus-narrow-bar reading as two similar bars — the
+   exact distinction the glyph exists to draw. 22px keeps a 4-column cell above
+   4px. Height stops at 18px because `.edit-chip` is ~19px of content box and a
+   taller glyph would grow the chip rather than sit inside it. */
+.preset-glyph {
+  display: grid;
+  grid-template-columns: repeat(var(--preset-cols, 3), 1fr);
+  grid-template-rows: repeat(var(--preset-rows, 3), 1fr);
+  gap: 1.5px;
+  width: 22px;
+  height: 18px;
+  flex: none;
+}
+
+.preset-glyph-cell {
+  border-radius: 1.5px;
+  background: currentColor;
+  opacity: 0.55;
+}
+
+.preset-chip:hover .preset-glyph-cell,
+.preset-chip.is-active .preset-glyph-cell {
+  opacity: 0.9;
+}
+
+/* ─── Saved presets (edit mode) ───────────────────────────────────────────────
+   The user's own arrangements (docs/ui-suite.md Phase 7). Same chip as a
+   built-in preset — they do the same thing when clicked — with two extra
+   controls fused onto the pill, because they are the only presets that can be
+   deleted or re-captured. */
+
+/* One pill made of two to four buttons. The chip keeps the pill's left round
+   end and the trailing control keeps the right one, so a group with rename and
+   delete affordances still reads as a single chip rather than a chip with
+   debris beside it. */
+.preset-saved {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.preset-chip-saved {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none;
+  max-width: 12rem;
+}
+
+.preset-recapture,
+.preset-rename,
+.preset-delete {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 29px;
+  padding: 0.28rem 0.5rem;
+  border: 1px solid var(--glass-border);
+  border-left: none;
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+  color: var(--text-faint);
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.preset-delete {
+  border-top-right-radius: 999px;
+  border-bottom-right-radius: 999px;
+  padding-right: 0.65rem;
+}
+
+.preset-recapture:hover,
+.preset-rename:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Armed re-capture reads as a warning rather than a danger: it replaces one
+   stored arrangement with another, where delete removes the preset outright. */
+.preset-saved.is-arming .preset-recapture {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* The roster count (gap 14) — how many of the live cards this preset includes.
+   Muted and small: it reports a fact about the preset, it does not warn. */
+.preset-omits {
+  margin-left: 0.35rem;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+.preset-chip.is-active .preset-omits {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.preset-delete:hover,
+.preset-saved.is-arming .preset-delete {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+.preset-recapture:disabled,
+.preset-rename:disabled,
+.preset-delete:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ─── Saving a preset ─────────────────────────────────────────────────────────
+   Collapsed to one button until used: the bar is dense, and naming a layout is
+   the rarest thing done in it. */
+
+.preset-save-open:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.preset-save-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.preset-save-input {
+  box-sizing: border-box;
+  min-height: 29px;
+  width: 9.5rem;
+  padding: 0.28rem 0.6rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.preset-save-input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.preset-save-confirm:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Below the wall breakpoint the bar has no room for three more chips, and
+   sizes collapse there anyway (D8) — a preset's whole point is its spans, so
+   offering one that cannot take effect would be a lie. Saved presets are spans
+   under a name, so the same reasoning retires the whole Phase 7 row with them:
+   a "Save" that captured a collapsed 1-column layout would store an
+   arrangement the user never made. */
+@media (max-width: 720px) {
+  .preset-chip,
+  .preset-saved,
+  .preset-save-open,
+  .preset-save-form,
+  /* The labels and their lists go too. Hiding only the chips left "Presets"
+     standing over an empty list — a heading for nothing, which read as a row
+     that had failed to load rather than one deliberately withheld. */
+  .preset-label,
+  .preset-list,
+  .edit-bar-rule {
+    display: none;
+  }
+}
+
+.edit-done {
+  padding: 0.35rem 0.95rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.edit-done:hover {
+  filter: brightness(1.08);
+}
+
+/* The header toggle, while edit mode is open. */
+.icon-button.active {
+  color: var(--accent);
+}
+
+/* ─── Reordering (edit mode) ────────────────────────────────────────────────── */
+
+/* `display: contents` — the wrapper contributes no box, so the card stays the
+   grid item and reordering cannot disturb the grid it is rearranging. */
+.card-slot {
+  display: contents;
+}
+
+.card-slot:focus-visible > .card {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Suppress the jiggle while dragging — one card should feel picked up and still,
+   not vibrating in the hand. */
+.dashboard.is-dragging .card.is-editing {
+  animation: none;
+}
+
+.card-slot.is-dragging > .card {
+  opacity: 0.55;
+  cursor: grabbing;
+  transform: scale(0.97);
+}
+
+.card-slot.is-drop-target > .card {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
+}
+
+/* Text selection while dragging across cards looks broken and blocks the drag
+   on touch. */
+.dashboard.is-editing {
+  touch-action: none;
+}
+
+/* ─── Layout lab (dev only) ─────────────────────────────────────────────────── */
+
+/* Not a product surface: no glass, no accent, deliberately plain so the cards
+   under inspection are the only thing that looks designed. */
+.lab {
+  max-width: 1920px;
+  margin: 0 auto;
+  padding-bottom: 4rem;
+}
+
+.lab-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 0.9rem 0 1rem;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.lab-head h1 {
+  margin: 0 0 0.3rem;
+  font-size: 1.1rem;
+}
+
+.lab-note {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.lab-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+}
+
+.lab-card-group {
+  margin-top: 2rem;
+}
+
+.lab-card-name {
+  margin: 0 0 0.6rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+/* Sizes sit side by side and the row scrolls: a 3-wide tile next to four others
+   is wider than any screen, and wrapping them would put tiles of different
+   heights in the same visual row, which reads as a layout bug that isn't one. */
+.lab-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.75rem;
+}
+
+.lab-tile-wrap {
+  flex: 0 0 auto;
+}
+
+.lab-tile-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.72rem;
+}
+
+.lab-size {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.lab-verdict {
+  font-weight: 600;
+}
+
+.lab-ok {
+  color: var(--good);
+}
+
+.lab-warn {
+  color: var(--warn);
+}
+
+.lab-bad {
+  color: var(--bad);
+}
+
+.lab-idle {
+  color: var(--text-faint);
+}
+
+/* The preset audit — a table of assertions, not tiles, so it reads as a list
+   rather than joining the contact sheet below it. */
+.lab-preset-audit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.lab-preset-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  font-size: 0.8rem;
+}
+
+/* `display: grid` so the card stretches to exactly the tile, the way a grid
+   item does on the real dashboard — `.card` needs a definite height for its
+   `container-type: size` to work at all. */
+.lab-tile {
+  display: grid;
 }

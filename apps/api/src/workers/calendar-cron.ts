@@ -14,11 +14,12 @@ import {
  * `wrangler.toml`). Watch channels expire (≤7 days); this re-watches any nearing
  * expiry so push notifications never lapse. Dead credentials (revoked / expired
  * refresh token) drop the channel so the user gets a clean reconnect. One user
- * failing does not abort the others. No-op in local dev (APP_ORIGIN unset).
+ * failing does not abort the others. No-op in local dev (APP_ORIGIN is http://).
  */
 export async function runCalendarRenewal(env: Bindings): Promise<void> {
   const address = webhookAddress(env);
-  if (!address) return; // push disabled (local dev / no public origin)
+  // Google only pushes to a public HTTPS endpoint; local dev is http://localhost.
+  if (!address.startsWith("https://")) return;
 
   const db = createDb(env.DB);
   const expiring = await getExpiringChannels(db);

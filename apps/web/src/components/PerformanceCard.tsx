@@ -42,7 +42,7 @@ function RestingHrStat({ rhr }: { rhr: PerformanceRestingHr }) {
         ? { sym: "↓", cls: "good" } // lower RHR than baseline = improving
         : { sym: "↑", cls: "bad" };
   return (
-    <div className="perf-vitals">
+    <div className="perf-vitals" data-drop-order="2">
       <div className="perf-vital">
         <span className="perf-vital-value">{rhr.avg7d != null ? `${rhr.avg7d}` : "—"}</span>
         <span className="perf-vital-unit">bpm</span>
@@ -100,7 +100,7 @@ export function PerformanceCard() {
       <RestingHrStat rhr={restingHr} />
 
       {shown.length > 1 && (
-        <div className="perf-trend-block">
+        <div className="perf-trend-block" data-drop-order="1">
           <div className="perf-trend-head">
             <span className="perf-trend-title">Score trend</span>
             <div className="perf-toggle">

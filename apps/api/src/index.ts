@@ -10,6 +10,7 @@ import { runCalendarRenewal } from "./workers/calendar-cron";
 
 import { authPublic, authGuarded } from "./routes/auth";
 import { settings } from "./routes/settings";
+import { dashboard } from "./routes/dashboard";
 import { profile } from "./routes/profile";
 import { summary } from "./routes/summary";
 import { calendar, calendarWebhook } from "./routes/calendar";
@@ -49,6 +50,7 @@ api.use("*", sessionAuth);
 api.use("*", demoReadOnly); // demo sessions are read-only (blocks non-GET)
 api.route("/auth", authGuarded);
 api.route("/settings", settings);
+api.route("/dashboard", dashboard);
 api.route("/profile", profile);
 api.route("/summary", summary);
 api.route("/calendar", calendar);

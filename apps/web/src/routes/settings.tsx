@@ -354,13 +354,6 @@ function PreferencesSection() {
         <h2 className="settings-section-title">Home location</h2>
         <LocationSetter />
       </section>
-
-      <section className="settings-block settings-disabled">
-        <h2 className="settings-section-title">Dashboard layout</h2>
-        <p className="settings-hint">
-          Resizing cards and choosing which to enable/disable is under development.
-        </p>
-      </section>
     </>
   );
 }

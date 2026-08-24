@@ -9,10 +9,21 @@ export interface Bindings {
   DB: D1Database;
   CACHE: KVNamespace;
 
-  // Non-secret config (wrangler.toml [vars]). Public HTTPS origin of the app,
-  // used to build the Google Calendar push webhook address. Unset in local dev
-  // (Google can't reach localhost) → calendar push is disabled, polling remains.
-  APP_ORIGIN?: string;
+  // Non-secret config (wrangler.toml [vars]). THE origin the browser uses to
+  // reach this app — the single source of truth for every absolute URL we hand
+  // out: the Google OAuth redirect URI, the post-callback redirect back to the
+  // SPA, and the Calendar push webhook address.
+  //
+  // It must NOT be derived from the incoming request. `wrangler dev` simulates
+  // the `[[routes]]` pattern, so the Worker sees the *production* hostname
+  // locally while rewriting outbound `Location` headers back to localhost —
+  // which silently desyncs the OAuth authorize and token-exchange legs.
+  //
+  // Prod: https://centralcommand.studiosc.dev (Pages at /, Worker at /api/*).
+  // Dev:  http://localhost:5173 (Vite, which proxies /api to wrangler). Being
+  // http:// and not public, it also self-disables the Calendar push webhook —
+  // Google can't reach localhost — leaving the poll to keep data fresh.
+  APP_ORIGIN: string;
 
   // Secrets
   API_BEARER_TOKEN: string;

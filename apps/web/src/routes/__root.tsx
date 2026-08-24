@@ -1,6 +1,7 @@
 import { Outlet, createRootRouteWithContext, useRouterState } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
 import { AppHeader } from "../components/AppHeader";
+import { EditModeProvider } from "../lib/editMode";
 
 /** Context available to every route — the shared TanStack Query client. */
 export interface RouterContext {
@@ -18,11 +19,13 @@ function RootLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const showHeader = !CHROMELESS.has(pathname);
   return (
-    <div className="app-shell">
-      {showHeader && <AppHeader />}
-      <main className="app-main">
-        <Outlet />
-      </main>
-    </div>
+    <EditModeProvider>
+      <div className="app-shell">
+        {showHeader && <AppHeader />}
+        <main className="app-main">
+          <Outlet />
+        </main>
+      </div>
+    </EditModeProvider>
   );
 }

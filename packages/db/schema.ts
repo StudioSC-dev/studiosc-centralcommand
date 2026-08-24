@@ -289,3 +289,38 @@ export const newsItems = sqliteTable("news_items", {
     .notNull()
     .default(sql`(unixepoch() * 1000)`),
 });
+
+// ─── Saved dashboard layouts ─────────────────────────────────────────────────
+
+// One row per user-defined layout preset (docs/ui-suite.md Phase 7). The three
+// built-in presets are constants in `packages/types` and are NOT stored here —
+// only arrangements a user has saved under a name of their own.
+//
+// This is a table rather than a fourth JSON column on `user_settings` (D12): a
+// saved preset is a named entity with its own lifecycle — created, renamed,
+// deleted, one at a time — where the three layout columns are the *exceptions*
+// to one derived value (D4). Rows also mean two tabs saving different presets
+// cannot clobber each other the way a read-modify-write on a shared blob would.
+//
+// `visible` stores the ROSTER, not the exceptions — the same inversion the
+// built-in presets make, for the same reason (D12): a card that ships later
+// must not silently gatecrash an arrangement someone deliberately pared down.
+// The array is also the order, because packing depends on position (D9).
+export const cardPresets = sqliteTable(
+  "card_presets",
+  {
+    id: text("id").primaryKey(), // UUID v7
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    name: text("name").notNull(), // user-supplied, trimmed, unique per user
+    visible: text("visible").notNull(), // JSON CardKey[] — roster in render order
+    sizes: text("sizes"), // JSON CardSizes, sparse; null → every card 1x1
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  // Names are how the user tells presets apart, so two called "Morning" would
+  // make the list unreadable. Enforced here as well as in the route, because a
+  // race between two tabs would slip past a check-then-insert.
+  (table) => [unique().on(table.userId, table.name)],
+);

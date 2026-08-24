@@ -16,6 +16,9 @@ DELETE FROM tasks             WHERE user_id = 'demo0000-0000-7000-8000-000000000
 DELETE FROM gaming_snapshots  WHERE user_id = 'demo0000-0000-7000-8000-000000000000';
 DELETE FROM gaming_providers  WHERE user_id = 'demo0000-0000-7000-8000-000000000000';
 DELETE FROM weather_snapshots WHERE user_id = 'demo0000-0000-7000-8000-000000000000';
+-- No saved presets are seeded: edit mode is demo-gated, so a visitor never sees
+-- the preset row. The delete is here anyway so the reset stays total.
+DELETE FROM card_presets      WHERE user_id = 'demo0000-0000-7000-8000-000000000000';
 DELETE FROM user_settings     WHERE user_id = 'demo0000-0000-7000-8000-000000000000';
 DELETE FROM user_profiles     WHERE user_id = 'demo0000-0000-7000-8000-000000000000';
 DELETE FROM users             WHERE id      = 'demo0000-0000-7000-8000-000000000000';

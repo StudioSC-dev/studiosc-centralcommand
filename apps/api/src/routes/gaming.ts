@@ -120,7 +120,13 @@ async function buildGaming(
     .orderBy(desc(gamingSnapshots.capturedAt))
     .all();
 
-  const matches: MatchSummary[] = matchRows.slice(0, 20).map((r) => ({
+  // Payload cap across *all* queues, and the client then filters to one queue —
+  // so this has to be generous enough that a busy queue is not truncated by
+  // matches in the others. It was 20, tuned when the card drew a fixed six rows;
+  // a resized card can now ask for twelve, and a user with 23 flex games saw
+  // roughly 16 of them because solo games used up the budget. The rows are
+  // already fetched in full, so this only bounds what goes over the wire.
+  const matches: MatchSummary[] = matchRows.slice(0, 60).map((r) => ({
     matchId: r.matchId ?? "",
     champion: r.champion ?? "",
     position: r.position ?? "",

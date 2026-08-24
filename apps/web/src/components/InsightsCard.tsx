@@ -1,9 +1,12 @@
 import { Card } from "./Card";
+import { ClippedNote } from "./ClippedNote";
 import { useInsights } from "../lib/insights";
+import { useClampList } from "../lib/useClampList";
 
 /** Rule-based observations from logged data. (LLM narrative is the Phase 2 upgrade.) */
 export function InsightsCard() {
   const { data, isPending, isError, error } = useInsights();
+  const { ref, clippedCount } = useClampList<HTMLUListElement>();
 
   if (isPending) return <Card title="Insights" pillar="insights">Loading…</Card>;
   if (isError) return <Card title="Insights" pillar="insights">Insights unavailable: {error.message}</Card>;
@@ -20,7 +23,7 @@ export function InsightsCard() {
 
   return (
     <Card title="Insights" pillar="insights">
-      <ul className="insight-list">
+      <ul className="insight-list" ref={ref}>
         {data.insights.map((i) => (
           <li key={i.id} className={`insight tone-${i.tone}`}>
             <span className="insight-title">{i.title}</span>
@@ -28,6 +31,7 @@ export function InsightsCard() {
           </li>
         ))}
       </ul>
+      <ClippedNote count={clippedCount} noun="insight" />
     </Card>
   );
 }

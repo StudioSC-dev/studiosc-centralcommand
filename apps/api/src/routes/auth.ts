@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import type { AppEnv } from "../env";
+import type { AppEnv, Bindings } from "../env";
 import { createDb } from "../lib/db";
 import { ok, fail } from "../lib/response";
 import {
@@ -25,9 +25,32 @@ type Purpose = "login" | "connect";
 /** Where the PKCE verifier + purpose are parked between redirect and callback. */
 const stateKey = (state: string) => `oauth:google:${state}`;
 
-/** Derive the registered redirect URI from the current request's origin. */
-function callbackUrl(reqUrl: string): string {
-  return `${new URL(reqUrl).origin}/api/auth/google/callback`;
+/**
+ * The registered Google redirect URI. Built from the configured `APP_ORIGIN`,
+ * never from the incoming request: `wrangler dev` simulates the `[[routes]]`
+ * hostname, so the Worker sees the production host locally while wrangler
+ * rewrites outbound `Location` headers back to localhost. Deriving it from the
+ * request therefore sent one value on the authorize leg and a different one on
+ * the token exchange, and Google rejected the exchange with `invalid_grant`.
+ *
+ * Both legs must send a byte-identical value, so both call this.
+ */
+function callbackUrl(env: Bindings): string {
+  return `${appOrigin(env)}/api/auth/google/callback`;
+}
+
+/** The app's browser-facing origin, without a trailing slash. */
+function appOrigin(env: Bindings): string {
+  return env.APP_ORIGIN.replace(/\/+$/, "");
+}
+
+/**
+ * Absolute redirect back into the SPA. In dev the SPA is on a different port
+ * from the Worker, so a root-relative `/` would strand the browser on the
+ * Worker's origin, which serves no frontend.
+ */
+function toApp(c: Context<AppEnv>, path: string) {
+  return c.redirect(`${appOrigin(c.env)}${path}`);
 }
 
 /** Begin a Google OAuth flow for the given purpose (login vs calendar connect). */
@@ -39,7 +62,7 @@ async function startGoogle(c: Context<AppEnv>, purpose: Purpose) {
   });
   const url = buildAuthorizeUrl({
     clientId: c.env.GOOGLE_OAUTH_CLIENT_ID,
-    redirectUri: callbackUrl(c.req.url),
+    redirectUri: callbackUrl(c.env),
     state,
     challenge,
     scopes: purpose === "login" ? LOGIN_SCOPES : CALENDAR_SCOPES,
@@ -73,7 +96,7 @@ export const authPublic = new Hono<AppEnv>()
     const tokens = await exchangeCode({
       code,
       verifier,
-      redirectUri: callbackUrl(c.req.url),
+      redirectUri: callbackUrl(c.env),
       clientId: c.env.GOOGLE_OAUTH_CLIENT_ID,
       clientSecret: c.env.GOOGLE_OAUTH_CLIENT_SECRET,
     });
@@ -84,7 +107,7 @@ export const authPublic = new Hono<AppEnv>()
       const user = await getOrCreateUser(createDb(c.env.DB), email);
       const token = await issueSession(c.env, user);
       setSessionCookie(c, token);
-      return c.redirect("/");
+      return toApp(c, "/");
     }
 
     // Calendar connect: attach the tokens to the already-signed-in user.
@@ -100,7 +123,7 @@ export const authPublic = new Hono<AppEnv>()
     c.executionCtx.waitUntil(
       ensureChannel(createDb(c.env.DB), session.userId, tokens.access_token, webhookAddress(c.env)),
     );
-    return c.redirect("/?connected=google");
+    return toApp(c, "/?connected=google");
   })
   .post("/logout", (c) => {
     clearSessionCookie(c);
@@ -110,7 +133,7 @@ export const authPublic = new Hono<AppEnv>()
   .get("/demo", async (c) => {
     const token = await issueSession(c.env, { id: DEMO_USER_ID, email: DEMO_EMAIL }, true);
     setSessionCookie(c, token);
-    return c.redirect("/");
+    return toApp(c, "/");
   });
 
 /**

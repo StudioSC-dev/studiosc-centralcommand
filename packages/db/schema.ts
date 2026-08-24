@@ -81,6 +81,10 @@ export const userSettings = sqliteTable("user_settings", {
   homeLon: real("home_lon"),
   locationLabel: text("location_label"), // human-readable, e.g. "Brooklyn, NY"
   units: text("units"), // 'metric' | 'imperial' — weather display preference (null → metric)
+  // The dashboard layout used to live here as three JSON columns —
+  // `hidden_cards` (0012), `card_order` (0013) and `card_sizes` (0014). They
+  // are now rows in `dashboard_cards`; see that table and docs/ui-suite.md D15.
+  // Dropped in migration 0016, which backfills the rows first.
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
@@ -271,3 +275,75 @@ export const newsItems = sqliteTable("news_items", {
     .notNull()
     .default(sql`(unixepoch() * 1000)`),
 });
+
+// ─── Saved dashboard layouts ─────────────────────────────────────────────────
+
+// One row per user-defined layout preset (docs/ui-suite.md Phase 7). The three
+// built-in presets are constants in `packages/types` and are NOT stored here —
+// only arrangements a user has saved under a name of their own.
+//
+// This is a table rather than a fourth JSON column on `user_settings` (D12): a
+// saved preset is a named entity with its own lifecycle — created, renamed,
+// deleted, one at a time — where the three layout columns are the *exceptions*
+// to one derived value (D4). Rows also mean two tabs saving different presets
+// cannot clobber each other the way a read-modify-write on a shared blob would.
+//
+// `visible` stores the ROSTER, not the exceptions — the same inversion the
+// built-in presets make, for the same reason (D12): a card that ships later
+// must not silently gatecrash an arrangement someone deliberately pared down.
+// The array is also the order, because packing depends on position (D9).
+export const cardPresets = sqliteTable(
+  "card_presets",
+  {
+    id: text("id").primaryKey(), // UUID v7
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    name: text("name").notNull(), // user-supplied, trimmed, unique per user
+    visible: text("visible").notNull(), // JSON CardKey[] — roster in render order
+    sizes: text("sizes"), // JSON CardSizes, sparse; null → every card 1x1
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  // Names are how the user tells presets apart, so two called "Morning" would
+  // make the list unreadable. Enforced here as well as in the route, because a
+  // race between two tabs would slip past a check-then-insert.
+  (table) => [unique().on(table.userId, table.name)],
+);
+
+// ─── Dashboard layout (docs/ui-suite.md D15) ─────────────────────────────────
+//
+// One row per *exception*: a card this user has hidden, moved, or resized. The
+// three JSON columns this replaces (`user_settings.hidden_cards` / `card_order`
+// / `card_sizes`, migrations 0012–0014) each answered one third of the same
+// question about the same nine keys, and every layout PATCH rewrote all three
+// regardless of which had changed.
+//
+// **It is still "store the exceptions" (D4), just as rows.** A card with no row
+// here is visible, at 1x1, in registry order — so a card that ships later needs
+// no backfill, exactly as before. That is the property the consolidation had to
+// preserve, and it is why `position` is nullable rather than a dense 0..n: keys
+// with a position sort first, by it; keys without one follow in registry order,
+// which is precisely what `resolveCardOrder()` already did to a partial array.
+//
+// The composite primary key is what a JSON blob could not express: two tabs
+// hiding two different cards are now two independent upserts instead of a
+// read-modify-write race on one string.
+export const dashboardCards = sqliteTable(
+  "dashboard_cards",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    card: text("card").notNull(), // CardKey
+    // 0/1 rather than a bool column: SQLite has no boolean, and Drizzle's
+    // `mode: "boolean"` would hide that from the migration SQL that backfills it.
+    hidden: integer("hidden").notNull().default(0),
+    // Null → "wherever registry order puts it". Not dense, and not unique: it
+    // is a sort key, and gaps in it are the normal state of a sparse table.
+    position: integer("position"),
+    size: text("size"), // CardSize; null → 1x1
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.card] })],
+);

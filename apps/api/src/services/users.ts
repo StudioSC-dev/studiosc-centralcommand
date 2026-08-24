@@ -16,6 +16,8 @@ export interface SettingsInput {
   homeLon?: number | null;
   locationLabel?: string | null;
   units?: "metric" | "imperial" | null;
+  // The dashboard layout used to be three JSON fields here. It is now rows in
+  // `dashboard_cards` — see services/dashboard.ts and docs/ui-suite.md D15.
 }
 
 /**

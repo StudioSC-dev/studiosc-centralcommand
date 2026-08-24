@@ -1,8 +1,9 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { useTheme } from "../lib/theme";
 import { useNow } from "../lib/clock";
-import { useLogout, useMe } from "../lib/auth";
+import { useIsDemo, useLogout, useMe } from "../lib/auth";
 import { useProfile } from "../lib/profile";
+import { useEditMode } from "../lib/editMode";
 
 /** Time-of-day greeting prefix. */
 function greetingFor(hour: number): string {
@@ -41,10 +42,45 @@ export function AppHeader() {
         <time className="header-clock">
           {now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
         </time>
+        <EditLayoutToggle />
         <ThemeToggle />
         <UserMenu />
       </div>
     </header>
+  );
+}
+
+/** Enter/leave dashboard edit mode. Dashboard-only — the affordances it drives
+ * live on the cards — and hidden for demo sessions, whose layout is read-only. */
+function EditLayoutToggle() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { editing, toggle } = useEditMode();
+  const demo = useIsDemo();
+
+  if (pathname !== "/" || demo) return null;
+
+  return (
+    <button
+      type="button"
+      className={`icon-button${editing ? " active" : ""}`}
+      onClick={toggle}
+      aria-pressed={editing}
+      aria-label={editing ? "Finish editing layout" : "Edit dashboard layout"}
+      title={editing ? "Done" : "Edit layout"}
+    >
+      {editing ? (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <polyline points="5,13 10,18 19,6" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
+          <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" />
+          <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
+          <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" />
+        </svg>
+      )}
+    </button>
   );
 }
 

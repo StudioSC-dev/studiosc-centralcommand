@@ -44,3 +44,4 @@ Thumbs.db
 # Project-private session files (Claude tooling) — never committed
 CLAUDE.md
 HANDOVER.md
+.backup-0016/

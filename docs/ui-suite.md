@@ -2,7 +2,7 @@
 
 **Scope:** per-user control over *which* cards appear on the dashboard and *how large* each
 one is, on a uniform cell grid.
-**Status:** Phases 1–7 complete and verified (visibility · edit mode · reordering · sizing · card fit · presets · user presets) · **contract mirrored** · **Phase 8 built; migration applied, live pass outstanding** (consolidation · `1x3` · the unguarded edges)
+**Status:** Phases 1–7 complete and verified (visibility · edit mode · reordering · sizing · card fit · presets · user presets) · **contract mirrored** · **Phase 8 complete and verified** (consolidation · `1x3` · the unguarded edges) · nothing outstanding in this document
 **Owner branch:** `feat/ui-suite` → `dev`
 **Last updated:** 2026-08-24
 
@@ -951,7 +951,7 @@ piece of work, unblocked, with its prerequisites named in the contract's D11(e)�
 | ✅ 8.7 | Re-capture arms before it fires (gap 16) | `apps/web` | built. Shares one arming slot with delete. |
 | ✅ 8.8 | Rename in the preset UI (gap 15), on a shared `PresetNameField` | `apps/web` | built. No API change — `PATCH /presets/:id` already took `name`. |
 | ✅ 8.9 | `scrollable`'s two reasons written down (gap 9) | `apps/web` | built. A comment change, and the right one — see below. |
-| 🟡 8.10 | Verification | — | **partial.** Typecheck 5/5, build, migration applied and backfill confirmed row-by-row, demo re-seeded. **No live pass and no lab pass** — the 54 tiles and every UI change are unwalked. |
+| ✅ 8.10 | Verification | — | **verified 2026-08-24.** Typecheck + build green; `0016` applied and its backfill confirmed row-by-row; demo re-seeded; full §8 live pass walked, Phase 8 additions included — the 54 lab tiles, the migration round-trip, `1x3` at every width, rename, the shared arming slot and the roster count. |
 
 #### 8.1 — Why the consolidation is a good idea now and was a bad one in Phase 7
 
@@ -1095,7 +1095,7 @@ browser available to walk them, which is a change worth making deliberately or n
 | 5 — Card fit | 11 | **11** | — shipped; verified across all 45 card×size tiles in the lab (§10). `1x3` (D14) takes that to 54, unwalked — see 8.10 |
 | 6 — Presets | 8 | **8** | — shipped and verified (§8 walked 2026-08-24) |
 | 7 — User presets | 10 | **10** | — shipped and verified (§8 walked 2026-08-24) |
-| 8 — Consolidation & edges | 10 | 9 | **8.10 partial** — `0016` applied and backfill verified; the live and lab passes are not walked |
+| 8 — Consolidation & edges | 10 | **10** | — shipped and verified (§8 walked 2026-08-24) |
 
 Pre-existing partial credit, for honesty: `.span-2` (dead) and the settings teaser (a stub
 that says the feature is coming). Neither does anything.
@@ -1108,9 +1108,10 @@ that says the feature is coming). Neither does anything.
    the shared shell, which gained a `className` passthrough. Their only reason to exist was to
    add `news-card` / `weather-card` classes that **appear nowhere in `styles.css`** — dead
    classes duplicating a shell. Kept on the shared call for future styling, at zero cost.
-2. **Card internals are tuned for a 1×1 tile** (§2.3). *Partly closed:* the three unbounded
-   list cards (Calendar, Tasks, Insights) now measure instead (5.1–5.4). Health, Gaming and
-   Summary remain unaudited — 5.10.
+2. ~~**Card internals are tuned for a 1×1 tile**~~ (§2.3). **Closed.** The three unbounded list
+   cards measure (5.1–5.4); the rest were confirmed in `/layout-lab`, at 45 tiles when Phase 5
+   closed and again at **54** once `1x3` landed (D14). Every card is now audited at every size
+   it can take, which is the strongest form this gap could be closed in without a test runner.
 3. ~~**Reordering may require a drag dependency.**~~ **Closed in P3** on native pointer
    events; no package added. See B1.
 4. ~~**Dense auto-flow can reorder cards visually.**~~ **Closed in P4 by dropping dense**
@@ -1259,10 +1260,10 @@ P7 additionally (7.9 — **walked and green, 2026-08-24**):
   no `DUPLICATE OF` row.
 - **Demo:** confirm `POST` / `PATCH` / `DELETE /dashboard/presets` all 4xx under `demoReadOnly`.
 
-P8 additionally (8.10 — **partially walked, 2026-08-24**: the migration half is done, the live and lab halves are not):
+P8 additionally (8.10 — **walked and green, 2026-08-24**):
 
-**The migration — ✅ done 2026-08-24, with no `workerd` process running** (§9). Each step below
-was checked; what follows it, from `1x3` onwards, was not.
+**The migration, with no `workerd` process running** (§9) — the half that had to happen first,
+because nothing else in the phase could be checked until the columns had moved.
 
 - ✅ **Before:** the three columns were dumped to `.backup-0016/` along with a copy of the
   local D1 file — that was the only copy, and the drops are irreversible.
@@ -1274,15 +1275,15 @@ was checked; what follows it, from `1x3` onwards, was not.
   indices — see 8.2). The demo user came through as the single `weather → 2x2` row it should.
   No user with nothing stored got a row, which is the D4 rule holding.
 - ✅ `seed:demo:local` re-run clean; the demo's layout row survives the reset as one row.
-- ⬜ **The dashboard is unchanged.** Load it and compare against the pre-migration screenshot:
-  same cards, same order, same sizes, same derived shape. A user-visible difference here is a
-  bug, not a feature — that is the whole claim of D15. **Not done — needs the browser.**
-- ⬜ **Round-trip:** hide a card, reorder, resize; reload. Then restore everything to the
-  default and confirm the rows are *deleted* rather than left behind saying nothing.
-- ⬜ **Registry order writes no positions.** The real user's row is the frozen-default case —
-  their stored order *is* registry order. Reorder a card and put it back; every `position`
-  should end at `NULL` rather than a dense `0..8`, which is the small improvement D15 claims.
-  This is also what normalises the backfilled offsets away.
+- ✅ **The dashboard is unchanged** across the migration: same cards, same order, same sizes,
+  same derived shape. A user-visible difference here would have been a bug, not a feature —
+  that is the whole claim of D15.
+- ✅ **Round-trip:** hide, reorder, resize, reload; then restore the default and confirm the
+  rows are *deleted* rather than left behind saying nothing.
+- ✅ **Registry order writes no positions.** The real user was the frozen-default case — their
+  stored order *is* registry order — so the reorder-and-undo left every `position` at `NULL`
+  rather than a dense `0..8`. That is the small improvement D15 claims, and it is also what
+  normalised the backfilled `instr()` offsets away.
 
 **`1x3` (D14):**
 
@@ -1466,3 +1467,4 @@ browser.
 | 2026-08-24 | **Phase 7 verified** (7.9). Full §8 live pass walked, Phase 7 additions included: a saved preset survives a reload and re-applies exactly, all five refusals surface as messages rather than silent failures, no state lights two chips (the defect 7.10 was written for), delete arms and disarms without touching the layout, re-capture appears and disappears on the three states it should, Undo steps back one preset rather than two, `Escape` in the name field leaves edit mode intact, the bar wraps at eight saved presets, the whole preset row is gone at one column, the lab audit is all-pass with no `DUPLICATE OF`, and a demo session is refused on all three write verbs. **Nothing outstanding in this document.** The next work here is the Homelab card, which is now unblocked — see `../../integrations/homelab-telemetry.md` D11(f) for what it inherits. |
 | 2026-08-24 | **Phase 8 scoped and built — consolidation and the unguarded edges** (8.1–8.9). There was no Phase 8 on record; three of the four candidates `HANDOVER.md` listed were taken and the Homelab card deliberately left out. **D14:** `1x3` joins the size union — the full-height column, earning its place on the same ground `3x1` did, and costing one thing the estimate missed: the picker's 3×2 glyph field cannot draw a 3-tall span and would have drawn it identically to the `1x2` beside it, so it is now 3×3. **D15:** the three layout JSON columns become rows in `dashboard_cards` (migration `0016`, which creates, backfills and drops in that order). D4 survives intact — `position` is a *sparse* sort key, so a card with no row is still visible, 1×1, in registry order and needs no backfill. Gap 6 closed, and closed here rather than in Phase 7 precisely because no feature needed it: with no user-visible difference to get wrong, the only thing that can fail is the migration. Gaps 15 and 16 closed on the preset chip — rename added (reversing Phase 7's "no third fused button", because the workaround it left was delete-then-save) and re-capture now arms like delete, sharing one arming slot so no chip can show two armed controls. Gap 14 made visible rather than fixed: a chip shows `n/9` when its roster is short of the live constant. Gap 9 closed by **keeping** `scrollable` — it was never inert, it does two things and the two exempt cards want them in different proportions; the bug was in the reason, not the code. **8.10 partially walked.** |
 | 2026-08-24 | **`0016` applied locally, after the backfill had to be rewritten twice.** The `json_each` form was correct SQL and correct against the data — and **D1 refuses it in a write**: `SELECT … json_each(s.card_order)` returns the right rows, the same query inside an `INSERT … SELECT` fails with `malformed JSON`. `CROSS JOIN`, a materialised CTE and `CREATE TABLE … AS SELECT` all fail the same way, so it is neither the `INSERT` nor join ordering. The nine-key `UNION ALL` that replaced it hit D1's compound-SELECT term limit. What ships is a recursive CTE over a literal key list with scalar `json_extract`/`instr` per key — and `position` backfilled as a byte offset rather than an index, which is sound because D15 makes it a sort key and the first write normalises it. The failed first attempt rolled back completely, so the retry started clean. Backfill verified row-by-row against the real user (nine rows in stored order) and the demo (one `weather → 2x2`); `seed:demo:local` re-run clean; 18 tables. **The live and lab passes are still unwalked** — the 54 tiles, and every UI change in the phase. |
+| 2026-08-24 | **Phase 8 verified** (8.10). Full §8 live pass walked, Phase 8 additions included: the dashboard is byte-for-byte the same wall across the migration (the whole claim of D15), the layout round-trip deletes rows rather than leaving them saying nothing, registry order writes no positions — which also normalised the backfilled `instr()` offsets away — all **54** lab tiles clean including the nine new `1x3` ones, `1x3` and `1x2` visibly distinct in the picker glyph, rename commits on `Enter` and leaves edit mode intact on `Escape`, no chip ever shows two armed controls, the roster count appears only on short rosters, and the demo session is still refused on every write verb. **Nothing outstanding in this document.** Gap 2 closes with it: every card is now audited at every size it can take. The next work here is the Homelab card — see `../../integrations/homelab-telemetry.md` D11(e)–(g). |

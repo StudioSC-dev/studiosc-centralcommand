@@ -2,7 +2,7 @@
 
 **Scope:** per-user control over *which* cards appear on the dashboard and *how large* each
 one is, on a uniform cell grid.
-**Status:** Phases 1–6 complete (visibility · edit mode · reordering · sizing · card fit · presets), all verified · **contract mirrored** · **Phase 7 (user-defined presets) built, not yet verified**
+**Status:** Phases 1–7 complete (visibility · edit mode · reordering · sizing · card fit · presets · user presets), all verified · **contract mirrored** · nothing outstanding
 **Owner branch:** `feat/ui-suite` → `dev`
 **Last updated:** 2026-08-24
 
@@ -797,7 +797,7 @@ the new routes manage rows, never the layout.
 | ✅ 7.7 | Saved chips, `+ Save` form, re-capture, armed delete in the edit bar | `apps/web` | built. Separate labelled group from the built-ins. |
 | ✅ 7.8 | Saved-preset audit in `/layout-lab` | `apps/web` | built. Asserts fit and round-trip; **holes reported, not failed** — see below. |
 | ✅ 7.10 | `duplicateArrangement()` — one wall, one name | `packages/types` · `apps/api` · `apps/web` | built **2026-08-24, after review**. Refused server-side, greyed out client-side, asserted in the lab. Built-ins included. |
-| ⬜ 7.9 | Verification | — | **not started.** §8 live pass, plus the Phase 7 additions listed there. |
+| ✅ 7.9 | Verification | — | **verified 2026-08-24.** Typecheck + build + local migration green; full §8 live pass walked, including every Phase 7 addition — the save round-trip, all five refusals, the single-highlight rule across every preset, the armed delete, re-capture's three states, Undo across two presets, `Escape` in the name field, the bar at eight presets, one column, the lab audit, and the demo lockout on all three verbs. |
 
 #### 7.1 — Which writes are optimistic, and why they differ
 
@@ -875,7 +875,7 @@ and are already known to differ.
 | 4 — Sizing | 9 | **9** | — shipped |
 | 5 — Card fit | 11 | **11** | — shipped; verified across all 45 card×size tiles in the lab (§10) |
 | 6 — Presets | 8 | **8** | — shipped and verified (§8 walked 2026-08-24) |
-| 7 — User presets | 10 | 9 | **7.9 verification outstanding** — the phase is not shippable until §8 passes |
+| 7 — User presets | 10 | **10** | — shipped and verified (§8 walked 2026-08-24) |
 
 Pre-existing partial credit, for honesty: `.span-2` (dead) and the settings teaser (a stub
 that says the feature is coming). Neither does anything.
@@ -1007,7 +1007,7 @@ Applies to every phase; the phase is not done until all of it passes.
   that a hand-crafted over-budget `sizes` `PATCH` is rejected server-side — while a *hide* or
   *reorder* that overflows is still accepted and merely warned about (D9).
 
-P7 additionally (7.9 — none of this has been walked yet):
+P7 additionally (7.9 — **walked and green, 2026-08-24**):
 
 - **Save round-trip.** Arrange a wall, `+ Save` it, reload — the chip is still there, it
   highlights as active, and applying it after a hand-edit restores the arrangement exactly.
@@ -1171,3 +1171,4 @@ browser.
 | 2026-08-23 | **Phase 0 closed — contract mirrored.** D1/D2/D5/D6/D9/D10 written into `integrations/homelab-telemetry.md` as its D11(a)–(e), under an explicit note that the two D-number sets collide and must never be cited bare across files. Four things there were **wrong**, not merely stale, and were corrected in place with the original struck rather than overwritten: the pinned-rows `ceil(N/3)` column rule, the prediction that order and sizing would force a `dashboard_cards` table, Phase 2's migration number (`0013` → `0015`, both consumed here), and span/reorder still listed as deliberately out of plan. Two new open items were raised **on the homelab side**: `HomelabCard` must arrive with a fit strategy under D11(e), and it takes `/layout-lab` from 45 tiles to 50. |
 | 2026-08-24 | **Phase 7 built — user-defined presets** (7.1–7.8). D13 recorded: a `card_presets` **table** (migration `0015`), not a fourth JSON column and not the `dashboard_cards` consolidation, which is a different problem and stays deferred. `PresetArrangement` extracted so a saved preset is applied, matched, drawn and audited by exactly the code the built-ins use — `matchingPresetKey()` now sits on a shared `layoutMatchesArrangement()`. Applying a saved preset is still one `PATCH /dashboard/layout`; the new routes only manage rows. Save is non-optimistic and delete is, for opposite reasons (7.1); delete arms before firing (7.2); the saved audit drops the zero-holes assertion because a sparse wall is the user's call (7.3); `+ Save` carries the same `fitsGrid` gate the size picker does, since the live layout is allowed to overflow and a preset is not (7.4). Two pre-existing things fixed: the ≤720px rule left the `Presets` label standing over an empty row, and `Escape` in a text field would have exited edit mode. **7.9 verification not started** — the phase is built, not shipped. |
 | 2026-08-24 | **7.10 — one wall, one name.** The first build of Phase 7 let a user save an arrangement identical to an existing preset and lit *every* matching chip, reasoning that there was no honest way to pick a winner between them. Correct reasoning, wrong conclusion: the fix is to make the duplicate unstorable, not to display the ambiguity more truthfully. `duplicateArrangement()` now refuses a save or re-capture that would produce a second preset for the same wall — **built-ins included**, since "My Wall" identical to Wall fails the same way — enforced in the API (D6), greyed out with the offending preset named in the edit bar, and asserted in `/layout-lab` for rows that predate the check. `matchingSavedPresetIds()` stays plural on purpose: nothing backfills, so an older duplicate must still highlight rather than vanish from the comparison. D13 amended. |
+| 2026-08-24 | **Phase 7 verified** (7.9). Full §8 live pass walked, Phase 7 additions included: a saved preset survives a reload and re-applies exactly, all five refusals surface as messages rather than silent failures, no state lights two chips (the defect 7.10 was written for), delete arms and disarms without touching the layout, re-capture appears and disappears on the three states it should, Undo steps back one preset rather than two, `Escape` in the name field leaves edit mode intact, the bar wraps at eight saved presets, the whole preset row is gone at one column, the lab audit is all-pass with no `DUPLICATE OF`, and a demo session is refused on all three write verbs. **Nothing outstanding in this document.** The next work here is the Homelab card, which is now unblocked — see `../../integrations/homelab-telemetry.md` D11(f) for what it inherits. |

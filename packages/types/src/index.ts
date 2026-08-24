@@ -732,15 +732,24 @@ export type LayoutPresetKey = "wall" | "focus" | "minimal";
  * That matters because packing depends on position (D9) — the same cards at the
  * same sizes in a different order can need a fourth row.
  */
-export interface LayoutPreset {
+/**
+ * The part of a preset that *is* the arrangement: which cards, in what order,
+ * at what size. Shared by the three built-in presets and by a user's saved ones
+ * (Phase 7), so both are applied, matched and audited by the same code paths.
+ *
+ * `visible` is the ROSTER, not the exceptions — the deliberate inversion of how
+ * a user's live layout is stored (D4/D12) — and it doubles as the order.
+ */
+export interface PresetArrangement {
+  visible: readonly CardKey[];
+  sizes: CardSizes;
+}
+
+export interface LayoutPreset extends PresetArrangement {
   key: LayoutPresetKey;
   label: string;
   /** One line, shown as the control's title. Says what the preset is *for*. */
   description: string;
-  /** The roster, in render order. Everything else is hidden. */
-  visible: readonly CardKey[];
-  /** Sizes for the visible cards. Sparse — absent means `1x1` (D4). */
-  sizes: CardSizes;
 }
 
 /**
@@ -794,7 +803,7 @@ export function layoutPreset(key: string): LayoutPreset | undefined {
  * The order sent is the roster followed by everything else, so a hidden card
  * keeps a defined place to reappear in when it is restored.
  */
-export function presetLayoutInput(preset: LayoutPreset): Required<DashboardLayoutInput> {
+export function presetLayoutInput(preset: PresetArrangement): Required<DashboardLayoutInput> {
   const visible = new Set(preset.visible);
   return {
     hidden: CARD_KEYS.filter((key) => !visible.has(key)),
@@ -813,16 +822,148 @@ export function presetLayoutInput(preset: LayoutPreset): Required<DashboardLayou
  * that looks exactly like Minimal refusing to admit that it is.
  */
 export function matchingPresetKey(layout: DashboardLayout): LayoutPresetKey | null {
-  const sizesMatch = (visible: readonly CardKey[], a: CardSizes, b: CardSizes): boolean =>
-    visible.every((key) => (a[key] ?? DEFAULT_CARD_SIZE) === (b[key] ?? DEFAULT_CARD_SIZE));
+  return LAYOUT_PRESETS.find((preset) => layoutMatchesArrangement(layout, preset))?.key ?? null;
+}
 
-  for (const preset of LAYOUT_PRESETS) {
-    if (layout.visible.length !== preset.visible.length) continue;
-    if (!layout.visible.every((key, i) => preset.visible[i] === key)) continue;
-    if (!sizesMatch(layout.visible, layout.sizes, preset.sizes)) continue;
-    return preset.key;
+/**
+ * Is this layout the arrangement described by `roster` + `sizes`?
+ *
+ * The comparison `matchingPresetKey` is built from, factored out so a *saved*
+ * preset (Phase 7) is recognised by exactly the rule a built-in one is. Two
+ * separate implementations of "is this the same arrangement" would drift, and
+ * the symptom would be a chip that highlights for the built-ins and not for
+ * the user's own.
+ *
+ * Only the visible cards are compared — their order and their sizes. A hidden
+ * card's position is not observable, so letting it break the match would mean a
+ * layout that looks exactly like Minimal refusing to admit that it is.
+ */
+export function layoutMatchesArrangement(
+  layout: DashboardLayout,
+  arrangement: PresetArrangement,
+): boolean {
+  if (layout.visible.length !== arrangement.visible.length) return false;
+  if (!layout.visible.every((key, i) => arrangement.visible[i] === key)) return false;
+  return layout.visible.every(
+    (key) =>
+      (layout.sizes[key] ?? DEFAULT_CARD_SIZE) === (arrangement.sizes[key] ?? DEFAULT_CARD_SIZE),
+  );
+}
+
+// ─── Saved presets (user-defined) ─────────────────────────────────────
+// docs/ui-suite.md Phase 7. The three built-ins above are constants; these are
+// arrangements a user saved under a name of their own, and they are the one
+// part of this feature that needs storage (`card_presets`, migration 0015).
+
+/**
+ * A user's saved arrangement.
+ *
+ * Structurally a `LayoutPreset` minus its closed `key`: it carries the same
+ * `visible` roster and sparse `sizes`, so `presetLayoutInput()`,
+ * `layoutMatchesArrangement()` and the `/layout-lab` audit all take it unchanged.
+ *
+ * It stores the roster rather than the exceptions for the same reason the
+ * built-ins do (D12): a card that ships later must not silently gatecrash an
+ * arrangement someone deliberately pared down. The difference from a built-in
+ * is that nothing here can name the live `CARD_KEYS` constant, so **no saved
+ * preset absorbs a new card** — that is what "Wall" is for, and it stays.
+ */
+export interface SavedPreset extends PresetArrangement {
+  id: string;
+  name: string;
+  visible: CardKey[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * How many presets one user may save.
+ *
+ * A real limit rather than a guard against abuse: the presets live as chips in
+ * the edit bar next to the three built-ins, and past roughly this many the bar
+ * wraps to a third line and choosing one stops being faster than arranging by
+ * hand — which is the entire argument for the feature.
+ */
+export const SAVED_PRESET_LIMIT = 8;
+
+/** Longest a preset name may be. It has to fit on a chip beside a glyph. */
+export const PRESET_NAME_MAX = 24;
+
+/**
+ * Clean a user-supplied preset name, or reject it.
+ *
+ * Trims, collapses internal whitespace, and refuses empty or over-long input.
+ * Shared by both sides so the client disables Save on exactly the names the
+ * server would refuse, and the uniqueness check compares normalised forms
+ * rather than treating "Morning" and "Morning " as two different presets.
+ */
+export function normalisePresetName(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const name = raw.trim().replace(/\s+/g, " ");
+  if (name.length === 0 || name.length > PRESET_NAME_MAX) return null;
+  return name;
+}
+
+/**
+ * The current layout as a saveable arrangement.
+ *
+ * Captures `visible` (which is already the order, hidden cards excluded) and
+ * the sizes of those cards only — a size left behind on a hidden card is not
+ * part of what the user is looking at, and carrying it would make two visually
+ * identical layouts save as different presets.
+ */
+export function layoutArrangement(layout: DashboardLayout): PresetArrangement {
+  const visible = [...layout.visible];
+  const sizes: CardSizes = {};
+  for (const key of visible) {
+    const size = layout.sizes[key];
+    if (size !== undefined && size !== DEFAULT_CARD_SIZE) sizes[key] = size;
   }
-  return null;
+  return { visible, sizes };
+}
+
+/**
+ * Every saved preset the current layout matches.
+ *
+ * Plural on purpose. A user can save an arrangement identical to Wall, or to
+ * another of their own presets, and there is no honest way to pick a winner
+ * between them — so all of them light up rather than one silently claiming the
+ * state. The built-in match (`matchingPresetKey`) is computed independently for
+ * the same reason.
+ */
+export function matchingSavedPresetIds(
+  layout: DashboardLayout,
+  saved: readonly SavedPreset[],
+): string[] {
+  return saved.filter((preset) => layoutMatchesArrangement(layout, preset)).map((p) => p.id);
+}
+
+/** Body for POST /dashboard/presets — name plus the arrangement to save. */
+export interface SavedPresetCreateInput {
+  name: string;
+  visible: CardKey[];
+  sizes?: CardSizes;
+}
+
+/**
+ * Body for PATCH /dashboard/presets/:id.
+ *
+ * Both fields are optional and independent: renaming is one gesture, and
+ * re-capturing the current arrangement under an existing name ("update this
+ * preset to what I am looking at now") is another.
+ */
+export interface SavedPresetUpdateInput {
+  name?: string;
+  visible?: CardKey[];
+  sizes?: CardSizes;
+}
+
+export interface SavedPresetsResponse {
+  presets: SavedPreset[];
+}
+
+export interface SavedPresetResponse {
+  preset: SavedPreset;
 }
 
 /** Body for PUT /settings/units. */

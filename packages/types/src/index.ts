@@ -842,11 +842,30 @@ export function layoutMatchesArrangement(
   layout: DashboardLayout,
   arrangement: PresetArrangement,
 ): boolean {
-  if (layout.visible.length !== arrangement.visible.length) return false;
-  if (!layout.visible.every((key, i) => arrangement.visible[i] === key)) return false;
-  return layout.visible.every(
-    (key) =>
-      (layout.sizes[key] ?? DEFAULT_CARD_SIZE) === (arrangement.sizes[key] ?? DEFAULT_CARD_SIZE),
+  // A layout is structurally an arrangement plus the parts a preset does not
+  // describe, so this is the same comparison with a narrower name.
+  return arrangementsMatch(layout, arrangement);
+}
+
+/**
+ * Are these two arrangements the same wall?
+ *
+ * Same cards, in the same order, at the same effective sizes. Sizes are sparse
+ * (D4), so they are compared through the `1x1` default rather than as objects —
+ * `{}` and `{ news: "1x1" }` describe the same wall and must not compare as
+ * different.
+ *
+ * This is what makes "you already have a preset that looks like this" possible
+ * to answer, and it is the same rule that decides which chip highlights. The
+ * two have to be one function: a duplicate check that disagreed with the
+ * highlight would either refuse a save that would have been distinguishable, or
+ * allow one that then lights two chips at once.
+ */
+export function arrangementsMatch(a: PresetArrangement, b: PresetArrangement): boolean {
+  if (a.visible.length !== b.visible.length) return false;
+  if (!a.visible.every((key, i) => b.visible[i] === key)) return false;
+  return a.visible.every(
+    (key) => (a.sizes[key] ?? DEFAULT_CARD_SIZE) === (b.sizes[key] ?? DEFAULT_CARD_SIZE),
   );
 }
 
@@ -925,17 +944,49 @@ export function layoutArrangement(layout: DashboardLayout): PresetArrangement {
 /**
  * Every saved preset the current layout matches.
  *
- * Plural on purpose. A user can save an arrangement identical to Wall, or to
- * another of their own presets, and there is no honest way to pick a winner
- * between them — so all of them light up rather than one silently claiming the
- * state. The built-in match (`matchingPresetKey`) is computed independently for
- * the same reason.
+ * **This should never return more than one, and the list is not how that is
+ * enforced.** `duplicateArrangement()` refuses a save or a re-capture that would
+ * produce a second preset describing the same wall, so uniqueness is a property
+ * of what can be stored rather than of what is displayed. Two chips lighting at
+ * once is the symptom that check has been bypassed.
+ *
+ * It stays plural anyway, because the storage predates the check by exactly one
+ * commit and nothing backfills: a row written before it, or by a client that
+ * skipped it, must still highlight rather than be silently dropped from the
+ * comparison. Returning a list keeps that case visible instead of picking an
+ * arbitrary winner.
  */
 export function matchingSavedPresetIds(
   layout: DashboardLayout,
   saved: readonly SavedPreset[],
 ): string[] {
   return saved.filter((preset) => layoutMatchesArrangement(layout, preset)).map((p) => p.id);
+}
+
+/**
+ * The preset this arrangement would duplicate, if any.
+ *
+ * Checks the **built-ins as well as** the user's own, because the failure is
+ * the same either way: an arrangement identical to Wall saved as "My Wall"
+ * lights two chips, and neither is more correct than the other. Names both
+ * kinds so the refusal can say which preset is in the way rather than only that
+ * something is.
+ *
+ * `excludeId` is for re-capturing an existing preset, which must be allowed to
+ * match itself — that is what re-capture *is*.
+ */
+export function duplicateArrangement(
+  arrangement: PresetArrangement,
+  saved: readonly SavedPreset[],
+  options: { excludeId?: string } = {},
+): { kind: "builtin" | "saved"; name: string } | null {
+  const builtin = LAYOUT_PRESETS.find((preset) => arrangementsMatch(arrangement, preset));
+  if (builtin) return { kind: "builtin", name: builtin.label };
+
+  const other = saved.find(
+    (preset) => preset.id !== options.excludeId && arrangementsMatch(arrangement, preset),
+  );
+  return other ? { kind: "saved", name: other.name } : null;
 }
 
 /** Body for POST /dashboard/presets — name plus the arrangement to save. */

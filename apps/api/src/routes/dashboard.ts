@@ -1,13 +1,19 @@
 import { Hono } from "hono";
+import { and, eq } from "drizzle-orm";
+import { cardPresets } from "@central-command/db";
 import {
+  PRESET_NAME_MAX,
+  SAVED_PRESET_LIMIT,
   fitsGrid,
   isCardKey,
   isCardSize,
+  normalisePresetName,
   type CardKey,
   type CardSizes,
 } from "@central-command/types";
 import type { AppEnv } from "../env";
 import { createDb } from "../lib/db";
+import { newId } from "../lib/ids";
 import { ok, fail } from "../lib/response";
 import { getUserSettings, upsertUserSettings } from "../services/users";
 import {
@@ -18,6 +24,7 @@ import {
   serialiseSizes,
   toLayout,
 } from "../services/dashboard";
+import { scopeSizesToRoster, serialisePresetSizes, toSavedPreset } from "../services/presets";
 
 interface LayoutBody {
   hidden?: unknown;
@@ -49,6 +56,49 @@ function readSizes(value: unknown): { sizes: CardSizes } | { error: string } {
     sizes[key] = size;
   }
   return { sizes };
+}
+
+/**
+ * Validate the arrangement half of a saved-preset write.
+ *
+ * Strict, like every other layout write, plus two rules a *preset* needs that a
+ * live layout does not:
+ *
+ * - **The roster cannot be empty.** A layout with everything hidden is a state
+ *   a user can reach and back out of; a preset that produces it is a button
+ *   that blanks the dashboard, and there is nothing on screen left to press.
+ * - **It must fit the grid.** The same `fitsGrid` the size picker greys options
+ *   out with (D5/D9). A preset is a promise that one click produces a usable
+ *   wall — storing one that the layout endpoint would then refuse would put the
+ *   rejection at apply time, which is the worst place for it.
+ *
+ * Sizes are scoped to the roster rather than rejected: a size on a card the
+ * preset does not include is meaningless, not malformed.
+ */
+function readArrangement(
+  body: { visible?: unknown; sizes?: unknown },
+): { visible: CardKey[]; sizes: CardSizes } | { error: string } {
+  const keys = readKeys(body.visible, "visible");
+  if ("error" in keys) return keys;
+
+  const visible = [...new Set(keys.keys)];
+  if (visible.length === 0) {
+    return { error: "A preset must show at least one card." };
+  }
+
+  let sizes: CardSizes = {};
+  if (body.sizes !== undefined) {
+    const parsed = readSizes(body.sizes);
+    if ("error" in parsed) return parsed;
+    sizes = parsed.sizes;
+  }
+  sizes = scopeSizesToRoster(visible, sizes);
+
+  if (!fitsGrid(visible, sizes)) {
+    return { error: "That arrangement doesn't fit the dashboard grid." };
+  }
+
+  return { visible, sizes };
 }
 
 export const dashboard = new Hono<AppEnv>()
@@ -137,4 +187,155 @@ export const dashboard = new Hono<AppEnv>()
     });
 
     return ok(c, { layout });
+  })
+
+  // ─── Saved presets (docs/ui-suite.md Phase 7) ─────────────────────────────
+  //
+  // A user's own named arrangements. The three built-in presets are constants
+  // in `packages/types` and never appear here — this endpoint owns only what a
+  // user saved, which is why Phase 6 needed no storage and this one does.
+  //
+  // Applying a preset is deliberately NOT a route: it is still one
+  // `PATCH /layout` carrying the resolved fields, exactly as a built-in is
+  // (D6/D12), so saved presets inherit the optimistic path, the shared error
+  // surface and the server-side budget check without a second write path.
+  //
+  // Demo sessions can read these (they have none) but never write — every
+  // non-GET below is blocked upstream by `demoReadOnly`.
+  .get("/presets", async (c) => {
+    const rows = await createDb(c.env.DB)
+      .select()
+      .from(cardPresets)
+      .where(eq(cardPresets.userId, c.get("userId")));
+
+    // Newest last, so a preset a user just saved lands at the end of the row
+    // rather than shuffling the chips they already know the positions of.
+    // Ids are UUID v7, so id order *is* creation order.
+    return ok(c, { presets: rows.map(toSavedPreset).sort((a, b) => a.id.localeCompare(b.id)) });
+  })
+
+  .post("/presets", async (c) => {
+    const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+    if (!body) return fail(c, "bad_request", "Expected a JSON body.", 400);
+
+    const parsed = readArrangement(body);
+    if ("error" in parsed) return fail(c, "bad_request", parsed.error, 400);
+
+    const name = normalisePresetName(body.name);
+    if (!name) {
+      return fail(c, "bad_request", `A preset needs a name of 1–${PRESET_NAME_MAX} characters.`, 400);
+    }
+
+    const db = createDb(c.env.DB);
+    const userId = c.get("userId");
+    const existing = await db.select().from(cardPresets).where(eq(cardPresets.userId, userId));
+
+    // Checked here as well as by the unique index, because the index can only
+    // produce a constraint failure and this can say which name is taken.
+    if (existing.some((row) => row.name === name)) {
+      return fail(c, "conflict", `You already have a preset called “${name}”.`, 409);
+    }
+    if (existing.length >= SAVED_PRESET_LIMIT) {
+      return fail(
+        c,
+        "conflict",
+        `You can save up to ${SAVED_PRESET_LIMIT} presets. Delete one first.`,
+        409,
+      );
+    }
+
+    const now = Date.now();
+    const row = {
+      id: newId(),
+      userId,
+      name,
+      visible: JSON.stringify(parsed.visible),
+      sizes: serialisePresetSizes(parsed.sizes),
+      createdAt: now,
+      updatedAt: now,
+    };
+    await db.insert(cardPresets).values(row);
+
+    return ok(c, { preset: toSavedPreset(row) }, 201);
+  })
+
+  // Rename, re-capture, or both. The two are independent gestures — "call this
+  // Morning" and "make Morning what I am looking at now" — and sending only the
+  // field you changed keeps each one a single small write.
+  .patch("/presets/:id", async (c) => {
+    const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+    if (!body || (body.name === undefined && body.visible === undefined)) {
+      return fail(c, "bad_request", "Provide name and/or visible.", 400);
+    }
+
+    const db = createDb(c.env.DB);
+    const userId = c.get("userId");
+    const id = c.req.param("id");
+
+    // Scoped by user, so a guessed id reads as "not found" rather than
+    // confirming that someone else's preset exists.
+    const [current] = await db
+      .select()
+      .from(cardPresets)
+      .where(and(eq(cardPresets.id, id), eq(cardPresets.userId, userId)));
+    if (!current) return fail(c, "not_found", "No such preset.", 404);
+
+    const update: Partial<typeof cardPresets.$inferInsert> = { updatedAt: Date.now() };
+
+    if (body.name !== undefined) {
+      const name = normalisePresetName(body.name);
+      if (!name) {
+        return fail(
+          c,
+          "bad_request",
+          `A preset needs a name of 1–${PRESET_NAME_MAX} characters.`,
+          400,
+        );
+      }
+      if (name !== current.name) {
+        const clash = await db
+          .select()
+          .from(cardPresets)
+          .where(and(eq(cardPresets.userId, userId), eq(cardPresets.name, name)));
+        if (clash.length > 0) {
+          return fail(c, "conflict", `You already have a preset called “${name}”.`, 409);
+        }
+      }
+      update.name = name;
+    }
+
+    if (body.visible !== undefined) {
+      const parsed = readArrangement(body);
+      if ("error" in parsed) return fail(c, "bad_request", parsed.error, 400);
+      update.visible = JSON.stringify(parsed.visible);
+      update.sizes = serialisePresetSizes(parsed.sizes);
+    }
+
+    await db
+      .update(cardPresets)
+      .set(update)
+      .where(and(eq(cardPresets.id, id), eq(cardPresets.userId, userId)));
+
+    return ok(c, { preset: toSavedPreset({ ...current, ...update }) });
+  })
+
+  .delete("/presets/:id", async (c) => {
+    const db = createDb(c.env.DB);
+    const userId = c.get("userId");
+    const id = c.req.param("id");
+
+    const [current] = await db
+      .select()
+      .from(cardPresets)
+      .where(and(eq(cardPresets.id, id), eq(cardPresets.userId, userId)));
+    if (!current) return fail(c, "not_found", "No such preset.", 404);
+
+    await db
+      .delete(cardPresets)
+      .where(and(eq(cardPresets.id, id), eq(cardPresets.userId, userId)));
+
+    // Deleting a preset does not touch the layout: the arrangement stays on
+    // screen, it just stops having a name. Anything else would make delete a
+    // destructive gesture on the thing the user is looking at.
+    return ok(c, { deleted: id });
   });

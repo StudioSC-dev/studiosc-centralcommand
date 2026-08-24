@@ -19,6 +19,7 @@ DELETE FROM weather_snapshots WHERE user_id = 'demo0000-0000-7000-8000-000000000
 -- No saved presets are seeded: edit mode is demo-gated, so a visitor never sees
 -- the preset row. The delete is here anyway so the reset stays total.
 DELETE FROM card_presets      WHERE user_id = 'demo0000-0000-7000-8000-000000000000';
+DELETE FROM dashboard_cards   WHERE user_id = 'demo0000-0000-7000-8000-000000000000';
 DELETE FROM user_settings     WHERE user_id = 'demo0000-0000-7000-8000-000000000000';
 DELETE FROM user_profiles     WHERE user_id = 'demo0000-0000-7000-8000-000000000000';
 DELETE FROM users             WHERE id      = 'demo0000-0000-7000-8000-000000000000';
@@ -30,21 +31,27 @@ VALUES ('demo0000-0000-7000-8000-000000000000', 'demo@centralcommand.studiosc.de
 INSERT INTO user_profiles (user_id, display_name, birthdate, sex, height_cm, weight_kg, activity_level, created_at, updated_at)
 VALUES ('demo0000-0000-7000-8000-000000000000', 'Alex Rivera', '1993-07-15', 'male', 178, 74, 'active', unixepoch('now') * 1000, unixepoch('now') * 1000);
 
--- hidden_cards is NULL: the demo shows all nine cards, so a visitor sees the
--- full dashboard. Edit mode is hidden for demo sessions, and demoReadOnly
--- blocks the PATCH server-side regardless.
+INSERT INTO user_settings (user_id, timezone, home_lat, home_lon, location_label, units, created_at, updated_at)
+VALUES ('demo0000-0000-7000-8000-000000000000', 'America/New_York', 40.71, -74.01, 'New York, NY', 'metric', unixepoch('now') * 1000, unixepoch('now') * 1000);
+
+-- ── Dashboard layout ─────────────────────────────────────────────────────────
+-- One row per exception (docs/ui-suite.md D15). Exactly one is needed here.
 --
--- card_sizes gives Weather a 2x2 hero tile, so a visitor sees that cards can be
--- more than one size without having to be told. It is chosen to pack exactly:
--- 8 remaining 1x1 cards + one 4-cell card = 12 cells, and Weather is first in
--- registry order, so gridShape() derives a 4x3 wall with zero holes. A 2x2 card
--- placed *late* in the order would push past three rows instead (the packing
--- rule in docs/ui-suite.md D9) — the position matters as much as the size.
+-- Nothing is hidden: the demo shows all nine cards, so a visitor sees the full
+-- dashboard. Edit mode is hidden for demo sessions, and demoReadOnly blocks the
+-- PATCH server-side regardless.
 --
--- card_order stays NULL: registry order is the intended demo arrangement, and
--- storing it would only freeze a default that is already correct.
-INSERT INTO user_settings (user_id, timezone, home_lat, home_lon, location_label, units, hidden_cards, card_order, card_sizes, created_at, updated_at)
-VALUES ('demo0000-0000-7000-8000-000000000000', 'America/New_York', 40.71, -74.01, 'New York, NY', 'metric', NULL, NULL, '{"weather":"2x2"}', unixepoch('now') * 1000, unixepoch('now') * 1000);
+-- No positions: registry order is the intended demo arrangement, and storing it
+-- would only freeze a default that is already correct.
+--
+-- Weather gets a 2x2 hero tile, so a visitor sees that cards can be more than
+-- one size without having to be told. It is chosen to pack exactly: 8 remaining
+-- 1x1 cards + one 4-cell card = 12 cells, and Weather is first in registry
+-- order, so gridShape() derives a 4x3 wall with zero holes. A 2x2 card placed
+-- *late* in the order would push past three rows instead (the packing rule in
+-- docs/ui-suite.md D9) — the position matters as much as the size.
+INSERT INTO dashboard_cards (user_id, card, hidden, position, size, updated_at)
+VALUES ('demo0000-0000-7000-8000-000000000000', 'weather', 0, NULL, '2x2', unixepoch('now') * 1000);
 
 -- ── Performance scores (last 30 days) ────────────────────────────────────────
 WITH RECURSIVE seq(n) AS (SELECT 0 UNION ALL SELECT n + 1 FROM seq WHERE n < 29)

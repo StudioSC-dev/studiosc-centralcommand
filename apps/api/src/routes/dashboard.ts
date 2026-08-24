@@ -4,12 +4,14 @@ import { cardPresets } from "@central-command/db";
 import {
   PRESET_NAME_MAX,
   SAVED_PRESET_LIMIT,
+  duplicateArrangement,
   fitsGrid,
   isCardKey,
   isCardSize,
   normalisePresetName,
   type CardKey,
   type CardSizes,
+  type SavedPreset,
 } from "@central-command/types";
 import type { AppEnv } from "../env";
 import { createDb } from "../lib/db";
@@ -99,6 +101,34 @@ function readArrangement(
   }
 
   return { visible, sizes };
+}
+
+/**
+ * Refuse an arrangement that already exists under another name.
+ *
+ * Two presets describing the same wall are not merely redundant: the chip
+ * highlight asks "which preset is this?", and with a duplicate stored there are
+ * two true answers, so two chips light at once and the control stops reporting
+ * a single state. Uniqueness is therefore enforced where it can actually hold —
+ * on the write — rather than papered over in the display.
+ *
+ * The built-ins are checked too, because "My Wall" identical to Wall fails in
+ * exactly the same way, and neither chip has a better claim.
+ *
+ * Enforced server-side as well as in the edit bar for the same reason every
+ * other layout rule is (D6): the client greys the control out for feel, and the
+ * API is what makes it true.
+ */
+function duplicateRefusal(
+  arrangement: { visible: CardKey[]; sizes: CardSizes },
+  saved: readonly SavedPreset[],
+  excludeId?: string,
+): string | null {
+  const clash = duplicateArrangement(arrangement, saved, { excludeId });
+  if (!clash) return null;
+  return clash.kind === "builtin"
+    ? `That is exactly the built-in “${clash.name}” preset — use that instead.`
+    : `You already have a preset with this exact arrangement: “${clash.name}”.`;
 }
 
 export const dashboard = new Hono<AppEnv>()
@@ -244,6 +274,9 @@ export const dashboard = new Hono<AppEnv>()
       );
     }
 
+    const duplicate = duplicateRefusal(parsed, existing.map(toSavedPreset));
+    if (duplicate) return fail(c, "conflict", duplicate, 409);
+
     const now = Date.now();
     const row = {
       id: newId(),
@@ -307,6 +340,14 @@ export const dashboard = new Hono<AppEnv>()
     if (body.visible !== undefined) {
       const parsed = readArrangement(body);
       if ("error" in parsed) return fail(c, "bad_request", parsed.error, 400);
+
+      // Excluding this preset: re-capturing one onto an arrangement it already
+      // describes is a no-op, not a duplicate, and refusing it would make the
+      // button fail on the very case it is safest for.
+      const siblings = await db.select().from(cardPresets).where(eq(cardPresets.userId, userId));
+      const duplicate = duplicateRefusal(parsed, siblings.map(toSavedPreset), id);
+      if (duplicate) return fail(c, "conflict", duplicate, 409);
+
       update.visible = JSON.stringify(parsed.visible);
       update.sizes = serialisePresetSizes(parsed.sizes);
     }

@@ -17,7 +17,7 @@ import {
   type CardSizes,
   type DashboardLayoutInput,
   type DashboardLayoutResponse,
-  type LayoutPreset,
+  type PresetArrangement,
 } from "@central-command/types";
 import { apiGet, apiPatch } from "./api";
 import { useCardKey } from "./editMode";
@@ -232,7 +232,9 @@ export function useApplyPreset() {
     /** The current layout as a PATCH body — capture before applying, to undo. */
     snapshot: (): Required<DashboardLayoutInput> | null =>
       layout ? { hidden: layout.hidden, order: layout.order, sizes: layout.sizes } : null,
-    apply: (preset: LayoutPreset) => setLayout.mutate(presetLayoutInput(preset)),
+    /** Apply any arrangement — a built-in preset or one the user saved.
+     * Both are the same three fields, so both are the same single write. */
+    apply: (preset: PresetArrangement) => setLayout.mutate(presetLayoutInput(preset)),
     restore: (input: DashboardLayoutInput) => setLayout.mutate(input),
   };
 }

@@ -3265,11 +3265,122 @@ button {
   opacity: 0.9;
 }
 
+/* ─── Saved presets (edit mode) ───────────────────────────────────────────────
+   The user's own arrangements (docs/ui-suite.md Phase 7). Same chip as a
+   built-in preset — they do the same thing when clicked — with two extra
+   controls fused onto the pill, because they are the only presets that can be
+   deleted or re-captured. */
+
+/* One pill made of two or three buttons. The chip keeps the pill's left round
+   end and the trailing control keeps the right one, so a group with a delete
+   affordance still reads as a single chip rather than a chip with debris
+   beside it. */
+.preset-saved {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.preset-chip-saved {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none;
+  max-width: 12rem;
+}
+
+.preset-recapture,
+.preset-delete {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 29px;
+  padding: 0.28rem 0.5rem;
+  border: 1px solid var(--glass-border);
+  border-left: none;
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+  color: var(--text-faint);
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.preset-delete {
+  border-top-right-radius: 999px;
+  border-bottom-right-radius: 999px;
+  padding-right: 0.65rem;
+}
+
+.preset-recapture:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.preset-delete:hover,
+.preset-saved.is-arming .preset-delete {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+.preset-recapture:disabled,
+.preset-delete:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ─── Saving a preset ─────────────────────────────────────────────────────────
+   Collapsed to one button until used: the bar is dense, and naming a layout is
+   the rarest thing done in it. */
+
+.preset-save-open:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.preset-save-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.preset-save-input {
+  box-sizing: border-box;
+  min-height: 29px;
+  width: 9.5rem;
+  padding: 0.28rem 0.6rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.preset-save-input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.preset-save-confirm:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* Below the wall breakpoint the bar has no room for three more chips, and
    sizes collapse there anyway (D8) — a preset's whole point is its spans, so
-   offering one that cannot take effect would be a lie. */
+   offering one that cannot take effect would be a lie. Saved presets are spans
+   under a name, so the same reasoning retires the whole Phase 7 row with them:
+   a "Save" that captured a collapsed 1-column layout would store an
+   arrangement the user never made. */
 @media (max-width: 720px) {
   .preset-chip,
+  .preset-saved,
+  .preset-save-open,
+  .preset-save-form,
+  /* The labels and their lists go too. Hiding only the chips left "Presets"
+     standing over an empty list — a heading for nothing, which read as a row
+     that had failed to load rather than one deliberately withheld. */
+  .preset-label,
+  .preset-list,
   .edit-bar-rule {
     display: none;
   }

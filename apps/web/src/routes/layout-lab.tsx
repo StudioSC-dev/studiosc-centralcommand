@@ -6,12 +6,14 @@ import {
   cardSpan,
   cardSpans,
   gridShape,
+  layoutMatchesArrangement,
   matchingPresetKey,
   presetLayoutInput,
   type CardSize,
-  type LayoutPreset,
+  type PresetArrangement,
 } from "@central-command/types";
 import { meQueryOptions } from "../lib/auth";
+import { useSavedPresets } from "../lib/presets";
 import { CARD_REGISTRY } from "../components/cardRegistry";
 
 /**
@@ -287,52 +289,114 @@ function LabTile({
  * - **rows ≤ 3** — it still fits one screen.
  */
 function PresetAudit() {
-  const rows = LAYOUT_PRESETS.map((preset) => audit(preset));
+  const rows = LAYOUT_PRESETS.map((preset) =>
+    audit(preset.key, preset.label, preset, { requireFull: true }),
+  );
+  const failures = rows.filter((row) => !row.ok).length;
+
+  return (
+    <>
+      <section className="lab-card-group">
+        <h2 className="lab-card-name">
+          Presets{" "}
+          <span className={`lab-verdict lab-${failures === 0 ? "ok" : "bad"}`}>
+            {failures === 0 ? "all pass" : `${failures} FAILING`}
+          </span>
+        </h2>
+        <div className="lab-preset-audit">
+          {rows.map((row) => (
+            <PresetAuditRow key={row.key} row={row} />
+          ))}
+        </div>
+      </section>
+      <SavedPresetAudit />
+    </>
+  );
+}
+
+/**
+ * The same audit, run against the presets this user has actually saved
+ * (docs/ui-suite.md Phase 7).
+ *
+ * **One assertion is deliberately dropped.** A built-in preset must pack with
+ * zero holes — it is a promise the project makes about a good wall. A saved one
+ * is a promise the *user* made to themselves, and a deliberately sparse
+ * arrangement is a legitimate choice (D5), so holes are reported here as a
+ * number rather than a failure. What still has to hold is that it fits and that
+ * it round-trips: a saved preset that overflows would be refused at apply time,
+ * and one that does not identify as itself would never light its own chip.
+ *
+ * Empty for a user with no saved presets, and for the demo session, which
+ * cannot create any.
+ */
+function SavedPresetAudit() {
+  const { data } = useSavedPresets();
+  const presets = data?.presets ?? [];
+  if (presets.length === 0) return null;
+
+  const rows = presets.map((preset) => audit(preset.id, preset.name, preset, { requireFull: false }));
   const failures = rows.filter((row) => !row.ok).length;
 
   return (
     <section className="lab-card-group">
       <h2 className="lab-card-name">
-        Presets{" "}
+        Saved presets{" "}
         <span className={`lab-verdict lab-${failures === 0 ? "ok" : "bad"}`}>
           {failures === 0 ? "all pass" : `${failures} FAILING`}
         </span>
       </h2>
       <div className="lab-preset-audit">
         {rows.map((row) => (
-          <div key={row.key} className="lab-preset-row">
-            <span className={`lab-verdict lab-${row.ok ? "ok" : "bad"}`}>
-              {row.ok ? "PASS" : "FAIL"}
-            </span>
-            <strong>{row.label}</strong>
-            <span className="lab-note">
-              {row.cols} × {row.rows} · {row.cells}/{row.capacity} cells ·{" "}
-              {row.holes === 0 ? "no holes" : `${row.holes} HOLE(S)`} ·{" "}
-              {row.fits ? "fits" : "DOES NOT FIT"} ·{" "}
-              {row.roundTrip ? "round-trips" : "NO ROUND-TRIP"}
-            </span>
-            <span className="lab-note">{row.visible.join(" · ")}</span>
-          </div>
+          <PresetAuditRow key={row.key} row={row} />
         ))}
       </div>
     </section>
   );
 }
 
-function audit(preset: LayoutPreset) {
-  const input = presetLayoutInput(preset);
+function PresetAuditRow({ row }: { row: ReturnType<typeof audit> }) {
+  return (
+    <div className="lab-preset-row">
+      <span className={`lab-verdict lab-${row.ok ? "ok" : "bad"}`}>{row.ok ? "PASS" : "FAIL"}</span>
+      <strong>{row.label}</strong>
+      <span className="lab-note">
+        {row.cols} × {row.rows} · {row.cells}/{row.capacity} cells ·{" "}
+        {row.holes === 0 ? "no holes" : `${row.holes} hole(s)${row.requireFull ? " — HOLES" : ""}`} ·{" "}
+        {row.fits ? "fits" : "DOES NOT FIT"} ·{" "}
+        {row.roundTrip ? "round-trips" : "NO ROUND-TRIP"}
+      </span>
+      <span className="lab-note">{row.visible.join(" · ")}</span>
+    </div>
+  );
+}
+
+/**
+ * Four things asserted per preset, built-in or saved. `requireFull` is the one
+ * that differs between the two — see `SavedPresetAudit`.
+ */
+function audit(
+  key: string,
+  label: string,
+  arrangement: PresetArrangement,
+  { requireFull }: { requireFull: boolean },
+) {
+  const input = presetLayoutInput(arrangement);
   const hidden = new Set(input.hidden);
-  const visible = input.order.filter((key) => !hidden.has(key));
+  const visible = input.order.filter((k) => !hidden.has(k));
   const shape = gridShape(cardSpans(visible, input.sizes));
   const holes = shape.capacity - shape.cells;
   const fits = !shape.overflows;
-  const roundTrip =
-    matchingPresetKey({ hidden: input.hidden, order: input.order, visible, sizes: input.sizes }) ===
-    preset.key;
+  const layout = { hidden: input.hidden, order: input.order, visible, sizes: input.sizes };
+  // A built-in is matched by name, which also proves `matchingPresetKey` picks
+  // it out of the table; a saved one has no name in that table, so it is
+  // matched by the shared predicate the chip highlight actually uses.
+  const roundTrip = requireFull
+    ? matchingPresetKey(layout) === key
+    : layoutMatchesArrangement(layout, arrangement);
 
   return {
-    key: preset.key,
-    label: preset.label,
+    key,
+    label,
     visible,
     cols: shape.cols,
     rows: shape.rows,
@@ -341,6 +405,7 @@ function audit(preset: LayoutPreset) {
     holes,
     fits,
     roundTrip,
-    ok: fits && holes === 0 && roundTrip && shape.rows <= 3,
+    requireFull,
+    ok: fits && roundTrip && shape.rows <= 3 && (!requireFull || holes === 0),
   };
 }

@@ -17,8 +17,10 @@ enabled = true
 
 # Bind the Worker to the API path on the production hostname. Pages serves the
 # SPA at the root; this more-specific /api/* route takes precedence for API
-# traffic. The OAuth callback URL is derived from the request origin, so it
-# resolves to https://centralcommand.studiosc.dev/api/auth/google/callback.
+# traffic. The OAuth callback URL comes from APP_ORIGIN (below), NOT from the
+# request origin — `wrangler dev` simulates this route pattern, so locally the
+# Worker sees this production hostname while wrangler rewrites outbound
+# `Location` headers back to localhost:8787.
 [[routes]]
 pattern = "centralcommand.studiosc.dev/api/*"
 zone_name = "studiosc.dev"
@@ -33,11 +35,14 @@ migrations_dir = "../../packages/db/migrations"
 binding = "CACHE"
 id = "371f6b05b8f74a369d4053ed0b50345e"
 
-# Non-secret config. Public origin of the app, used to build the Google Calendar
-# push webhook address (centralcommand.studiosc.dev/api/calendar/notifications).
-# For local `wrangler dev`, override this to an empty string in `.dev.vars` so
-# calendar push self-disables (Google can't reach localhost); the poll keeps
-# data fresh regardless.
+# Non-secret config. The origin the browser uses to reach the app, and the single
+# source of truth for every absolute URL the Worker hands out: the Google OAuth
+# redirect URI, the post-callback redirect into the SPA, and the Calendar push
+# webhook address (centralcommand.studiosc.dev/api/calendar/notifications).
+#
+# `wrangler dev` MUST override this in `.dev.vars` to `http://localhost:5173`
+# (the Vite origin). Leaving the production value in place locally points the
+# OAuth callback and the push webhook at production.
 [vars]
 APP_ORIGIN = "https://centralcommand.studiosc.dev"
 

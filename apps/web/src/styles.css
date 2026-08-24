@@ -3129,14 +3129,32 @@ button {
   padding: 0;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.35rem;
   flex: 0 1 auto;
   min-width: 0;
 }
 
+/* The chip is the item, not the `li`. Left as a block box the `li` stretches to
+   the row and adds inline descender space under an inline-flex button, so the
+   pill inside it no longer sits where the row centres it. */
+.edit-bar-list > li {
+  display: flex;
+  align-items: center;
+}
+
+/* Every chip in the bar is one height, set here rather than left to whatever
+   each chip happens to contain. Only the preset glyph is taller than a line of
+   text, so without this it alone drove its chip's box and the preset pills sat
+   at a different height from Undo, the hidden-card chips and Done — all of them
+   centred on the same line, but not sharing top and bottom edges, which is what
+   reads as "not aligned". 29px is the glyph (18px) plus padding and border, and
+   it happens to match `.edit-done`, so the whole bar squares up. */
 .edit-chip {
   display: inline-flex;
   align-items: center;
+  box-sizing: border-box;
+  min-height: 29px;
   gap: 0.4rem;
   padding: 0.28rem 0.6rem;
   border: 1px solid var(--glass-border);

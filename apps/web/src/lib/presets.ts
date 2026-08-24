@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   SAVED_PRESET_LIMIT,
+  duplicateArrangement,
   fitsGrid,
   layoutArrangement,
   matchingSavedPresetIds,
@@ -121,6 +122,13 @@ export function useSavedPresetState(): {
   current: { visible: CardKey[]; sizes: CardSizes } | null;
   /** Whether that arrangement is one the server would store at all. */
   fits: boolean;
+  /**
+   * The preset the current arrangement already duplicates, if any.
+   *
+   * `excludeId` is applied by the caller, not here: saving is blocked by *any*
+   * match, while re-capturing preset X must ignore a match against X itself.
+   */
+  duplicateOf: (excludeId?: string) => { kind: "builtin" | "saved"; name: string } | null;
   /** Why saving is unavailable right now, or null if it is available. */
   blocked: string | null;
 } {
@@ -143,20 +151,32 @@ export function useSavedPresetState(): {
   // 400s, so the same `fitsGrid` that greys out a size option greys this out.
   const fits = current !== null && fitsGrid(current.visible, current.sizes);
 
+  // Two presets describing the same wall would light two chips at once, so the
+  // duplicate is refused rather than displayed. Checked here for the control's
+  // disabled state and again by the API, which is the authority (D6).
+  const duplicateOf = (excludeId?: string) =>
+    current ? duplicateArrangement(current, presets, { excludeId }) : null;
+  const savingDuplicate = duplicateOf();
+
   return {
     presets,
     matching: layout ? matchingSavedPresetIds(layout, presets) : [],
     atLimit,
     current,
     fits,
+    duplicateOf,
     blocked: !current
       ? "Loading the layout…"
       : current.visible.length === 0
         ? "There's nothing on the dashboard to save."
         : !fits
           ? "This layout is too tall for one screen. Shrink or hide a card first."
-          : atLimit
-            ? `You've saved ${SAVED_PRESET_LIMIT} presets. Delete one first.`
-            : null,
+          : savingDuplicate
+            ? savingDuplicate.kind === "builtin"
+              ? `This is exactly the built-in “${savingDuplicate.name}” preset.`
+              : `You've already saved this arrangement as “${savingDuplicate.name}”.`
+            : atLimit
+              ? `You've saved ${SAVED_PRESET_LIMIT} presets. Delete one first.`
+              : null,
   };
 }

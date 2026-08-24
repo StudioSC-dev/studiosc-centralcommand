@@ -157,14 +157,21 @@ function SavedPresetChip({
   const [arming, setArming] = useState(false);
   const remove = useDeletePreset();
   const update = useUpdatePreset();
-  const { current, fits } = useSavedPresetState();
+  const { current, fits, duplicateOf } = useSavedPresetState();
 
   // Whether this preset already describes what is on screen decides which of
   // the two write actions is meaningful, so it also decides which is offered:
   // re-capturing a preset that already matches would be a no-op button. `fits`
   // is the same gate Save carries — the endpoint refuses an arrangement too
   // tall for one screen, so offering the button would be offering a 400.
-  const canRecapture = !active && current !== null && current.visible.length > 0 && fits;
+  //
+  // The duplicate check excludes *this* preset: re-capturing onto something it
+  // already describes is a no-op rather than a clash. Matching a different
+  // preset is refused, because storing it would leave two chips claiming the
+  // same wall — the state this control is supposed to report unambiguously.
+  const clash = duplicateOf(preset.id);
+  const canRecapture =
+    !active && current !== null && current.visible.length > 0 && fits && clash === null;
 
   return (
     <span className={`preset-saved${arming ? " is-arming" : ""}`}>

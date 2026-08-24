@@ -13,7 +13,7 @@ type PresetRow = typeof cardPresets.$inferSelect;
 /**
  * Read a stored roster into a clean key list.
  *
- * Lenient in the same way the layout read path is (`parseHiddenCards` and
+ * Lenient in the same way the layout read path is (`rowsToLayout` and
  * friends): malformed JSON or a key we no longer ship degrades rather than
  * throwing. The failure mode is different here, though, and worth naming — a
  * preset stores the *roster*, so dropping an unrecognised key removes a card

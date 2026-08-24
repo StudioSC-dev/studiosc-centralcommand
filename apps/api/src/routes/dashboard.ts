@@ -17,15 +17,7 @@ import type { AppEnv } from "../env";
 import { createDb } from "../lib/db";
 import { newId } from "../lib/ids";
 import { ok, fail } from "../lib/response";
-import { getUserSettings, upsertUserSettings } from "../services/users";
-import {
-  parseCardOrder,
-  parseCardSizes,
-  parseHiddenCards,
-  serialiseKeys,
-  serialiseSizes,
-  toLayout,
-} from "../services/dashboard";
+import { readLayout, toLayout, writeLayout } from "../services/dashboard";
 import { scopeSizesToRoster, serialisePresetSizes, toSavedPreset } from "../services/presets";
 
 interface LayoutBody {
@@ -132,18 +124,12 @@ function duplicateRefusal(
 }
 
 export const dashboard = new Hono<AppEnv>()
-  // The user's card layout. A user with no settings row gets the default
-  // (everything visible) rather than a 404 — the layout is derived state, not a
-  // resource the user has to create.
+  // The user's card layout. A user with no `dashboard_cards` rows gets the
+  // default (everything visible, 1x1, registry order) rather than a 404 — the
+  // layout is derived state, not a resource the user has to create, and "no
+  // rows" is the same answer an absent settings row used to give (D15).
   .get("/layout", async (c) => {
-    const current = await getUserSettings(createDb(c.env.DB), c.get("userId"));
-    return ok(c, {
-      layout: toLayout(
-        parseHiddenCards(current?.hiddenCards),
-        parseCardOrder(current?.cardOrder),
-        parseCardSizes(current?.cardSizes),
-      ),
-    });
+    return ok(c, { layout: await readLayout(createDb(c.env.DB), c.get("userId")) });
   })
   // Replace the hidden set. Not a delta: the client sends the full set it wants,
   // which makes the request idempotent and avoids add/remove races between two
@@ -164,13 +150,13 @@ export const dashboard = new Hono<AppEnv>()
     }
 
     const db = createDb(c.env.DB);
-    const current = await getUserSettings(db, c.get("userId"));
+    const current = await readLayout(db, c.get("userId"));
 
     // Each half is replaced independently, so reordering doesn't have to resend
     // the hidden set (and vice versa) — the two are edited by different gestures.
-    let hidden = parseHiddenCards(current?.hiddenCards);
-    let order = parseCardOrder(current?.cardOrder);
-    let sizes = parseCardSizes(current?.cardSizes);
+    let hidden: CardKey[] = current.hidden;
+    let order: CardKey[] = current.order;
+    let sizes: CardSizes = current.sizes;
 
     if (body.hidden !== undefined) {
       const parsed = readKeys(body.hidden, "hidden");
@@ -210,11 +196,7 @@ export const dashboard = new Hono<AppEnv>()
       );
     }
 
-    await upsertUserSettings(db, c.get("userId"), {
-      hiddenCards: serialiseKeys(layout.hidden),
-      cardOrder: serialiseKeys(layout.order),
-      cardSizes: serialiseSizes(layout.sizes),
-    });
+    await writeLayout(db, c.get("userId"), layout);
 
     return ok(c, { layout });
   })

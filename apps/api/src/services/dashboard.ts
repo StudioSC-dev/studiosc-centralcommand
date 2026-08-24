@@ -1,5 +1,8 @@
+import { eq } from "drizzle-orm";
+import { dashboardCards } from "@central-command/db";
 import {
   CARD_KEYS,
+  DEFAULT_CARD_SIZE,
   isCardKey,
   isCardSize,
   normaliseCardSizes,
@@ -8,84 +11,66 @@ import {
   type CardSizes,
   type DashboardLayout,
 } from "@central-command/types";
+import type { Database } from "../lib/db";
 
 /**
- * Read the stored `hidden_cards` JSON into a clean key list.
+ * The dashboard layout, as rows (docs/ui-suite.md D15).
  *
- * Deliberately lenient: malformed JSON, a non-array, or a key we no longer ship
- * all degrade to "nothing hidden" rather than throwing. A stale key left behind
- * by a removed card must never be able to break someone's dashboard — and since
- * we store the *exceptions* (docs/ui-suite.md D4), dropping an unrecognised one
- * fails safe by showing a card rather than hiding one.
+ * This replaces three JSON columns on `user_settings` — `hidden_cards` (0012),
+ * `card_order` (0013) and `card_sizes` (0014) — with one row per *exception* in
+ * `dashboard_cards`. The storage rule is unchanged and deliberately so (D4): a
+ * card with no row is visible, at `1x1`, in registry order, so a card that
+ * ships later still needs no backfill.
  *
- * Writes are strict instead — see the PATCH route. Lenient in, strict out.
+ * What the parse/serialise pair below replaces was three near-identical lenient
+ * JSON readers and two serialisers, each of which had to re-derive "is this
+ * value still a card we ship?" against the same constant. A row is typed by the
+ * column, so leniency collapses to two guards applied once.
+ *
+ * **Lenient in, strict out** is preserved exactly. A row naming a card we no
+ * longer ship, or a size no longer on the menu, is dropped on read rather than
+ * throwing — it is history, and history must not be able to break a dashboard.
+ * The PATCH route stays strict, because a bad key arriving from a client is a
+ * bug worth surfacing.
  */
-export function parseHiddenCards(raw: string | null | undefined): CardKey[] {
-  if (!raw) return [];
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return [];
-  }
-  if (!Array.isArray(parsed)) return [];
-
-  const hidden = new Set(parsed.filter(isCardKey));
-  // Normalise to registry order so the stored order can never leak out.
-  return CARD_KEYS.filter((key) => hidden.has(key));
-}
+export type DashboardCardRow = typeof dashboardCards.$inferSelect;
 
 /**
- * Read the stored `card_order` JSON. Lenient for the same reasons as
- * `parseHiddenCards` — a stale key here fails safe by being ignored, leaving
- * that card in its registry position.
+ * Expand the stored rows into the full layout.
+ *
+ * `position` is a sparse sort key, not a dense index: rows that carry one sort
+ * by it, and every other card falls in afterwards in registry order. That is
+ * the same rule `resolveCardOrder()` applied to a partial JSON array, which is
+ * what makes this a storage change and not a behaviour change.
+ *
+ * Pure, and separate from the query, because it is the half worth reasoning
+ * about — and the half a test would exercise if this repo had a runner (gap 7).
  */
-export function parseCardOrder(raw: string | null | undefined): CardKey[] {
-  if (!raw) return [];
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return [];
-  }
-  if (!Array.isArray(parsed)) return [];
-
-  const seen = new Set<CardKey>();
-  const order: CardKey[] = [];
-  for (const key of parsed) {
-    if (isCardKey(key) && !seen.has(key)) {
-      seen.add(key);
-      order.push(key);
-    }
-  }
-  return order;
-}
-
-/**
- * Read the stored `card_sizes` JSON. Lenient in the same way as the two key
- * lists above: an unparseable blob, a stale key, or a size we no longer offer
- * all degrade to "that card is 1x1" rather than throwing. Because the map holds
- * only the exceptions (docs/ui-suite.md D4), dropping an entry fails safe — the
- * card comes back at its default size instead of at some impossible span.
- */
-export function parseCardSizes(raw: string | null | undefined): CardSizes {
-  if (!raw) return {};
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return {};
-  }
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
-
+export function rowsToLayout(rows: readonly DashboardCardRow[]): DashboardLayout {
+  const hidden = new Set<CardKey>();
   const sizes: CardSizes = {};
-  for (const [key, size] of Object.entries(parsed as Record<string, unknown>)) {
-    if (isCardKey(key) && isCardSize(size)) sizes[key] = size;
+  const positioned: { key: CardKey; position: number }[] = [];
+
+  for (const row of rows) {
+    if (!isCardKey(row.card)) continue;
+    if (row.hidden) hidden.add(row.card);
+    if (isCardSize(row.size)) sizes[row.card] = row.size;
+    if (row.position !== null) positioned.push({ key: row.card, position: row.position });
   }
-  return normaliseCardSizes(sizes);
+
+  // Ties are impossible from our own writes (positions come from an array
+  // index) but not from the database, which does not enforce uniqueness on a
+  // sort key. Registry order breaks them, so a hand-edited row cannot make the
+  // order depend on which order D1 happened to return the rows in.
+  positioned.sort(
+    (a, b) => a.position - b.position || CARD_KEYS.indexOf(a.key) - CARD_KEYS.indexOf(b.key),
+  );
+
+  return toLayout(
+    CARD_KEYS.filter((key) => hidden.has(key)),
+    positioned.map((entry) => entry.key),
+    sizes,
+  );
 }
 
 /**
@@ -112,15 +97,77 @@ export function toLayout(
   };
 }
 
-/** Serialise for storage. `null` when empty, so the common case leaves the
- * column empty rather than holding an empty array. */
-export function serialiseKeys(keys: readonly CardKey[]): string | null {
-  return keys.length === 0 ? null : JSON.stringify(keys);
+/**
+ * The rows a layout should be stored as — only the exceptions.
+ *
+ * Positions are written **only when the order differs from registry order**.
+ * The JSON column this replaces stored the full nine-key array after any PATCH,
+ * even one that changed nothing about the order, which meant every user who had
+ * ever touched their layout carried a frozen copy of a default. A card with no
+ * position row sorts in registry order, so omitting them says the same thing
+ * with nothing to keep in sync.
+ *
+ * When positions *are* written they are written for every key, including hidden
+ * ones — a hidden card's place is what it reappears in, and dropping it would
+ * make restoring a card move it.
+ */
+export function layoutRows(
+  userId: string,
+  layout: DashboardLayout,
+  now: number,
+): (typeof dashboardCards.$inferInsert)[] {
+  const hidden = new Set(layout.hidden);
+  const custom = layout.order.some((key, i) => CARD_KEYS[i] !== key);
+
+  const rows: (typeof dashboardCards.$inferInsert)[] = [];
+  layout.order.forEach((card, index) => {
+    const isHidden = hidden.has(card);
+    const size = layout.sizes[card];
+    const position = custom ? index : null;
+    // A row that says nothing is not written: "no row" already means visible,
+    // 1x1, registry order (D4).
+    if (!isHidden && position === null && (size === undefined || size === DEFAULT_CARD_SIZE)) {
+      return;
+    }
+    rows.push({
+      userId,
+      card,
+      hidden: isHidden ? 1 : 0,
+      position,
+      size: size ?? null,
+      updatedAt: now,
+    });
+  });
+  return rows;
 }
 
-/** As `serialiseKeys`, for the sparse size map. Normalised first, so a map of
- * nothing but `1x1` entries stores as `null` rather than `{}`. */
-export function serialiseSizes(sizes: CardSizes): string | null {
-  const clean = normaliseCardSizes(sizes);
-  return Object.keys(clean).length === 0 ? null : JSON.stringify(clean);
+/** The user's layout. A user who has never touched it has no rows and gets the
+ * default, which is the same answer an absent settings row used to give. */
+export async function readLayout(db: Database, userId: string): Promise<DashboardLayout> {
+  const rows = await db.select().from(dashboardCards).where(eq(dashboardCards.userId, userId));
+  return rowsToLayout(rows);
+}
+
+/**
+ * Replace the user's layout rows wholesale.
+ *
+ * A full replace rather than a per-card diff, because a layout PATCH already
+ * carries the complete set it wants (that is what makes it idempotent and free
+ * of add/remove races between two tabs). Batched so the delete and the insert
+ * land as one D1 transaction — half-applying this would reset a layout to the
+ * default, which is exactly the failure the old single-column write could not
+ * have.
+ */
+export async function writeLayout(
+  db: Database,
+  userId: string,
+  layout: DashboardLayout,
+): Promise<void> {
+  const rows = layoutRows(userId, layout, Date.now());
+  const clear = db.delete(dashboardCards).where(eq(dashboardCards.userId, userId));
+  if (rows.length === 0) {
+    await clear;
+    return;
+  }
+  await db.batch([clear, db.insert(dashboardCards).values(rows)]);
 }

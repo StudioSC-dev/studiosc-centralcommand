@@ -16,12 +16,8 @@ export interface SettingsInput {
   homeLon?: number | null;
   locationLabel?: string | null;
   units?: "metric" | "imperial" | null;
-  /** JSON array of hidden CardKeys, or null for "nothing hidden". */
-  hiddenCards?: string | null;
-  /** JSON array of CardKeys in the user's preferred order, or null for default. */
-  cardOrder?: string | null;
-  /** JSON object of CardKey → CardSize for resized cards, or null for all 1x1. */
-  cardSizes?: string | null;
+  // The dashboard layout used to be three JSON fields here. It is now rows in
+  // `dashboard_cards` — see services/dashboard.ts and docs/ui-suite.md D15.
 }
 
 /**

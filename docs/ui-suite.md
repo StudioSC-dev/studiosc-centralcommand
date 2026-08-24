@@ -2,9 +2,9 @@
 
 **Scope:** per-user control over *which* cards appear on the dashboard and *how large* each
 one is, on a uniform cell grid.
-**Status:** Phases 1–6 complete (visibility · edit mode · reordering · sizing · card fit · presets) · **contract mirrored** · Phase 6 awaiting its live pass (§8)
+**Status:** Phases 1–6 complete (visibility · edit mode · reordering · sizing · card fit · presets), all verified · **contract mirrored** · nothing outstanding
 **Owner branch:** `feat/ui-suite` → `dev`
-**Last updated:** 2026-08-23
+**Last updated:** 2026-08-24
 
 Companion documents:
 
@@ -624,7 +624,7 @@ the *order* is not right yet (D9). One button is the whole arrangement, as a sin
 | ✅ 6.5 | Preset row in the edit bar, with active state and Undo | `apps/web` | built. |
 | ✅ 6.6 | `PresetGlyph` — the arrangement drawn at its real derived shape | `apps/web` | built. |
 | ✅ 6.7 | Preset audit in `/layout-lab` | `apps/web` | built. Asserts fit, zero holes, round-trip, rows ≤ 3. |
-| ✅ 6.8 | Verification | — | typecheck + build green; harness green; §8 live pass pending. |
+| ✅ 6.8 | Verification | — | **verified 2026-08-24.** Typecheck + build + harness green; full §8 live pass walked — all three presets, active state, Undo (including its drop on hand-edit), the cell readout, chip alignment, the wrapped tray at 7 hidden cards, three widths, both themes, lab audit green, demo locked out. |
 
 **No API change, and no migration — this is the whole point of the phase being cheap.** A
 preset is not a new kind of state; it is one `PATCH` that happens to set `hidden`, `order` and
@@ -735,7 +735,7 @@ already has three.
 | 3 — Reordering | 9 | 9 | — demo seed order settled as "registry order" (4.9) |
 | 4 — Sizing | 9 | **9** | — shipped |
 | 5 — Card fit | 11 | **11** | — shipped; verified across all 45 card×size tiles in the lab (§10) |
-| 6 — Presets | 8 | **8** | — built; typecheck/build/harness green, **live pass outstanding** |
+| 6 — Presets | 8 | **8** | — shipped and verified (§8 walked 2026-08-24) |
 
 Pre-existing partial credit, for honesty: `.span-2` (dead) and the settings teaser (a stub
 that says the feature is coming). Neither does anything.
@@ -961,5 +961,6 @@ browser.
 | 2026-08-23 | First run of the lab, two findings within minutes. Weather's text swap fired ~50px early because container queries measure the **content box**, not the tile — threshold moved 400px → 300px. Health 1×1 flagged `OVERFLOW 12px`: its fixed parts overshot the tile with the entry list already thinned to nothing, so the today-total is now `data-drop-order="1"` — the card gives up a figure the form and list imply, never a control. `.log-list` capped at `max-content` like `.gaming-matches`. The lab itself was wrong too, scoring the Weather tile OK; it now counts blocks that are *not rendered* whatever hid them. |
 | 2026-08-23 | All 45 card×size tiles confirmed clean in the lab. Phase 5 closed. Remaining across the whole document: 2.9 (keyboard hide/restore, deliberately unverified) and the Phase 0 contract mirror. |
 | 2026-08-23 | **2.9 closed as not required**, not deferred — a keyboard-only walkthrough was considered and declined for a single-user wall display. Phase 2 is 9/9. The only thing outstanding in this document is the Phase 0 contract mirror. |
+| 2026-08-24 | **Phase 6 verified** (6.8). Full §8 pass walked: each preset produces its stated shape with no holes, the active highlight clears on hand-edit, Undo restores and then correctly disappears, chip alignment holds after the glyph bump, the tray wraps at seven hidden cards, presets hide at one column, both themes clean, lab audit reads all-pass, and a demo session cannot long-press into edit mode. Nothing outstanding in this document. |
 | 2026-08-23 | **Phase 6 built — presets** (6.1–6.7). Wall / Focus / Minimal as constants in `packages/types`, applied as one `PATCH` with no new endpoint and **no migration**; D12 recorded. Presets store the *roster* rather than the exceptions — the inverse of D4 — so a card shipped later joins Wall (which names `CARD_KEYS`) and stays out of Focus and Minimal. All three pack with zero holes, asserted in `/layout-lab` rather than trusted, since the repo has no test runner (gap 7). Two pre-existing defects surfaced: the long-press into edit mode was never demo-gated (only the header toggle was), and the edit bar could not wrap — which had never mattered until Minimal made hiding seven cards a single click. |
 | 2026-08-23 | **Phase 0 closed — contract mirrored.** D1/D2/D5/D6/D9/D10 written into `integrations/homelab-telemetry.md` as its D11(a)–(e), under an explicit note that the two D-number sets collide and must never be cited bare across files. Four things there were **wrong**, not merely stale, and were corrected in place with the original struck rather than overwritten: the pinned-rows `ceil(N/3)` column rule, the prediction that order and sizing would force a `dashboard_cards` table, Phase 2's migration number (`0013` → `0015`, both consumed here), and span/reorder still listed as deliberately out of plan. Two new open items were raised **on the homelab side**: `HomelabCard` must arrive with a fit strategy under D11(e), and it takes `/layout-lab` from 45 tiles to 50. |

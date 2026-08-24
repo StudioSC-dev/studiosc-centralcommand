@@ -6,6 +6,7 @@ import {
   cardSpan,
   cardSpans,
   gridShape,
+  duplicateArrangement,
   layoutMatchesArrangement,
   matchingPresetKey,
   presetLayoutInput,
@@ -334,8 +335,16 @@ function SavedPresetAudit() {
   const presets = data?.presets ?? [];
   if (presets.length === 0) return null;
 
-  const rows = presets.map((preset) => audit(preset.id, preset.name, preset, { requireFull: false }));
-  const failures = rows.filter((row) => !row.ok).length;
+  const rows = presets.map((preset) => ({
+    ...audit(preset.id, preset.name, preset, { requireFull: false }),
+    // The one assertion that only exists for saved presets: no two of them —
+    // and none of them and a built-in — may describe the same wall, or two
+    // chips light at once and the highlight stops reporting a single state.
+    // The write path refuses this (D13); the audit is what catches a row
+    // written before that check existed, since nothing backfills.
+    duplicate: duplicateArrangement(preset, presets, { excludeId: preset.id }),
+  }));
+  const failures = rows.filter((row) => !row.ok || row.duplicate !== null).length;
 
   return (
     <section className="lab-card-group">
@@ -347,23 +356,31 @@ function SavedPresetAudit() {
       </h2>
       <div className="lab-preset-audit">
         {rows.map((row) => (
-          <PresetAuditRow key={row.key} row={row} />
+          <PresetAuditRow key={row.key} row={row} duplicate={row.duplicate} />
         ))}
       </div>
     </section>
   );
 }
 
-function PresetAuditRow({ row }: { row: ReturnType<typeof audit> }) {
+function PresetAuditRow({
+  row,
+  duplicate,
+}: {
+  row: ReturnType<typeof audit>;
+  duplicate?: { kind: "builtin" | "saved"; name: string } | null;
+}) {
+  const ok = row.ok && !duplicate;
   return (
     <div className="lab-preset-row">
-      <span className={`lab-verdict lab-${row.ok ? "ok" : "bad"}`}>{row.ok ? "PASS" : "FAIL"}</span>
+      <span className={`lab-verdict lab-${ok ? "ok" : "bad"}`}>{ok ? "PASS" : "FAIL"}</span>
       <strong>{row.label}</strong>
       <span className="lab-note">
         {row.cols} × {row.rows} · {row.cells}/{row.capacity} cells ·{" "}
         {row.holes === 0 ? "no holes" : `${row.holes} hole(s)${row.requireFull ? " — HOLES" : ""}`} ·{" "}
         {row.fits ? "fits" : "DOES NOT FIT"} ·{" "}
         {row.roundTrip ? "round-trips" : "NO ROUND-TRIP"}
+        {duplicate && ` · DUPLICATE OF ${duplicate.name}`}
       </span>
       <span className="lab-note">{row.visible.join(" · ")}</span>
     </div>

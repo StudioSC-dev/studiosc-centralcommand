@@ -490,13 +490,24 @@ export function resolveCardOrder(stored: readonly CardKey[]): CardKey[] {
  * The sizes a card may take, as `<width>x<height>` in grid cells.
  *
  * A closed set on purpose (D1): the dashboard is a wall of uniform widgets, and
- * free-form spans buy the ability to make it ragged. Everything here fits the
- * 4×3 ceiling with room to spare, and `3x1` is the widest because a full-width
- * banner is the only shape a 3-column reference grid cannot otherwise express.
+ * free-form spans buy the ability to make it ragged. Every member fits the 4×3
+ * ceiling, and the two extremes are there because they are the shapes a
+ * 3-column reference grid cannot otherwise express: `3x1` is a full-width
+ * banner, and `1x3` a full-height column (D14).
  */
-export type CardSize = "1x1" | "2x1" | "1x2" | "2x2" | "3x1";
+export type CardSize = "1x1" | "2x1" | "1x2" | "2x2" | "3x1" | "1x3";
 
-export const CARD_SIZES: readonly CardSize[] = ["1x1", "2x1", "1x2", "2x2", "3x1"] as const;
+// Appended rather than slotted in beside `1x2`: this array *is* the order the
+// size picker draws, and re-sorting it would move every option a user already
+// knows the position of for the sake of a tidier list.
+export const CARD_SIZES: readonly CardSize[] = [
+  "1x1",
+  "2x1",
+  "1x2",
+  "2x2",
+  "3x1",
+  "1x3",
+] as const;
 
 /** The size a card gets when it is absent from the stored map (D4). */
 export const DEFAULT_CARD_SIZE: CardSize = "1x1";
@@ -520,6 +531,7 @@ const CARD_SIZE_SPANS: Record<CardSize, CardSpan> = {
   "1x2": { w: 1, h: 2 },
   "2x2": { w: 2, h: 2 },
   "3x1": { w: 3, h: 1 },
+  "1x3": { w: 1, h: 3 },
 };
 
 /** Cells a size occupies. The union is closed, so this never has to guess. */
@@ -987,6 +999,26 @@ export function duplicateArrangement(
     (preset) => preset.id !== options.excludeId && arrangementsMatch(arrangement, preset),
   );
   return other ? { kind: "saved", name: other.name } : null;
+}
+
+/**
+ * The cards this arrangement leaves out — every live `CardKey` not in its
+ * roster.
+ *
+ * Exists to make gap 14 sayable in the UI rather than only in this file. A
+ * saved preset stores its roster (D12/D13) and nothing backfills it, so a card
+ * that ships after the preset was written is absent from it — correct for an
+ * arrangement someone deliberately pared down, and a genuine surprise the first
+ * time it happens. The chip can only warn about it if it can count it, and it
+ * has to be counted against the *live* constant rather than against whatever
+ * was current when the row was written, which is not recorded anywhere.
+ *
+ * `wall` is the escape hatch and answers `[]` forever, because its roster *is*
+ * `CARD_KEYS`.
+ */
+export function arrangementOmits(arrangement: PresetArrangement): CardKey[] {
+  const roster = new Set(arrangement.visible);
+  return CARD_KEYS.filter((key) => !roster.has(key));
 }
 
 /** Body for POST /dashboard/presets — name plus the arrangement to save. */

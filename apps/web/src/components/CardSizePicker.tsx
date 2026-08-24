@@ -112,13 +112,18 @@ function label(size: CardSize): string {
 }
 
 /**
- * A miniature of the shape, drawn as a 3×2 cell field with the span filled in.
+ * A miniature of the shape, drawn as a 3×3 cell field with the span filled in.
  * The label alone ("2 × 1") makes you translate; the picture does not.
+ *
+ * The field is the full `MAX_GRID_COLS - 1` × `MAX_GRID_ROWS` reference wall,
+ * so every member of the union can be drawn at its true proportions. It was 3×2
+ * until `1x3` landed (D14), which a 2-row field would have drawn identically to
+ * the `1x2` sitting beside it in the same menu.
  */
 function SizeGlyph({ size }: { size: CardSize }) {
   const { w, h } = cardSpan(size);
   const cells = [];
-  for (let row = 0; row < 2; row++) {
+  for (let row = 0; row < 3; row++) {
     for (let col = 0; col < 3; col++) {
       cells.push(
         <span

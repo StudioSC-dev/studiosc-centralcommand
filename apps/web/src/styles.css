@@ -784,6 +784,12 @@ button {
   grid-row: span 2;
 }
 
+/* A full-height column (D14). `MAX_GRID_ROWS` is 3, so this is the tallest span
+   the grid can express and it always reaches both edges of the wall. */
+.card-h3 {
+  grid-row: span 3;
+}
+
 /* Narrower screens step down to 2, then 1 column. Below the 3-col wall layout we
    drop the viewport-fill and let cards keep a fixed height and scroll the page. */
 @media (max-width: 1100px) {
@@ -811,7 +817,8 @@ button {
   .card-w3 {
     grid-column: span 1;
   }
-  .card-h2 {
+  .card-h2,
+  .card-h3 {
     grid-row: span 1;
   }
 }
@@ -905,7 +912,9 @@ button {
      cannot be scrolled. useFitSections drops [data-drop-order] blocks until the
      body fits; a card with none marked still scrolls, visibly, which beats
      silently clipping a card nobody has audited. `.is-scrollable` is the
-     deliberate opt-out (News). */
+     deliberate opt-out — Today, which really scrolls, and News, which pages
+     against a measured list and only needs the drop pass to stay out of it
+     (D10, and see CardProps.scrollable). */
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
@@ -3075,12 +3084,16 @@ button {
   cursor: not-allowed;
 }
 
-/* A miniature of the shape: a 3×2 field of cells with the span filled in. The
-   label alone makes you translate "2 × 1" into a picture; this is the picture. */
+/* A miniature of the shape: a 3×3 field of cells with the span filled in. The
+   label alone makes you translate "2 × 1" into a picture; this is the picture.
+
+   Three rows rather than two since `1x3` joined the union (D14) — a 2-row field
+   cannot draw a 3-tall span, and it would have drawn it as `1x2`, which is a
+   different option sitting next to it in the same menu. */
 .size-glyph {
   display: grid;
   grid-template-columns: repeat(3, 4px);
-  grid-template-rows: repeat(2, 4px);
+  grid-template-rows: repeat(3, 4px);
   gap: 1px;
   flex: 0 0 auto;
 }
@@ -3271,10 +3284,10 @@ button {
    controls fused onto the pill, because they are the only presets that can be
    deleted or re-captured. */
 
-/* One pill made of two or three buttons. The chip keeps the pill's left round
-   end and the trailing control keeps the right one, so a group with a delete
-   affordance still reads as a single chip rather than a chip with debris
-   beside it. */
+/* One pill made of two to four buttons. The chip keeps the pill's left round
+   end and the trailing control keeps the right one, so a group with rename and
+   delete affordances still reads as a single chip rather than a chip with
+   debris beside it. */
 .preset-saved {
   display: inline-flex;
   align-items: stretch;
@@ -3288,6 +3301,7 @@ button {
 }
 
 .preset-recapture,
+.preset-rename,
 .preset-delete {
   display: inline-flex;
   align-items: center;
@@ -3310,9 +3324,31 @@ button {
   padding-right: 0.65rem;
 }
 
-.preset-recapture:hover {
+.preset-recapture:hover,
+.preset-rename:hover {
   color: var(--accent);
   border-color: var(--accent);
+}
+
+/* Armed re-capture reads as a warning rather than a danger: it replaces one
+   stored arrangement with another, where delete removes the preset outright. */
+.preset-saved.is-arming .preset-recapture {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* The roster count (gap 14) — how many of the live cards this preset includes.
+   Muted and small: it reports a fact about the preset, it does not warn. */
+.preset-omits {
+  margin-left: 0.35rem;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+.preset-chip.is-active .preset-omits {
+  color: inherit;
+  opacity: 0.75;
 }
 
 .preset-delete:hover,
@@ -3322,6 +3358,7 @@ button {
 }
 
 .preset-recapture:disabled,
+.preset-rename:disabled,
 .preset-delete:disabled {
   opacity: 0.5;
   cursor: default;

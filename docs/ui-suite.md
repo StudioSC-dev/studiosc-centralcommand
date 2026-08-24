@@ -2,7 +2,7 @@
 
 **Scope:** per-user control over *which* cards appear on the dashboard and *how large* each
 one is, on a uniform cell grid.
-**Status:** Phases 1–7 complete (visibility · edit mode · reordering · sizing · card fit · presets · user presets), all verified · **contract mirrored** · nothing outstanding
+**Status:** Phases 1–7 complete and verified (visibility · edit mode · reordering · sizing · card fit · presets · user presets) · **contract mirrored** · **Phase 8 built; migration applied, live pass outstanding** (consolidation · `1x3` · the unguarded edges)
 **Owner branch:** `feat/ui-suite` → `dev`
 **Last updated:** 2026-08-24
 
@@ -372,6 +372,72 @@ message says which one rather than only that something does.
 nothing backfills, so a row that predates it — or one from a client that skipped it — must
 still highlight rather than be dropped from the comparison. `/layout-lab` flags exactly that
 case as `DUPLICATE OF <name>`.
+
+### D14 — `1x3` joins the size set; the union stays closed
+
+**Decided 2026-08-24, during Phase 8.** `CardSize` gains a sixth member, a full-height
+column. Carried undecided since Sessions 39–40 and settled here because Phase 8 is the phase
+that had nothing else to hide behind.
+
+The union is closed by D1, so every addition has to argue for itself. `1x3` earns it on the
+same ground `3x1` did: **it is a shape a 3-column reference grid cannot otherwise express.**
+`3x1` is the full-width banner; `1x3` is the full-height column, and with `MAX_GRID_ROWS` at
+3 it is the tallest span the grid can hold — it always reaches both edges of the wall. Nothing
+between those two is missing: `1x2` and `2x2` already cover "tall" and "big".
+
+It cost what the phase list predicted — one union member, one span entry, one CSS class and
+one breakpoint line — plus one thing it did not: **the size picker's glyph had to grow a row.**
+It was a 3×2 cell field, which cannot draw a 3-tall span, and would have drawn `1x3`
+identically to the `1x2` sitting next to it in the same menu. It is now 3×3, the full reference
+wall, so every member of the union is drawn at its true proportions.
+
+**What does not change:** `fitsGrid`, the packer and the budget readout take the new size
+without amendment, because they only ever read `cardSpan()`. The lab goes from 45 tiles to 54
+by iterating `CARD_SIZES`, and no preset uses it — a built-in adopting a full-height column
+would be a separate decision about what those three presets are *for*.
+
+### D15 — The layout is rows, not three JSON columns
+
+**Decided 2026-08-24, during Phase 8.** `user_settings.hidden_cards` (0012), `card_order`
+(0013) and `card_sizes` (0014) are replaced by a `dashboard_cards` table keyed on
+`(user_id, card)`, with `hidden`, `position` and `size` columns. Migration `0016` creates it,
+backfills from the three columns, and drops them — in that order, in one migration, so the
+layout never exists in neither place.
+
+This is gap 6 closed, and it is worth saying why it is being done **now**, when Phase 7
+explicitly declined to be the thing that forced it. It was declined then because presets are a
+different problem — a named entity with its own lifecycle, which is a table for reasons that
+have nothing to do with the layout (D13). Doing it here is the opposite case: no feature
+needs it, so it can be done as the pure storage change it is, with **no user-visible
+difference at all**. That is the only condition under which this is a good migration to write,
+and Phase 8 is the first phase where it holds.
+
+**The rule the consolidation had to preserve is D4, and it does.** A card with no row is
+visible, at `1x1`, in registry order — so a card that ships later still needs no backfill.
+That is what makes `position` **nullable and sparse rather than a dense `0..n`**: keys that
+carry one sort by it, keys that do not fall in afterwards in registry order, which is exactly
+what `resolveCardOrder()` already did to a partial JSON array. Rows are only written for cards
+that are hidden, moved or resized.
+
+**One behaviour genuinely improves, and it is small.** The old `card_order` column stored the
+full nine-key array after *any* PATCH, including one that changed nothing about the order — so
+every user who had ever touched their layout carried a frozen copy of the default. Positions
+are now written only when the order actually differs from registry order.
+
+**Three things this buys beyond tidiness:**
+
+1. **One write path instead of three.** Every layout `PATCH` rewrote all three columns
+   regardless of which had changed (§9 — the asymmetry that made a reverted `0014` present as
+   a broken *reorder*). It is now one delete + insert, batched into a single D1 transaction.
+2. **Leniency collapses.** Three near-identical lenient JSON readers, each re-deriving "is
+   this still a card we ship?", become two guards applied once in `rowsToLayout()`. Lenient in,
+   strict out is unchanged.
+3. **Two tabs cannot clobber each other on a blob.** The composite key makes a per-card write
+   expressible, which a shared JSON string never was.
+
+**What is deliberately *not* done:** the write is still a full replace, not a per-card diff. A
+layout `PATCH` already carries the complete set it wants — that is what makes it idempotent
+(§9) — and turning it into a diff would trade that away for nothing.
 
 ### D8 — Below the wall breakpoint, sizes collapse
 
@@ -862,9 +928,162 @@ and are already known to differ.
   save field, discarding the name. The field stops propagation, so `Escape` closes the field
   and only the field.
 
+### Phase 8 — Consolidation and the unguarded edges
+
+**The first phase with no new feature in it.** Phases 1–7 each added a capability; this one
+pays down three things they left behind, chosen together because none of them is worth a phase
+alone and all three are cheap while the context is fresh. Nothing here changes what the
+dashboard can do — the one addition a user can see is a sixth size.
+
+There was **no Phase 8 on record** when this work started: the document closed at Phase 7 with
+nothing outstanding, and the four candidates were listed in `HANDOVER.md` in rough order of
+readiness. Three were taken; **the Homelab card was deliberately left out** and stays the next
+piece of work, unblocked, with its prerequisites named in the contract's D11(e)–(f).
+
+| # | Deliverable | Where | Status |
+|---|---|---|---|
+| ✅ 8.1 | `1x3` in `CardSize`, `CARD_SIZES` and `CARD_SIZE_SPANS` (D14) | `packages/types` | built. Appended, not slotted in — the array *is* the picker's order. |
+| ✅ 8.2 | `.card-h3` + its ≤720px collapse; size glyph 3×2 → 3×3 | `apps/web` | built. The glyph bump is the part the estimate missed. |
+| ✅ 8.3 | `dashboard_cards` table + migration `0016_dashboard_cards.sql` (D15) | `packages/db` | built and **applied locally 2026-08-24**. Creates, backfills, then drops — one migration. Rewritten twice around D1 limits; see 8.2. |
+| ✅ 8.4 | `rowsToLayout()` / `layoutRows()` / `readLayout()` / `writeLayout()` | `apps/api` | built. The two pure halves are separate from the query on purpose (gap 7). |
+| ✅ 8.5 | `GET`/`PATCH /dashboard/layout` on rows; `SettingsInput` loses three fields; demo seed rewritten | `apps/api` · `packages/db` | built. No wire change — the endpoint's request and response are byte-identical. |
+| ✅ 8.6 | `arrangementOmits()` + the roster count on a saved chip (gap 14) | `packages/types` · `apps/web` | built. |
+| ✅ 8.7 | Re-capture arms before it fires (gap 16) | `apps/web` | built. Shares one arming slot with delete. |
+| ✅ 8.8 | Rename in the preset UI (gap 15), on a shared `PresetNameField` | `apps/web` | built. No API change — `PATCH /presets/:id` already took `name`. |
+| ✅ 8.9 | `scrollable`'s two reasons written down (gap 9) | `apps/web` | built. A comment change, and the right one — see below. |
+| 🟡 8.10 | Verification | — | **partial.** Typecheck 5/5, build, migration applied and backfill confirmed row-by-row, demo re-seeded. **No live pass and no lab pass** — the 54 tiles and every UI change are unwalked. |
+
+#### 8.1 — Why the consolidation is a good idea now and was a bad one in Phase 7
+
+Phase 7 twice declined to be forced into this table, and was right to. A preset is a named
+entity with a lifecycle — created, renamed, deleted, one at a time — and it is a table for
+reasons that have nothing to do with the layout (D13). The layout is the *exceptions to one
+derived value*, which is a genuinely different shape, and consolidating it as a side effect of
+shipping presets would have coupled two migrations that share nothing but a release.
+
+Doing it in a phase where **no feature needs it** is what makes it safe: there is no
+user-visible difference to get wrong, so the only thing that can fail is the migration itself,
+and that is a thing that can be checked directly. The full rationale is D15.
+
+#### 8.2 — The migration, and the D1 trap that rewrote it three times
+
+Everything else in this phase is additive or cosmetic. `0016` is not: it **drops three columns**
+after backfilling them, and there is no second migration to fall back to.
+
+Two properties keep that honest. It is **one migration**, so the backfill and the drops are one
+unit — there is no window in which the layout exists in neither place. And the backfill is **as
+lenient as the code it replaces**: every read of a stored blob is guarded by `json_valid`,
+because `parseHiddenCards` and friends always degraded malformed JSON to a default rather than
+throwing, and a migration that failed on a row the app tolerated would be a strictly worse
+reader than the thing being retired.
+
+**The backfill deliberately contains no `json_each`, and this is the finding of the phase.**
+
+The obvious way to read a JSON array into rows is
+`FROM user_settings s, json_each(s.hidden_cards)`. It was written that way, and it fails on D1
+with `malformed JSON: SQLITE_ERROR`. What makes it a trap rather than a bug is the asymmetry:
+
+- `SELECT … FROM user_settings s, json_each(s.card_order) j` — **works**, returns the right rows.
+- `INSERT INTO t (…) SELECT` *the identical query* — **fails.**
+
+**D1 rejects any write whose SELECT correlates a table-valued JSON function to an outer table.**
+Confirmed against the local D1 across every form that would normally pin the join order —
+`CROSS JOIN`, a subquery with the `json_valid` filter pushed inside, and a
+`WITH … AS MATERIALIZED` CTE — all fail identically. `CREATE TABLE … AS SELECT` fails too, so it
+is the write, not the `INSERT`. Scalar JSON functions (`json_valid`, `json_extract`) are
+unaffected and work in writes without complaint.
+
+That is worth carrying beyond this migration: **a `json_each` backfill that reads correctly in a
+`SELECT` proves nothing about whether it will run.** Test the write.
+
+The second form — `SELECT 'weather' UNION ALL SELECT 'summary' …` for the nine keys — hit
+**D1's compound-SELECT term limit** at nine terms. The third form ships: a **recursive CTE**
+splitting a comma-separated literal, which is what `seed-demo.sql` already does for its date
+sequence, cross-joined against `user_settings` with scalar JSON per key.
+
+Spelling the nine keys out has a virtue the `json_each` version did not: the backfill writes
+rows only for cards the app actually ships, which is exactly what the lenient read path did
+anyway.
+
+**One consequence to know about the data.** `position` is backfilled as the `instr()` byte
+offset of the quoted key inside the stored order, not as an array index — deriving the true
+index without `json_each` would have cost far more than it is worth. The offsets increase with
+array index, so the sort order is identical, and D15 defines `position` as a sparse *sort key*
+whose absolute values carry no meaning. The real user's row came through as
+`2, 12, 22, 29, 40, 48, 57, 66, 77` — registry order, exactly as stored. The first layout write
+normalises it to a dense `0..n` through `layoutRows()`, and in that user's case to nothing at
+all, since their order *is* registry order (the frozen-default case D15 describes).
+
+**§9's miniflare trap applies here more than anywhere.** It has already bitten `0012` and
+`0014`, and a reverted `0016` would present as a dashboard that has forgotten its layout — the
+*legible* failure, unlike the two before it. It was applied with no `workerd` process running
+and confirmed with `SELECT name FROM d1_migrations`, not by looking at the table.
+
+**A note on the first, failed run:** it rolled back completely. `0016` was not recorded, the
+table was not created, and all three columns were still present — so the retry started from a
+clean state rather than a half-migrated one. Worth knowing that D1 gives that guarantee, and
+worth confirming rather than assuming next time.
+
+#### 8.3 — Re-capture and rename, and why one arms and the other does not
+
+Gap 16 named re-capture the one unguarded destructive write in Phase 7: it overwrites the
+stored arrangement with what is on screen, the previous one is gone, and Undo does not reach
+it. It is now the same two-step delete has been since 7.2 — first click arms (`Replace?`),
+second confirms, blur disarms — and the two **share one arming slot**, so reaching for either
+disarms the other and only one control on a chip can be mid-gesture at a time.
+
+Gap 15's rename is the phase's one added affordance, and it reverses a Phase 7 judgement.
+Rename was left out to keep the chip off a third fused button. That was the wrong trade: the
+workaround it left behind is **delete-then-save**, which destroys a saved arrangement to change
+a label — precisely the class of detour the arming above exists to prevent. So the chip carries
+a third button, and the two rarely-used ones are icons.
+
+**Rename does not arm**, because nothing is lost by renaming; it swaps the chip for a field
+rather than firing. That field is now shared with `+ Save` as `PresetNameField`, which is not
+tidiness: both writes are validated by the same `normalisePresetName` and refused by the same
+per-user uniqueness rule, so two fields could have disagreed about which names are offerable.
+The only real difference is which names count as taken — a rename must exclude its own — and
+that is the parameter.
+
+#### 8.4 — Gap 14 is a UI sentence, not a mechanism
+
+A saved preset stores its roster and nothing backfills it, so a card that ships later is absent
+from every one of them. That is the **correct** default (D12/D13) and is not being changed —
+Wall is the escape hatch and is the one preset that names the live constant. What was wrong is
+that nothing in the UI admitted it.
+
+A saved chip now shows `n/9` when its roster is short of the live `CARD_KEYS`, and the `Saved`
+label's tooltip says the rule. Counted against the live constant rather than against whatever
+was current when the row was written, because that is not recorded anywhere — and it is
+deliberately a **count, not a warning icon**: the preset is not broken, it simply does not
+include everything.
+
+Today this reports nothing on most walls, because no card has shipped since. It is written now
+so that the day the Homelab card lands, the surprise has already been described.
+
+#### 8.5 — Gap 9 was a documentation bug, not a code one
+
+`scrollable` looked inert on News: the list clips and pages against a measured size (5.11), so
+the body has nothing left to scroll. The temptation was to drop the flag.
+
+That would have been wrong, and the reason is the more useful half of this gap. The flag does
+**two** things — it opts the body out of `useFitSections` *and* lets it scroll — and the two
+exempt cards want them in different proportions:
+
+- **Today genuinely scrolls.** Nothing in it is droppable and its content has no fixed extent.
+- **News manages its own fit.** What it needs is the *other* half: the shared drop pass keeping
+  its hands off a card that is already deciding for itself how much to show. Two mechanisms
+  competing over one body is exactly how the Weather regressions happened (§10).
+
+So the flag stays, on both cards, and what changes is that D10's one-line reason is replaced by
+the two real ones — in `CardProps`, in `styles.css`, and in the lab's report legend. Dropping
+`scrollable` from News would also have moved nine tiles from "exempt" to "measured" with no
+browser available to walk them, which is a change worth making deliberately or not at all.
+
 ---
 
 ## 5. Deliverable status
+
 
 | Phase | Deliverables | Done | Remaining |
 |---|---|---|---|
@@ -873,9 +1092,10 @@ and are already known to differ.
 | 2 — Edit mode | 9 | **9** | — shipped |
 | 3 — Reordering | 9 | 9 | — demo seed order settled as "registry order" (4.9) |
 | 4 — Sizing | 9 | **9** | — shipped |
-| 5 — Card fit | 11 | **11** | — shipped; verified across all 45 card×size tiles in the lab (§10) |
+| 5 — Card fit | 11 | **11** | — shipped; verified across all 45 card×size tiles in the lab (§10). `1x3` (D14) takes that to 54, unwalked — see 8.10 |
 | 6 — Presets | 8 | **8** | — shipped and verified (§8 walked 2026-08-24) |
 | 7 — User presets | 10 | **10** | — shipped and verified (§8 walked 2026-08-24) |
+| 8 — Consolidation & edges | 10 | 9 | **8.10 partial** — `0016` applied and backfill verified; the live and lab passes are not walked |
 
 Pre-existing partial credit, for honesty: `.span-2` (dead) and the settings teaser (a stub
 that says the feature is coming). Neither does anything.
@@ -903,11 +1123,11 @@ that says the feature is coming). Neither does anything.
    A dedicated keyboard-only or screen-reader walkthrough was **considered and declined**
    (2026-08-23): this is a single-user wall display, and the cost was not judged worth it. If
    the dashboard ever gains other users, this is the first thing to revisit.
-6. **Three migrations in short succession** (`0012` visibility, `0013` order, `0014` sizing)
-   which a `dashboard_cards` table would eventually replace with one. Accepted deliberately:
-   shipping each phase alone was worth more than a tidy migration history, and D4 explains the
-   consolidation. All three columns are nullable and sparse, so that migration is one real
-   user plus the demo seed.
+6. ~~**Three migrations in short succession** (`0012` visibility, `0013` order, `0014`
+   sizing).~~ **Closed in Phase 8** by migration `0016` — `dashboard_cards`, one row per
+   exception, replacing all three columns with no user-visible change (D15). Done in a phase
+   where no feature needed it, which is the only condition under which it was a good migration
+   to write; Phase 7 declining to be forced into it was the right call at the time.
 7. **No test coverage.** The repo has no test suite; verification is typecheck + build +
    live inspection (§8). The packer and budget check (4.3) are pure and are the pieces that
    would genuinely benefit from a unit test — they were checked instead with a throwaway Node
@@ -937,21 +1157,23 @@ that says the feature is coming). Neither does anything.
    unanswered, and is a product question rather than a layout one.
 14. **No saved preset absorbs a card that ships later.** A user's preset stores the roster
    (D12/D13), and unlike `wall` it cannot name the live `CARD_KEYS` constant — so when the
-   Homelab card lands, every saved preset hides it, silently and with no backfill. This is the
-   correct default for an arrangement someone deliberately pared down, and Wall is the escape
-   hatch, but it is a real surprise the first time it happens and nothing in the UI says so.
+   Homelab card lands, every saved preset hides it, silently and with no backfill. *Partly
+   closed in Phase 8:* the behaviour is unchanged and deliberately so, but it is no longer
+   silent — a saved chip shows `n/9` when its roster is short of the live constant, and the
+   `Saved` label says the rule (8.4). What is still true is that there is no way to add the new
+   card to an existing preset except by applying it, restoring the card, and re-capturing.
 
-15. **There is no rename in the UI.** `PATCH /dashboard/presets/:id` takes `name`, and the
-   client hook passes it through, but the edit bar offers only apply, re-capture and delete.
-   Renaming today is delete-then-save. The route and the uniqueness check exist, so the control
-   is a UI addition rather than a feature; it was left out to keep the chip from carrying a
-   third fused button.
+15. ~~**There is no rename in the UI.**~~ **Closed in Phase 8.** The chip carries the third
+   fused button after all: the workaround the omission left behind was delete-then-save, which
+   destroys a saved arrangement to change a label. No API change — `PATCH
+   /dashboard/presets/:id` already took `name` — and the field is shared with `+ Save` so the
+   two cannot disagree about which names are offerable (8.3).
 
 16. **Undo covers applying a preset and nothing else.** Saving, deleting and re-capturing are
-   all outside it. Delete is mitigated by the two-step arm (7.2); **re-capture is not** — it
-   overwrites the stored arrangement with what is on screen, and the previous one is gone. It
-   is one deliberate click on a button that only appears when it would do something, which was
-   judged enough, but it is the one unguarded destructive write in the phase.
+   all outside it. *Partly closed in Phase 8:* re-capture now arms before it fires, the same
+   two-step delete has had since 7.2 and sharing one arming slot with it (8.3), so there is no
+   longer an unguarded destructive write on a chip. Undo itself is unchanged and still covers
+   only *applying* a preset — arming is a confirmation, not a way back.
 
 17. **Saved presets are not refetched.** `staleTime: Infinity`, matching the layout query — a
    preset saved in another tab will not appear in this one until reload. Deliberate and
@@ -972,8 +1194,11 @@ that says the feature is coming). Neither does anything.
    text-entry and two-step controls in edit mode. The position is unchanged — single-user wall
    display — but the surface it applies to grew.
 
-9. **News's `scrollable` opt-out (5.7) is now inert.** Its list clips, so the body has nothing
-   to scroll. Keeping or dropping it is a decision, not a cleanup — see 5.11.
+9. ~~**News's `scrollable` opt-out (5.7) is now inert.**~~ **Closed in Phase 8, by keeping
+   it.** The flag was never inert — it does two things, and News and Today want them in
+   different proportions: Today really scrolls, while News needs only the half that keeps the
+   shared drop pass off a card already measuring its own list. That was a documentation bug,
+   not a code one; the two reasons are now written where the flag is read (8.5).
 
 ---
 
@@ -1034,6 +1259,58 @@ P7 additionally (7.9 — **walked and green, 2026-08-24**):
   no `DUPLICATE OF` row.
 - **Demo:** confirm `POST` / `PATCH` / `DELETE /dashboard/presets` all 4xx under `demoReadOnly`.
 
+P8 additionally (8.10 — **partially walked, 2026-08-24**: the migration half is done, the live and lab halves are not):
+
+**The migration — ✅ done 2026-08-24, with no `workerd` process running** (§9). Each step below
+was checked; what follows it, from `1x3` onwards, was not.
+
+- ✅ **Before:** the three columns were dumped to `.backup-0016/` along with a copy of the
+  local D1 file — that was the only copy, and the drops are irreversible.
+- ✅ Applied, and confirmed with `SELECT name FROM d1_migrations` (**not** by looking at the
+  table — the column existing is not the reliable check). `PRAGMA table_info(user_settings)`
+  shows the three columns gone; 18 tables now.
+- ✅ **The backfill landed.** The one real user with a stored order came through as nine rows
+  at `2, 12, 22, 29, 40, 48, 57, 66, 77` — registry order, exactly as stored (offsets, not
+  indices — see 8.2). The demo user came through as the single `weather → 2x2` row it should.
+  No user with nothing stored got a row, which is the D4 rule holding.
+- ✅ `seed:demo:local` re-run clean; the demo's layout row survives the reset as one row.
+- ⬜ **The dashboard is unchanged.** Load it and compare against the pre-migration screenshot:
+  same cards, same order, same sizes, same derived shape. A user-visible difference here is a
+  bug, not a feature — that is the whole claim of D15. **Not done — needs the browser.**
+- ⬜ **Round-trip:** hide a card, reorder, resize; reload. Then restore everything to the
+  default and confirm the rows are *deleted* rather than left behind saying nothing.
+- ⬜ **Registry order writes no positions.** The real user's row is the frozen-default case —
+  their stored order *is* registry order. Reorder a card and put it back; every `position`
+  should end at `NULL` rather than a dense `0..8`, which is the small improvement D15 claims.
+  This is also what normalises the backfilled offsets away.
+
+**`1x3` (D14):**
+
+- Every size in the picker, including the new one, at all three widths and in both themes.
+- The glyph field: `1x3` and `1x2` must be **visibly different** in the menu — that is the
+  bug the 3×2 field would have shipped.
+- **`/layout-lab` at 54 tiles**, not 45. No `OVERFLOW`, no `SLACK`. The nine `1x3` tiles are
+  entirely new surface and are the ones to read first; a card that has only ever been audited
+  at two rows tall has no claim to fit at three.
+- The budget check still refuses what it should: a `1x3` that would not pack is greyed out in
+  the picker, and a hand-crafted `PATCH` of the same is refused server-side.
+- At ≤720px a `1x3` collapses to one row like every other span (D8).
+
+**The preset row:**
+
+- **Rename** — the field opens on the chip, pre-filled and selected; `Enter` commits,
+  `Escape` closes the field and **not** edit mode; confirming the name unchanged is a no-op
+  rather than a 409; a name already taken is refused, and the preset's *own* name is not
+  counted as taken.
+- **Re-capture arms** — first click reads `Replace?`, blurring cancels, the second click
+  writes. Reaching for delete while re-capture is armed disarms re-capture, and vice versa:
+  **no chip may ever show two armed controls.**
+- **The roster count** — a preset saved with fewer than nine cards shows `n/9`; one holding
+  all nine shows nothing. The `Saved` label's tooltip states the rule.
+- Everything Phase 7's list already covers still holds: one highlight, the five refusals, the
+  bar wrapping at eight presets, the whole row gone at one column (**including the new
+  rename button and the count**), and the demo lockout on all three write verbs.
+
 ---
 
 ## 9. Phase 1 implementation notes
@@ -1085,6 +1362,21 @@ Written during the build; these are the things a reader of the plan alone would 
   of a reverted migration is a *write* failing, on a gesture unrelated to the migration.
   Expect it to look like a broken feature, not a broken database. `PRAGMA
   table_info(user_settings)` next to the `d1_migrations` query settles it in one command.
+- **D1 refuses a `json_each` correlated to an outer table — but only in a *write*.** Found
+  building `0016`. `SELECT … FROM user_settings s, json_each(s.card_order) j` returns the right
+  rows; wrapping the identical query in an `INSERT … SELECT` fails with `malformed JSON:
+  SQLITE_ERROR`. So does `CREATE TABLE … AS SELECT`, which rules out the `INSERT` itself, and so
+  do `CROSS JOIN` and a materialised CTE, which rules out join-order reordering as the fix.
+  Scalar JSON functions are fine in writes. **The lesson generalises past migrations: a
+  `json_each` query that reads correctly proves nothing about whether it will run as a write.**
+  The workaround is to name the keys — a recursive CTE splitting a literal list, cross-joined
+  with scalar `json_extract`/`instr` per key. A nine-term `UNION ALL` is not the workaround:
+  that hits D1's compound-SELECT limit.
+- **A failed migration rolls back completely.** `0016`'s first attempt died mid-file and left
+  nothing behind — no `d1_migrations` row, no table, all three columns intact — so the retry
+  started clean rather than half-migrated. Worth knowing, and worth re-confirming rather than
+  assuming, because the recovery plan for a *partly* applied drop-columns migration is much
+  worse than for a failed one.
 - **`.settings-disabled` was deleted** along with the teaser it existed for. `.span-2` is
   still present and still dead — it is retired in 4.4, not here.
 
@@ -1093,7 +1385,7 @@ Written during the build; these are the things a reader of the plan alone would 
 ## 10. The layout lab (`/layout-lab`)
 
 Dev-only route, unlinked from the app and redirected away in production builds. Renders **every
-card at every size** — nine by five — in tiles the real grid would produce, with a column-count
+card at every size** — nine by six since `1x3` landed (D14) — in tiles the real grid would produce, with a column-count
 control for the shapes that matter.
 
 **Why it exists.** Every layout change up to this point was verified against whichever one or
@@ -1137,7 +1429,7 @@ removed it. Alternate renderings mark themselves `data-fallback` and are exclude
 half of a pair is always hidden by design.
 
 **What it is not.** Not a test suite: nothing fails CI, nothing is automated, it still needs
-eyes. It is a contact sheet. Its value is that one screenshot of it covers 45 combinations
+eyes. It is a contact sheet. Its value is that one screenshot of it covers 54 combinations
 instead of one, which is the actual bottleneck when the person changing the CSS cannot see the
 browser.
 
@@ -1172,3 +1464,5 @@ browser.
 | 2026-08-24 | **Phase 7 built — user-defined presets** (7.1–7.8). D13 recorded: a `card_presets` **table** (migration `0015`), not a fourth JSON column and not the `dashboard_cards` consolidation, which is a different problem and stays deferred. `PresetArrangement` extracted so a saved preset is applied, matched, drawn and audited by exactly the code the built-ins use — `matchingPresetKey()` now sits on a shared `layoutMatchesArrangement()`. Applying a saved preset is still one `PATCH /dashboard/layout`; the new routes only manage rows. Save is non-optimistic and delete is, for opposite reasons (7.1); delete arms before firing (7.2); the saved audit drops the zero-holes assertion because a sparse wall is the user's call (7.3); `+ Save` carries the same `fitsGrid` gate the size picker does, since the live layout is allowed to overflow and a preset is not (7.4). Two pre-existing things fixed: the ≤720px rule left the `Presets` label standing over an empty row, and `Escape` in a text field would have exited edit mode. **7.9 verification not started** — the phase is built, not shipped. |
 | 2026-08-24 | **7.10 — one wall, one name.** The first build of Phase 7 let a user save an arrangement identical to an existing preset and lit *every* matching chip, reasoning that there was no honest way to pick a winner between them. Correct reasoning, wrong conclusion: the fix is to make the duplicate unstorable, not to display the ambiguity more truthfully. `duplicateArrangement()` now refuses a save or re-capture that would produce a second preset for the same wall — **built-ins included**, since "My Wall" identical to Wall fails the same way — enforced in the API (D6), greyed out with the offending preset named in the edit bar, and asserted in `/layout-lab` for rows that predate the check. `matchingSavedPresetIds()` stays plural on purpose: nothing backfills, so an older duplicate must still highlight rather than vanish from the comparison. D13 amended. |
 | 2026-08-24 | **Phase 7 verified** (7.9). Full §8 live pass walked, Phase 7 additions included: a saved preset survives a reload and re-applies exactly, all five refusals surface as messages rather than silent failures, no state lights two chips (the defect 7.10 was written for), delete arms and disarms without touching the layout, re-capture appears and disappears on the three states it should, Undo steps back one preset rather than two, `Escape` in the name field leaves edit mode intact, the bar wraps at eight saved presets, the whole preset row is gone at one column, the lab audit is all-pass with no `DUPLICATE OF`, and a demo session is refused on all three write verbs. **Nothing outstanding in this document.** The next work here is the Homelab card, which is now unblocked — see `../../integrations/homelab-telemetry.md` D11(f) for what it inherits. |
+| 2026-08-24 | **Phase 8 scoped and built — consolidation and the unguarded edges** (8.1–8.9). There was no Phase 8 on record; three of the four candidates `HANDOVER.md` listed were taken and the Homelab card deliberately left out. **D14:** `1x3` joins the size union — the full-height column, earning its place on the same ground `3x1` did, and costing one thing the estimate missed: the picker's 3×2 glyph field cannot draw a 3-tall span and would have drawn it identically to the `1x2` beside it, so it is now 3×3. **D15:** the three layout JSON columns become rows in `dashboard_cards` (migration `0016`, which creates, backfills and drops in that order). D4 survives intact — `position` is a *sparse* sort key, so a card with no row is still visible, 1×1, in registry order and needs no backfill. Gap 6 closed, and closed here rather than in Phase 7 precisely because no feature needed it: with no user-visible difference to get wrong, the only thing that can fail is the migration. Gaps 15 and 16 closed on the preset chip — rename added (reversing Phase 7's "no third fused button", because the workaround it left was delete-then-save) and re-capture now arms like delete, sharing one arming slot so no chip can show two armed controls. Gap 14 made visible rather than fixed: a chip shows `n/9` when its roster is short of the live constant. Gap 9 closed by **keeping** `scrollable` — it was never inert, it does two things and the two exempt cards want them in different proportions; the bug was in the reason, not the code. **8.10 partially walked.** |
+| 2026-08-24 | **`0016` applied locally, after the backfill had to be rewritten twice.** The `json_each` form was correct SQL and correct against the data — and **D1 refuses it in a write**: `SELECT … json_each(s.card_order)` returns the right rows, the same query inside an `INSERT … SELECT` fails with `malformed JSON`. `CROSS JOIN`, a materialised CTE and `CREATE TABLE … AS SELECT` all fail the same way, so it is neither the `INSERT` nor join ordering. The nine-key `UNION ALL` that replaced it hit D1's compound-SELECT term limit. What ships is a recursive CTE over a literal key list with scalar `json_extract`/`instr` per key — and `position` backfilled as a byte offset rather than an index, which is sound because D15 makes it a sort key and the first write normalises it. The failed first attempt rolled back completely, so the retry started clean. Backfill verified row-by-row against the real user (nine rows in stored order) and the demo (one `weather → 2x2`); `seed:demo:local` re-run clean; 18 tables. **The live and lab passes are still unwalked** — the 54 tiles, and every UI change in the phase. |

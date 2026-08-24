@@ -20,7 +20,7 @@ import { CARD_REGISTRY } from "../components/cardRegistry";
 /**
  * Layout lab — every card at every size, on one page.
  *
- * **Why this exists.** Nine cards × five sizes is 45 combinations, and every
+ * **Why this exists.** Nine cards × six sizes is 54 combinations, and every
  * layout change until now was verified against whichever one or two happened to
  * be on screen. Worse, only *one* of the two failure modes is visible to the
  * naked eye: content overflowing looks broken, while content dropped with room
@@ -59,7 +59,8 @@ interface TileReport {
   dropped: number;
   /** List rows `useClampList` hid. */
   clipped: number;
-  /** The card opted into scrolling (News, Today) — overflow is expected. */
+  /** The card is exempt from the shared fit pass (Today, News) — overflow here
+   * is the card's own business, not a fit failure. See CardProps.scrollable. */
   scrollable: boolean;
 }
 

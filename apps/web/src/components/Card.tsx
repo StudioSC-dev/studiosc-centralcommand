@@ -23,12 +23,26 @@ export interface CardProps {
    */
   className?: string;
   /**
-   * Opt this card out of the no-scroll rule and let its body scroll.
+   * Opt this card out of the shared fit pass and let its body scroll.
    *
    * The dashboard's rule is that a card fits its tile — a wall display nobody is
-   * sitting at cannot be scrolled. A feed is the honest exception: News has no
-   * natural end, so there is no amount of trimming that makes it "fit", and
-   * scrolling is what the content is actually for.
+   * sitting at cannot be scrolled — and `useFitSections` enforces it by dropping
+   * `data-drop-order` blocks until the body fits. Two cards are exempt (D10),
+   * and gap 9 is that they are exempt for *different* reasons which this one
+   * flag used to blur:
+   *
+   * - **Today genuinely scrolls.** Its content has no fixed extent and nothing
+   *   in it is droppable, so the scrollbar is the honest answer.
+   * - **News manages its own fit.** Its list clips and pages against a measured
+   *   page size (5.11), so it never overflows and the scrollbar never appears.
+   *   What it needs from this flag is the *other* half: that the shared drop
+   *   pass keeps its hands off a card already deciding for itself how much to
+   *   show. Two mechanisms competing over the same body is how the Weather
+   *   regressions happened.
+   *
+   * Kept as one flag because both cases want the same two effects — no fit pass,
+   * and a body that may scroll rather than crop if it ever does overflow. The
+   * name describes the mechanism; this comment is the reason it is set.
    */
   scrollable?: boolean;
 }

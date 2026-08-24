@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
+  CARD_KEYS,
   LAYOUT_PRESETS,
   PRESET_NAME_MAX,
+  arrangementOmits,
   cardSpan,
   cardSpans,
   gridShape,
@@ -99,7 +101,17 @@ export function LayoutPresets() {
 
       {presets.length > 0 && (
         <>
-          <span className="edit-bar-label preset-label">Saved</span>
+          <span
+            className="edit-bar-label preset-label"
+            // Gap 14, said out loud. A saved preset stores its roster and
+            // nothing backfills it, so a card that ships later is absent from
+            // every one of them. That is the right default for an arrangement
+            // someone deliberately pared down — but it is a surprise the first
+            // time, and until now nothing in the UI admitted it.
+            title={`Your own arrangements. A preset keeps the cards it was saved with — a card added to the dashboard later joins “Wall” only.`}
+          >
+            Saved
+          </span>
           <ul className="edit-bar-list preset-list">
             {presets.map((preset) => (
               <li key={preset.id}>
@@ -137,14 +149,27 @@ export function LayoutPresets() {
 }
 
 /**
- * One saved preset: apply on the chip, re-capture on the ⤒, delete on the ×.
+ * One saved preset: apply on the chip, re-capture on the ⤒, rename on the ✎,
+ * delete on the ×.
  *
- * Delete arms rather than fires. It is the only destructive control in edit
- * mode, it sits inside a chip whose whole body is a *non*-destructive click,
- * and the two targets are a few pixels apart — so a mis-tap that silently
- * discards a saved arrangement is exactly the mistake to design against. The
- * second click confirms; blurring disarms it.
+ * **Both write buttons arm before they fire.** Delete always did (7.2): it is
+ * fused to a chip whose whole body is a *non*-destructive click, and the two
+ * targets are a few pixels apart. Re-capture did not, and gap 16 named it the
+ * one unguarded destructive write in the phase — it overwrites the stored
+ * arrangement with whatever is on screen, and the previous one is gone with no
+ * Undo covering it. It is now the same two-step, sharing one arming slot with
+ * delete so reaching for either disarms the other and only one chip can ever be
+ * mid-gesture.
+ *
+ * Rename is the phase's one *added* affordance (gap 15). It was left out of
+ * Phase 7 to keep the chip off a third fused button, and that judgement is
+ * reversed here: the alternative on offer was delete-then-save, which discards
+ * a saved arrangement to change a label, and is exactly the kind of destructive
+ * detour the arming above exists to prevent. It needs no arming of its own —
+ * renaming loses nothing, and it swaps the chip for a field rather than firing.
  */
+type Arm = "delete" | "recapture" | null;
+
 function SavedPresetChip({
   preset,
   active,
@@ -154,10 +179,11 @@ function SavedPresetChip({
   active: boolean;
   onApply: () => void;
 }) {
-  const [arming, setArming] = useState(false);
+  const [arm, setArm] = useState<Arm>(null);
+  const [renaming, setRenaming] = useState(false);
   const remove = useDeletePreset();
   const update = useUpdatePreset();
-  const { current, fits, duplicateOf } = useSavedPresetState();
+  const { current, fits, duplicateOf, presets } = useSavedPresetState();
 
   // Whether this preset already describes what is on screen decides which of
   // the two write actions is meaningful, so it also decides which is offered:
@@ -173,51 +199,127 @@ function SavedPresetChip({
   const canRecapture =
     !active && current !== null && current.visible.length > 0 && fits && clash === null;
 
+  // Gap 14: how much of the live dashboard this preset does not include. Read
+  // against `CARD_KEYS` rather than against anything stored, because what the
+  // roster was missing when it was written is not recorded anywhere — and the
+  // number only becomes interesting when a card ships that the preset predates.
+  const omitted = arrangementOmits(preset);
+  const roster = `shows ${preset.visible.length} of ${CARD_KEYS.length} cards`;
+
+  if (renaming) {
+    return (
+      <span className="preset-saved is-renaming">
+        <PresetNameField
+          initial={preset.name}
+          label={`Rename ${preset.name}`}
+          confirmLabel="Rename"
+          pending={update.isPending}
+          error={update.error?.message ?? null}
+          // The server refuses a duplicate name and can say which; this only
+          // pre-empts the round trip, and must ignore *this* preset's own name
+          // so re-confirming it unchanged is not reported as a clash.
+          taken={presets.filter((p) => p.id !== preset.id).map((p) => p.name)}
+          onCancel={() => {
+            update.reset();
+            setRenaming(false);
+          }}
+          onSubmit={(name) => {
+            if (name === preset.name) {
+              setRenaming(false);
+              return;
+            }
+            update.mutate({ id: preset.id, name }, { onSuccess: () => setRenaming(false) });
+          }}
+        />
+      </span>
+    );
+  }
+
   return (
-    <span className={`preset-saved${arming ? " is-arming" : ""}`}>
+    <span className={`preset-saved${arm !== null ? " is-arming" : ""}`}>
       <button
         type="button"
         className={`edit-chip preset-chip preset-chip-saved${active ? " is-active" : ""}`}
         aria-pressed={active}
-        title={active ? `${preset.name} — this is what is on screen` : `Apply ${preset.name}`}
+        title={
+          active
+            ? `${preset.name} — this is what is on screen · ${roster}`
+            : `Apply ${preset.name} · ${roster}`
+        }
         onClick={() => {
-          setArming(false);
+          setArm(null);
           onApply();
         }}
       >
         <PresetGlyph arrangement={preset} />
         {preset.name}
+        {/* A count, not a warning icon: the preset is not broken, it simply
+            does not include everything. Shown only once there is something to
+            report, so a preset holding the whole roster stays a plain chip. */}
+        {omitted.length > 0 && (
+          <span className="preset-omits" aria-hidden="true">
+            {preset.visible.length}/{CARD_KEYS.length}
+          </span>
+        )}
       </button>
 
       {canRecapture && (
         <button
           type="button"
           className="preset-recapture"
-          title={`Update ${preset.name} to the current arrangement`}
-          aria-label={`Update ${preset.name} to the current arrangement`}
+          title={
+            arm === "recapture"
+              ? `Replace ${preset.name} with the current arrangement?`
+              : `Update ${preset.name} to the current arrangement`
+          }
+          aria-label={
+            arm === "recapture"
+              ? `Confirm replacing ${preset.name}`
+              : `Update ${preset.name} to the current arrangement`
+          }
           disabled={update.isPending}
           onClick={() => {
-            setArming(false);
-            if (current) update.mutate({ id: preset.id, ...current });
+            if (arm === "recapture") {
+              setArm(null);
+              if (current) update.mutate({ id: preset.id, ...current });
+            } else {
+              setArm("recapture");
+            }
           }}
+          onBlur={() => setArm((a) => (a === "recapture" ? null : a))}
         >
-          ⤒
+          {arm === "recapture" ? "Replace?" : "⤒"}
         </button>
       )}
 
       <button
         type="button"
+        className="preset-rename"
+        title={`Rename ${preset.name}`}
+        aria-label={`Rename ${preset.name}`}
+        onClick={() => {
+          setArm(null);
+          setRenaming(true);
+        }}
+      >
+        ✎
+      </button>
+
+      <button
+        type="button"
         className="preset-delete"
-        title={arming ? `Delete ${preset.name}?` : `Delete ${preset.name}`}
-        aria-label={arming ? `Confirm deleting ${preset.name}` : `Delete ${preset.name}`}
+        title={arm === "delete" ? `Delete ${preset.name}?` : `Delete ${preset.name}`}
+        aria-label={
+          arm === "delete" ? `Confirm deleting ${preset.name}` : `Delete ${preset.name}`
+        }
         disabled={remove.isPending}
         onClick={() => {
-          if (arming) remove.mutate(preset.id);
-          else setArming(true);
+          if (arm === "delete") remove.mutate(preset.id);
+          else setArm("delete");
         }}
-        onBlur={() => setArming(false)}
+        onBlur={() => setArm((a) => (a === "delete" ? null : a))}
       >
-        {arming ? "Delete?" : "×"}
+        {arm === "delete" ? "Delete?" : "×"}
       </button>
     </span>
   );
@@ -237,27 +339,12 @@ function SavedPresetChip({
  */
 function SavePresetControl() {
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
   const save = useSavePreset();
   const { current, blocked, presets } = useSavedPresetState();
 
-  useEffect(() => {
-    if (open) inputRef.current?.focus();
-  }, [open]);
-
-  const clean = normalisePresetName(name);
-  const duplicate = clean !== null && presets.some((p) => p.name === clean);
-
   const close = () => {
     setOpen(false);
-    setName("");
     save.reset();
-  };
-
-  const submit = () => {
-    if (!clean || duplicate || !current) return;
-    save.mutate({ name: clean, ...current }, { onSuccess: close });
   };
 
   if (!open) {
@@ -278,6 +365,71 @@ function SavePresetControl() {
   }
 
   return (
+    <PresetNameField
+      initial=""
+      label="Preset name"
+      confirmLabel="Save"
+      pending={save.isPending}
+      error={save.error?.message ?? null}
+      taken={presets.map((p) => p.name)}
+      onCancel={close}
+      onSubmit={(name) => {
+        if (!current) return;
+        save.mutate({ name, ...current }, { onSuccess: close });
+      }}
+    />
+  );
+}
+
+/**
+ * The inline name field, shared by saving a new preset and renaming one.
+ *
+ * One component rather than two because the validation has to be identical:
+ * both writes go through `normalisePresetName` on the server and both are
+ * refused by the same per-user uniqueness rule, so a field that disagreed with
+ * the other would let one gesture offer a click the other knows would 409.
+ * The only thing that differs between the two is which names count as taken —
+ * renaming has to exclude its own — so that is the parameter.
+ *
+ * `Escape` closes the field and *only* the field: the window-level handler that
+ * leaves edit mode would otherwise fire mid-word and discard what was typed.
+ */
+function PresetNameField({
+  initial,
+  label,
+  confirmLabel,
+  pending,
+  error,
+  taken,
+  onSubmit,
+  onCancel,
+}: {
+  initial: string;
+  label: string;
+  confirmLabel: string;
+  pending: boolean;
+  error: string | null;
+  taken: readonly string[];
+  onSubmit: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(initial);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
+  const clean = normalisePresetName(name);
+  const duplicate = clean !== null && taken.includes(clean);
+
+  const submit = () => {
+    if (!clean || duplicate) return;
+    onSubmit(clean);
+  };
+
+  return (
     <span className="preset-save-form">
       <input
         ref={inputRef}
@@ -286,35 +438,30 @@ function SavePresetControl() {
         value={name}
         maxLength={PRESET_NAME_MAX}
         placeholder="Name this layout"
-        aria-label="Preset name"
+        aria-label={label}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") submit();
-          // Escape closes the field, not edit mode — the window-level Escape
-          // handler would otherwise drop the user out of the mode they are
-          // mid-gesture in, discarding the name they were typing.
           if (e.key === "Escape") {
             e.stopPropagation();
-            close();
+            onCancel();
           }
         }}
       />
       <button
         type="button"
         className="edit-chip preset-save-confirm"
-        disabled={!clean || duplicate || save.isPending}
-        title={duplicate ? "You already have a preset with that name" : "Save"}
+        disabled={!clean || duplicate || pending}
+        title={duplicate ? "You already have a preset with that name" : confirmLabel}
         onClick={submit}
       >
-        {save.isPending ? "Saving…" : "Save"}
+        {pending ? "Saving…" : confirmLabel}
       </button>
-      <button type="button" className="edit-chip preset-save-cancel" onClick={close}>
+      <button type="button" className="edit-chip preset-save-cancel" onClick={onCancel}>
         Cancel
       </button>
-      {(duplicate || save.error) && (
-        <span className="edit-bar-error">
-          {duplicate ? "That name is taken." : save.error?.message}
-        </span>
+      {(duplicate || error) && (
+        <span className="edit-bar-error">{duplicate ? "That name is taken." : error}</span>
       )}
     </span>
   );

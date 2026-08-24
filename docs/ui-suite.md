@@ -2,7 +2,7 @@
 
 **Scope:** per-user control over *which* cards appear on the dashboard and *how large* each
 one is, on a uniform cell grid.
-**Status:** Phases 1–6 complete (visibility · edit mode · reordering · sizing · card fit · presets), all verified · **contract mirrored** · nothing outstanding
+**Status:** Phases 1–6 complete (visibility · edit mode · reordering · sizing · card fit · presets), all verified · **contract mirrored** · **Phase 7 (user-defined presets) built, not yet verified**
 **Owner branch:** `feat/ui-suite` → `dev`
 **Last updated:** 2026-08-24
 
@@ -313,6 +313,65 @@ needs**, and it cost nothing.
 
 `visible` is also the order, because position affects packing (D9): the same cards at the same
 sizes in a different order can need a fourth row.
+
+### D13 — A saved preset is a row, not a fourth JSON column
+
+**Decided 2026-08-24, at the start of Phase 7.** D4 keeps deferring a
+`dashboard_cards` table, and Phase 6 predicted that user presets would be the thing that
+finally forces it. On inspection it forces something else, and the distinction is the whole
+decision.
+
+**Why not a fourth JSON column.** `user_settings` already carries three
+(`hidden_cards`, `card_order`, `card_sizes`), and a `card_presets` column would look like a
+fourth of the same kind. It is not. Those three are the *exceptions* to one derived value —
+the layout — and they are read and written together, as one thing. A saved preset is a named
+entity with its own lifecycle: created, renamed, re-captured, deleted, **one at a time**.
+Holding a list of them in a single blob makes every one of those a read-modify-write on
+shared state, so two tabs each saving a different preset silently lose one.
+
+**Why not the `dashboard_cards` consolidation either.** That table is per-card layout state,
+and a preset is not per-card state — it is a whole arrangement under a name. Doing the
+consolidation here would rewrite the layout read path, the optimistic client derivation and
+the demo seed, and **would still need this table afterwards**. The two are orthogonal, so the
+consolidation stays deferred on its own merits (gap 6) rather than being smuggled in.
+
+So: `card_presets`, one row per saved preset, migration `0015`. Unique on
+`(user_id, name)` — names are how the user tells presets apart, and the index is there as
+well as the route check because a race between two tabs slips past check-then-insert.
+
+**A saved preset stores the roster, exactly as a built-in does (D12).** It is the same
+`PresetArrangement` shape, applied by the same `presetLayoutInput()` and matched by the same
+predicate, so there is one implementation of "is this the same arrangement" rather than two
+that drift. One consequence is deliberate and is stated in gap 14: nothing a *user* saves can
+name the live `CARD_KEYS` constant, so **no saved preset absorbs a card that ships later**.
+That is the correct default for an arrangement someone pared down on purpose, and Wall
+remains the one preset that grows.
+
+**Applying a saved preset is still not an endpoint.** It resolves to the same single
+`PATCH /dashboard/layout` a built-in does (D6), so it inherits the optimistic path, the
+shared error surface, the demo write-block and the server-side budget check unchanged. The
+only new routes are the ones that manage the rows themselves.
+
+**An arrangement may be stored under exactly one name.** *(Added 2026-08-24, correcting the
+first build.)* Two presets describing the same wall are not merely redundant. The chip
+highlight answers "which preset is this?", and with a duplicate stored there are two true
+answers — so two chips light at once and the control stops reporting a single state.
+
+The first version of this phase accepted the duplicate and lit **every** matching chip, on the
+grounds that there was no honest way to pick a winner. That reasoning was right and the
+conclusion was wrong: the fix is not to display the ambiguity more truthfully, it is to make
+it unstorable. `duplicateArrangement()` refuses a save or a re-capture that would produce a
+second preset for the same wall, so the highlight is single-valued **by construction** rather
+than by display convention.
+
+**The built-ins are checked too**, because "My Wall" identical to Wall fails in exactly the
+same way and neither chip has a better claim. Refusing names the preset in the way, so the
+message says which one rather than only that something does.
+
+`matchingSavedPresetIds()` still returns a *list*. The check governs what can be written and
+nothing backfills, so a row that predates it — or one from a client that skipped it — must
+still highlight rather than be dropped from the comparison. `/layout-lab` flags exactly that
+case as `DUPLICATE OF <name>`.
 
 ### D8 — Below the wall breakpoint, sizes collapse
 
@@ -715,13 +774,93 @@ and cannot drift from it. Change a preset and its glyph follows.
   deliberate clicks — **Minimal now does it in one**, which is a state presets create rather
   than merely expose.
 
-### Phase 7 (optional) — User-defined presets
+### Phase 7 — User-defined presets
 
-Saving the current arrangement under a name. Not scheduled, and **not free** the way Phase 6
-was: presets are constants today, so they cost no storage. User presets need a fourth layout
-column or the `dashboard_cards` table D4 keeps deferring — which is the point at which that
-consolidation is worth doing rather than adding a `card_presets` JSON column to a row that
-already has three.
+Saving the arrangement on screen under a name of your own. **This is the one phase that needs
+storage** — the three built-ins are constants, which is why Phase 6 was cheap and this one is
+not. The storage decision is D13: a `card_presets` **table**, not a fourth JSON column and not
+the `dashboard_cards` consolidation, which turns out to be a different problem.
+
+Everything else is reuse. A saved preset is the same `PresetArrangement` a built-in is, so it
+is applied by the same `presetLayoutInput()`, matched by the same predicate, drawn by the same
+glyph and audited by the same lab code. **Applying one is still `PATCH /dashboard/layout`** —
+the new routes manage rows, never the layout.
+
+| # | Deliverable | Where | Status |
+|---|---|---|---|
+| ✅ 7.1 | `card_presets` table + migration `0015_quiet_iron_lad.sql` | `packages/db` | built. Unique on `(user_id, name)`. Applied locally; CI applies remote on deploy. |
+| ✅ 7.2 | `PresetArrangement` extracted; `LayoutPreset` now extends it | `packages/types` | built. This is what makes a saved preset free everywhere downstream. |
+| ✅ 7.3 | `SavedPreset`, `layoutArrangement()`, `matchingSavedPresetIds()`, `normalisePresetName()`, `SAVED_PRESET_LIMIT`, `PRESET_NAME_MAX` | `packages/types` | built. `matchingPresetKey()` refactored onto the shared `layoutMatchesArrangement()`. |
+| ✅ 7.4 | `services/presets.ts` — lenient read, roster-scoped sizes, row → wire | `apps/api` | built. Lenient in / strict out, matching `services/dashboard.ts`. |
+| ✅ 7.5 | `GET`/`POST /dashboard/presets`, `PATCH`/`DELETE /dashboard/presets/:id` | `apps/api` | built. Non-empty roster + `fitsGrid` enforced; 409 on duplicate name and on the limit; id lookups scoped by user. |
+| ✅ 7.6 | `lib/presets.ts` — query, save, re-capture, delete, `useSavedPresetState` | `apps/web` | built. Delete optimistic, save not — see below. |
+| ✅ 7.7 | Saved chips, `+ Save` form, re-capture, armed delete in the edit bar | `apps/web` | built. Separate labelled group from the built-ins. |
+| ✅ 7.8 | Saved-preset audit in `/layout-lab` | `apps/web` | built. Asserts fit and round-trip; **holes reported, not failed** — see below. |
+| ✅ 7.10 | `duplicateArrangement()` — one wall, one name | `packages/types` · `apps/api` · `apps/web` | built **2026-08-24, after review**. Refused server-side, greyed out client-side, asserted in the lab. Built-ins included. |
+| ⬜ 7.9 | Verification | — | **not started.** §8 live pass, plus the Phase 7 additions listed there. |
+
+#### 7.1 — Which writes are optimistic, and why they differ
+
+Every layout write in Phases 1–6 is optimistic, because a card that appears or vanishes a
+request later feels broken. The preset rows do not all follow that rule, and the split is
+deliberate:
+
+- **Save is not optimistic.** The server assigns the id, and the two failures that matter —
+  a duplicate name and the eight-preset limit — are things only the server can settle. A chip
+  that appears and then vanishes with an error is worse than one that appears a moment later.
+- **Delete is optimistic.** There is nothing the server can say that the client does not
+  already know, and a chip that lingers after being dismissed reads as a failed click.
+
+#### 7.2 — Delete arms; it does not fire
+
+The delete `×` is fused onto the chip, a few pixels from a button whose entire job is the
+*non*-destructive click. It is also the only destructive control anywhere in edit mode. So the
+first click arms it (`Delete?`) and the second confirms; blurring disarms. Deleting does not
+touch the layout — the arrangement stays on screen, it just stops having a name. Anything else
+would make delete a destructive gesture on the thing the user is looking at.
+
+#### 7.3 — The saved audit drops one assertion on purpose
+
+A built-in preset must pack with **zero holes** — that is a promise the project makes about
+what one click produces (6.2). A saved preset is a promise the *user* made to themselves, and
+a deliberately sparse wall is a legitimate choice (D5). So `/layout-lab` reports holes for
+saved presets as a number rather than a failure. What still has to hold is unchanged: it
+**fits** (or the chip would only fail when applied) and it **round-trips** (or it would never
+light its own chip).
+
+#### 7.4 — Save is blocked where the endpoint would refuse
+
+The live layout is *allowed* to overflow: restoring a hidden card must never be refused, so
+hides and reorders are warned about rather than blocked (D9). A preset is the opposite — the
+server will not store an arrangement that does not fit, because the alternative is a chip that
+only fails at apply time. `+ Save` and the re-capture button therefore carry the same
+`fitsGrid` gate the size picker greys options out with, so a disabled control and a rejected
+write cannot disagree. The reason is in the tooltip rather than the control being hidden: one
+that vanishes at the limit reads as a bug, one that says why reads as a rule.
+
+#### 7.5 — One wall, one name
+
+The duplicate check is the same shape as the fit check above it: enforced on the write, where
+it can actually hold, and mirrored into the control's disabled state so the button never
+offers a click that 409s. `+ Save` greys out with the offending preset named in its tooltip,
+and the re-capture button disappears when the current arrangement belongs to a *different*
+preset — excluding the one being re-captured, since matching itself is what re-capture means.
+
+`/layout-lab` asserts it as well, because the write check cannot reach a row written before it
+existed. That assertion is saved-preset-only: the three built-ins are hand-checked constants
+and are already known to differ.
+
+#### Two things found while building this
+
+- **The preset row's labels had nothing to hide behind at one column.** The ≤720px rule from
+  Phase 6 hid `.preset-chip` and the separator but not the `Presets` label or its list, so the
+  narrow layout carried a heading over an empty row — which reads as a row that failed to load
+  rather than one deliberately withheld (D8). Pre-existing; fixed here because Phase 7 would
+  have added a second dangling label beside it.
+- **`Escape` in the name field would have left edit mode.** The window-level `Escape` handler
+  (2.x) is the way out of the mode, and it would have fired while the user was mid-word in the
+  save field, discarding the name. The field stops propagation, so `Escape` closes the field
+  and only the field.
 
 ---
 
@@ -736,6 +875,7 @@ already has three.
 | 4 — Sizing | 9 | **9** | — shipped |
 | 5 — Card fit | 11 | **11** | — shipped; verified across all 45 card×size tiles in the lab (§10) |
 | 6 — Presets | 8 | **8** | — shipped and verified (§8 walked 2026-08-24) |
+| 7 — User presets | 10 | 9 | **7.9 verification outstanding** — the phase is not shippable until §8 passes |
 
 Pre-existing partial credit, for honesty: `.span-2` (dead) and the settings teaser (a stub
 that says the feature is coming). Neither does anything.
@@ -783,17 +923,55 @@ that says the feature is coming). Neither does anything.
    `.weather-outlook`) and `.log-older` (replaced by the always-rendered `ClippedNote`, which
    has the fixed height the measurement needs). `.span-2` was the same class of thing, retired
    in 4.4.
-11. **Presets are not user-definable.** Three constants, no way to save your own arrangement
-   under a name. Deliberate — that is the one thing in this feature that needs new storage, and
-   the right storage for it is the `dashboard_cards` consolidation D4 defers rather than a
-   fourth JSON column on a row that already has three. Scoped as Phase 7, not scheduled.
-12. **A preset overwrites a hand-made arrangement, and Undo is session-only.** It survives only
-   until the layout is edited by hand or edit mode closes — nothing is persisted. A user who
-   applies Focus, leaves, and comes back cannot get their old wall back. Acceptable for a
-   single-user wall display; the fix is Phase 7 (save the current arrangement first).
+11. ~~**Presets are not user-definable.**~~ **Closed in Phase 7.** A `card_presets` table
+   (migration `0015`), not the `dashboard_cards` consolidation — which turned out to be a
+   different problem and stays deferred on its own merits (gap 6). See D13.
+12. **A preset overwrites a hand-made arrangement, and Undo is session-only.** *Partly closed
+   by Phase 7:* there is now a way to keep a wall before replacing it — but only if the user
+   remembers to press `+ Save` first. Undo itself is unchanged: it survives only until the
+   layout stops matching the preset that was applied, or edit mode closes, and nothing is
+   persisted. Applying a preset over an unsaved arrangement, leaving, and coming back still
+   loses it. Acceptable for a single-user wall display.
 13. **Presets are hidden below 720px** (1 column), where sizes collapse anyway (D8). A preset
    whose point is its spans would be a lie there. What a preset should mean on a phone is
    unanswered, and is a product question rather than a layout one.
+14. **No saved preset absorbs a card that ships later.** A user's preset stores the roster
+   (D12/D13), and unlike `wall` it cannot name the live `CARD_KEYS` constant — so when the
+   Homelab card lands, every saved preset hides it, silently and with no backfill. This is the
+   correct default for an arrangement someone deliberately pared down, and Wall is the escape
+   hatch, but it is a real surprise the first time it happens and nothing in the UI says so.
+
+15. **There is no rename in the UI.** `PATCH /dashboard/presets/:id` takes `name`, and the
+   client hook passes it through, but the edit bar offers only apply, re-capture and delete.
+   Renaming today is delete-then-save. The route and the uniqueness check exist, so the control
+   is a UI addition rather than a feature; it was left out to keep the chip from carrying a
+   third fused button.
+
+16. **Undo covers applying a preset and nothing else.** Saving, deleting and re-capturing are
+   all outside it. Delete is mitigated by the two-step arm (7.2); **re-capture is not** — it
+   overwrites the stored arrangement with what is on screen, and the previous one is gone. It
+   is one deliberate click on a button that only appears when it would do something, which was
+   judged enough, but it is the one unguarded destructive write in the phase.
+
+17. **Saved presets are not refetched.** `staleTime: Infinity`, matching the layout query — a
+   preset saved in another tab will not appear in this one until reload. Deliberate and
+   consistent (the list only changes when this user changes it), and stated because "consistent
+   with the layout query" is the whole argument for it.
+
+18. **The demo session cannot see Phase 7 at all.** Edit mode is demo-gated (Phase 6), so a
+   portfolio visitor never reaches the preset row, and nothing is seeded into `card_presets`.
+   The seed's reset does clear the table, so the contract that a re-run wipes the demo user
+   completely still holds.
+
+19. **Name uniqueness is exact.** `normalisePresetName()` trims and collapses whitespace, but
+   `Morning` and `morning` are two different presets. Not worth a case-folding rule for a
+   single-user wall; noted so it is a decision rather than an oversight.
+
+20. **Gap 5's standing position now covers new surface.** The keyboard walkthrough declined on
+   2026-08-23 predates the inline save field and the armed delete, which are the first
+   text-entry and two-step controls in edit mode. The position is unchanged — single-user wall
+   display — but the surface it applies to grew.
+
 9. **News's `scrollable` opt-out (5.7) is now inert.** Its list clips, so the body has nothing
    to scroll. Keeping or dropping it is a decision, not a cleanup — see 5.11.
 
@@ -828,6 +1006,33 @@ Applies to every phase; the phase is not done until all of it passes.
 - P4 additionally: confirm the cell budget cannot be exceeded **via the size picker**, and
   that a hand-crafted over-budget `sizes` `PATCH` is rejected server-side — while a *hide* or
   *reorder* that overflows is still accepted and merely warned about (D9).
+
+P7 additionally (7.9 — none of this has been walked yet):
+
+- **Save round-trip.** Arrange a wall, `+ Save` it, reload — the chip is still there, it
+  highlights as active, and applying it after a hand-edit restores the arrangement exactly.
+- **The refusals**, each surfacing as a message rather than a silent failure: an empty name, a
+  duplicate name (client-side, before the request), a ninth preset, an arrangement too tall for
+  one screen, and — **7.10** — an arrangement identical to a preset that already exists, both
+  when that preset is one of the user's own and when it is a built-in. `+ Save` is disabled with
+  the offending preset named in its tooltip.
+- **Exactly one chip is ever highlighted.** Apply each built-in and each saved preset in turn;
+  no state may light two. Then try to save the current wall while a preset already matches it —
+  that is the gesture that used to produce the double highlight.
+- **Delete arms and disarms** — first click shows `Delete?`, blurring cancels, the second click
+  removes the chip and leaves the dashboard untouched.
+- **Re-capture** appears only on a preset that does *not* match the screen, and updates it. It
+  must also disappear when the screen matches a *different* preset (7.10), and must still work
+  when the screen matches nothing.
+- **Undo across two presets** — apply a built-in, then a saved one; Undo must return to the
+  built-in state, not two steps back.
+- **`Escape` in the name field closes the field only**, leaving edit mode intact.
+- **The bar at eight saved presets** — it must wrap inside its own `max-width`, the way the
+  hidden tray does at seven, not run off the screen.
+- **One column (≤720px):** the whole preset row is gone — both labels, both lists, `+ Save`.
+- **`/layout-lab`** shows the saved-preset audit, all pass, with holes reported as a count and
+  no `DUPLICATE OF` row.
+- **Demo:** confirm `POST` / `PATCH` / `DELETE /dashboard/presets` all 4xx under `demoReadOnly`.
 
 ---
 
@@ -964,3 +1169,5 @@ browser.
 | 2026-08-24 | **Phase 6 verified** (6.8). Full §8 pass walked: each preset produces its stated shape with no holes, the active highlight clears on hand-edit, Undo restores and then correctly disappears, chip alignment holds after the glyph bump, the tray wraps at seven hidden cards, presets hide at one column, both themes clean, lab audit reads all-pass, and a demo session cannot long-press into edit mode. Nothing outstanding in this document. |
 | 2026-08-23 | **Phase 6 built — presets** (6.1–6.7). Wall / Focus / Minimal as constants in `packages/types`, applied as one `PATCH` with no new endpoint and **no migration**; D12 recorded. Presets store the *roster* rather than the exceptions — the inverse of D4 — so a card shipped later joins Wall (which names `CARD_KEYS`) and stays out of Focus and Minimal. All three pack with zero holes, asserted in `/layout-lab` rather than trusted, since the repo has no test runner (gap 7). Two pre-existing defects surfaced: the long-press into edit mode was never demo-gated (only the header toggle was), and the edit bar could not wrap — which had never mattered until Minimal made hiding seven cards a single click. |
 | 2026-08-23 | **Phase 0 closed — contract mirrored.** D1/D2/D5/D6/D9/D10 written into `integrations/homelab-telemetry.md` as its D11(a)–(e), under an explicit note that the two D-number sets collide and must never be cited bare across files. Four things there were **wrong**, not merely stale, and were corrected in place with the original struck rather than overwritten: the pinned-rows `ceil(N/3)` column rule, the prediction that order and sizing would force a `dashboard_cards` table, Phase 2's migration number (`0013` → `0015`, both consumed here), and span/reorder still listed as deliberately out of plan. Two new open items were raised **on the homelab side**: `HomelabCard` must arrive with a fit strategy under D11(e), and it takes `/layout-lab` from 45 tiles to 50. |
+| 2026-08-24 | **Phase 7 built — user-defined presets** (7.1–7.8). D13 recorded: a `card_presets` **table** (migration `0015`), not a fourth JSON column and not the `dashboard_cards` consolidation, which is a different problem and stays deferred. `PresetArrangement` extracted so a saved preset is applied, matched, drawn and audited by exactly the code the built-ins use — `matchingPresetKey()` now sits on a shared `layoutMatchesArrangement()`. Applying a saved preset is still one `PATCH /dashboard/layout`; the new routes only manage rows. Save is non-optimistic and delete is, for opposite reasons (7.1); delete arms before firing (7.2); the saved audit drops the zero-holes assertion because a sparse wall is the user's call (7.3); `+ Save` carries the same `fitsGrid` gate the size picker does, since the live layout is allowed to overflow and a preset is not (7.4). Two pre-existing things fixed: the ≤720px rule left the `Presets` label standing over an empty row, and `Escape` in a text field would have exited edit mode. **7.9 verification not started** — the phase is built, not shipped. |
+| 2026-08-24 | **7.10 — one wall, one name.** The first build of Phase 7 let a user save an arrangement identical to an existing preset and lit *every* matching chip, reasoning that there was no honest way to pick a winner between them. Correct reasoning, wrong conclusion: the fix is to make the duplicate unstorable, not to display the ambiguity more truthfully. `duplicateArrangement()` now refuses a save or re-capture that would produce a second preset for the same wall — **built-ins included**, since "My Wall" identical to Wall fails the same way — enforced in the API (D6), greyed out with the offending preset named in the edit bar, and asserted in `/layout-lab` for rows that predate the check. `matchingSavedPresetIds()` stays plural on purpose: nothing backfills, so an older duplicate must still highlight rather than vanish from the comparison. D13 amended. |

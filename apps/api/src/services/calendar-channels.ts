@@ -7,11 +7,13 @@ import { randomState } from "./google-oauth";
 import { stopChannel, watchCalendar } from "./google-calendar";
 
 /**
- * The push webhook URL, built from the app's public origin. Empty in local dev
- * (APP_ORIGIN unset) → callers skip channel registration.
+ * The push webhook URL, built from the app's browser-facing origin. Google only
+ * pushes to a public HTTPS endpoint, so a local dev `APP_ORIGIN`
+ * (`http://localhost:5173`) yields a non-https address and `ensureChannel`
+ * skips registration — the calendar poll keeps data fresh instead.
  */
 export function webhookAddress(env: Bindings): string {
-  return env.APP_ORIGIN ? `${env.APP_ORIGIN}/api/calendar/notifications` : "";
+  return `${env.APP_ORIGIN.replace(/\/+$/, "")}/api/calendar/notifications`;
 }
 
 /**

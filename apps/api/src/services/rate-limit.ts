@@ -15,8 +15,12 @@ const TTL_SEC = 60 * 60 * 48; // keep counters ~2 days so the daily key rolls cl
 /** Daily limits, centralized. */
 export const LIMITS = {
   // Per-user (bucket → max/day)
+  // Every bucket here MUST be cache-miss-gated — one KV write per counted op,
+  // against a 1k/day free-tier write cap. Never count a bucket on every request
+  // (the `requests` backstop did, and cost ~2.9k writes/day alone; removed in
+  // Session 43). If you need a per-request limit, it belongs in the WAF or a
+  // Durable Object, not here.
   user: {
-    requests: 2000, // coarse backstop across all guarded routes
     weather: 60, // fresh OWM fetches (cache is shared by location, so this is rarely hit)
     geocode: 40, // city search / reverse lookups
     calendar: 120, // fresh Google Calendar fetches

@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Card } from "./Card";
+import { ClippedNote } from "./ClippedNote";
+import { useClampList } from "../lib/useClampList";
 import { InlineText } from "./inline";
 import type { Task, TaskPriority, TaskUpdateInput } from "@central-command/types";
 import { useNow } from "../lib/clock";
@@ -59,6 +61,8 @@ export function TasksCard() {
     );
   };
 
+  const { ref: listRef, clippedCount } = useClampList<HTMLUListElement>();
+
   if (isPending) return <Card title="Tasks" pillar="tasks">Loading…</Card>;
   if (isError) return <Card title="Tasks" pillar="tasks">Tasks unavailable: {error.message}</Card>;
 
@@ -88,7 +92,7 @@ export function TasksCard() {
       {visible.length === 0 ? (
         <p className="news-empty">No open tasks. Add a priority above.</p>
       ) : (
-        <ul className="task-list">
+        <ul className="task-list" ref={listRef}>
           {visible.map((task) => (
             <TaskRow
               key={task.id}
@@ -103,6 +107,7 @@ export function TasksCard() {
         </ul>
       )}
 
+      <ClippedNote count={clippedCount} noun="task" />
       {doneTodayCount > 0 && <p className="task-done-count">{doneTodayCount} done today</p>}
     </Card>
   );

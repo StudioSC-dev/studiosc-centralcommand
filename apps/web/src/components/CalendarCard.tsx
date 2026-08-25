@@ -1,11 +1,15 @@
 import { Card } from "./Card";
+import { ClippedNote } from "./ClippedNote";
+import { useClampList } from "../lib/useClampList";
 import { useCalendar } from "../lib/calendar";
 import { isSameLocalDay, useNow } from "../lib/time";
 import type { CalendarEvent } from "@central-command/types";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Total upcoming events to surface across the week (+ overflow). */
-const MAX_EVENTS = 10;
+// Render ceiling only — how many events actually SHOW is measured per tile by
+// useClampList. This just bounds the DOM for a very busy calendar.
+const MAX_EVENTS = 30;
 
 /** "3:00 PM" for today, else "Mon, Jun 12 · 3:00 PM"; all-day shows the date. */
 function fmtWhen(e: CalendarEvent, now: number): string {
@@ -41,6 +45,8 @@ export function CalendarCard() {
   const { data, isPending, isError, error } = useCalendar();
   const now = useNow();
 
+  const { ref: listRef, clippedCount } = useClampList<HTMLUListElement>();
+
   if (isPending) return <Card title="Calendar" pillar="calendar">Loading calendar…</Card>;
   if (isError) return <Card title="Calendar" pillar="calendar">Calendar unavailable: {error.message}</Card>;
 
@@ -73,7 +79,7 @@ export function CalendarCard() {
 
   return (
     <Card title="Calendar" pillar="calendar">
-      <ul className="cal-week">
+      <ul className="cal-week" ref={listRef}>
         {thisWeek.map((e) => (
           <EventRow key={e.id} e={e} now={now} />
         ))}
@@ -86,6 +92,7 @@ export function CalendarCard() {
           </>
         )}
       </ul>
+      <ClippedNote count={clippedCount} noun="event" />
     </Card>
   );
 }

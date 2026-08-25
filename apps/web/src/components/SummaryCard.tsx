@@ -33,12 +33,12 @@ export function SummaryCard() {
   const { data, isPending, isError, error } = useCalendar();
   const now = useNow();
 
-  if (isPending) return <Card title="Today" pillar="summary">Loading…</Card>;
-  if (isError) return <Card title="Today" pillar="summary">Unavailable: {error.message}</Card>;
+  if (isPending) return <Card title="Today" pillar="summary" scrollable>Loading…</Card>;
+  if (isError) return <Card title="Today" pillar="summary" scrollable>Unavailable: {error.message}</Card>;
 
   if (!data.connected) {
     return (
-      <Card title="Today" pillar="summary">
+      <Card title="Today" pillar="summary" scrollable>
         <p className="today-empty">Connect your calendar to anchor your day.</p>
         <a className="connect-link" href="/api/auth/google">
           Connect Google Calendar
@@ -56,7 +56,7 @@ export function SummaryCard() {
   const busyness = data.todayBusyness;
 
   return (
-    <Card title="Today" pillar="summary">
+    <Card title="Today" pillar="summary" scrollable>
       {next ? (
         <div className="today-next">
           <span className="today-next-label">Next</span>

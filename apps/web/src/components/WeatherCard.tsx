@@ -3,6 +3,7 @@ import type { WeatherCurrent, WeatherData, WeatherDailyEntry } from "@central-co
 import { useSetUnits, useWeather } from "../lib/weather";
 import { useIsDemo } from "../lib/auth";
 import { LocationSetter } from "./LocationSetter";
+import { Card as CardShell } from "./Card";
 import { WeatherGlyph, weatherGroup } from "./WeatherGlyph";
 
 type Units = WeatherData["units"];
@@ -38,7 +39,7 @@ function SunArc({ current }: { current: WeatherCurrent }) {
   const y = cy - r * Math.sin(a);
 
   return (
-    <div className="weather-sun">
+    <div className="weather-sun" data-drop-order="3">
       <svg viewBox="0 0 120 62" className="sun-arc" aria-hidden="true">
         <path className="sun-arc-track" d="M14 52 A46 46 0 0 1 106 52" />
         <circle className={`sun-dot${daytime ? "" : " night"}`} cx={x} cy={y} r="4.5" />
@@ -58,6 +59,36 @@ function Detail({ label, value }: { label: string; value: string }) {
       <span className="weather-detail-value">{value}</span>
     </div>
   );
+}
+
+/**
+ * The outlook in words, for tiles too narrow to render legible day chips.
+ *
+ * Losing the strip is better than shrinking it past the point of being read —
+ * but losing it *silently* just leaves a hole. This says the same thing in one
+ * line: today's rain chance and range, plus the next wetter day if there is one,
+ * which is the part of a five-day strip anyone actually scans for.
+ */
+function briefOutlook(daily: readonly WeatherDailyEntry[], units: Units): string {
+  const today = daily[0];
+  if (!today) return "";
+
+  const parts = [
+    `Today ${Math.round(today.pop * 100)}% rain`,
+    `${fmtTemp(today.max, units)} / ${fmtTemp(today.min, units)}`,
+  ];
+
+  // Only worth naming a later day if it is wetter than today — otherwise the
+  // line is just repeating what the hero already says.
+  let wettest = -1;
+  for (let i = 1; i < daily.length; i++) {
+    if (daily[i]!.pop > (wettest === -1 ? today.pop : daily[wettest]!.pop)) wettest = i;
+  }
+  if (wettest > 0) {
+    parts.push(`${dayLabel(daily[wettest]!.date, wettest)} ${Math.round(daily[wettest]!.pop * 100)}%`);
+  }
+
+  return parts.join(" · ");
 }
 
 export function WeatherCard() {
@@ -126,14 +157,14 @@ export function WeatherCard() {
 
       <SunArc current={current} />
 
-      <div className="weather-details">
+      <div className="weather-details" data-drop-order="2">
         <Detail label="Humidity" value={`${current.humidity}%`} />
         <Detail label="Pressure" value={`${current.pressure} hPa`} />
         <Detail label="Visibility" value={fmtVisibility(current.visibility, units)} />
       </div>
 
       {daily.length > 1 && (
-        <ul className="weather-outlook">
+        <ul className="weather-outlook" data-drop-order="1">
           {daily.map((d, i) => (
             <li key={d.date}>
               <span className="weather-outlook-day">{dayLabel(d.date, i)}</span>
@@ -148,18 +179,28 @@ export function WeatherCard() {
           ))}
         </ul>
       )}
+
+      {/* The outlook said in words, and the *last* thing this card gives up.
+          It sits after the strip and carries the highest drop order on purpose:
+          the fit pass drops the strip first, this takes its place, and only if
+          the tile is smaller still does it go too. A card that has lost its
+          five-day strip can almost always afford one line saying whether it
+          will rain. Hidden by CSS whenever the strip is actually showing. */}
+      {daily.length > 1 && (
+        <p className="weather-outlook-brief" data-drop-order="4" data-fallback>
+          {briefOutlook(daily, units)}
+        </p>
+      )}
     </Card>
   );
 }
 
+/** Local alias so every `<Card>` in this file gets the Weather title and pillar.
+ * Delegates to the shared shell — see CardShell's `className` note for why. */
 function Card({ children }: { children: ReactNode }) {
   return (
-    <section className="card weather-card pillar-weather">
-      <h2 className="card-title">
-        <span className="card-dot" aria-hidden="true" />
-        Weather
-      </h2>
-      <div className="card-body">{children}</div>
-    </section>
+    <CardShell title="Weather" pillar="weather" className="weather-card">
+      {children}
+    </CardShell>
   );
 }

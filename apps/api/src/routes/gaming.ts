@@ -28,7 +28,21 @@ interface ProviderRef {
 }
 
 /**
- * Live game status, KV-cached 60s per user so polling/dashboard loads don't each
+ * How long a live-status result is cached, per user.
+ *
+ * This constant IS the write budget: a poll at or above this rate rewrites the
+ * key once per TTL, so the ceiling is 86400/TTL writes/day — 288 at 5 minutes.
+ * It was 60s while the client polled at 60s, which guaranteed a miss (and a
+ * wasted spectator call) on every single poll: ~1,440 writes/day against KV's
+ * 1,000/day free cap. See CLAUDE.md → KV Write Budget.
+ *
+ * Keep this comfortably LONGER than `refetchInterval` in `apps/web/src/lib/gaming.ts`.
+ * If you shorten it, recompute the daily total — and remember it multiplies per user.
+ */
+const LIVE_TTL = 5 * 60;
+
+/**
+ * Live game status, KV-cached per user so polling/dashboard loads don't each
  * spend a spectator API call. Caches the "not in game" result too. Spectator
  * errors degrade to `null` — they must never break the card.
  */
@@ -51,7 +65,7 @@ async function getLive(env: Bindings, ref: ProviderRef): Promise<LiveGame | null
   } catch {
     live = null;
   }
-  await env.CACHE.put(key, JSON.stringify(live), { expirationTtl: 60 });
+  await env.CACHE.put(key, JSON.stringify(live), { expirationTtl: LIVE_TTL });
   return live;
 }
 

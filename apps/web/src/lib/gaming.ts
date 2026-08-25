@@ -10,8 +10,12 @@ export function useGaming() {
     queryKey: ["gaming"],
     queryFn: () => apiGet<GamingResponse>("/api/gaming"),
     // Poll so the live "in game" badge appears/clears unattended on the wall
-    // display. Aligned to the API's 60s live-status cache (≤1 spectator call/min).
-    refetchInterval: 60_000,
+    // display. Kept SHORTER than the API's 5-min live-status cache (LIVE_TTL in
+    // routes/gaming.ts) so most polls are cheap cache hits — matching the two
+    // guaranteed a KV write and a spectator call on every poll. Worst-case badge
+    // latency is TTL + this interval (~7 min), which is fine against a ~30-min
+    // game. Don't raise this above LIVE_TTL.
+    refetchInterval: 2 * 60_000,
     refetchIntervalInBackground: true,
   });
 }

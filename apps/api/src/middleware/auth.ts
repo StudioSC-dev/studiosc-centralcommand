@@ -1,10 +1,8 @@
 import { createMiddleware } from "hono/factory";
-import type { Context, Next } from "hono";
 import type { AppEnv } from "../env";
 import { createDb } from "../lib/db";
 import { getOrCreateUser } from "../services/users";
 import { getSession } from "../lib/session";
-import { allowUserDaily } from "../services/rate-limit";
 import { fail } from "../lib/response";
 
 /**
@@ -13,6 +11,14 @@ import { fail } from "../lib/response";
  * `DEV_AUTH_EMAIL` stands in when no cookie is present (never set in prod).
  *
  * Cloudflare Access has been removed — the app authenticates itself now.
+ *
+ * This middleware deliberately performs NO rate limiting. A coarse per-user
+ * daily request ceiling used to live here and was removed in Session 43: it
+ * cost one KV write per request, which is the wrong shape for KV (a read-heavy
+ * cache with ~1k writes/day) and blew the free-tier write cap on its own. The
+ * limits that matter — the ones protecting third-party keys — sit on the routes
+ * that actually call out, and only fire on a cache miss. See HANDOVER.md
+ * Session 43 before reintroducing anything per-request here.
  */
 export const sessionAuth = createMiddleware<AppEnv>(async (c, next) => {
   const session = await getSession(c);
@@ -20,7 +26,7 @@ export const sessionAuth = createMiddleware<AppEnv>(async (c, next) => {
     c.set("userId", session.userId);
     c.set("userEmail", session.email);
     c.set("isDemo", session.demo);
-    return backstopThenNext(c, next, session.userId, session.demo);
+    return next();
   }
 
   // Local dev only: no session cookie, so trust the configured dev email.
@@ -29,21 +35,8 @@ export const sessionAuth = createMiddleware<AppEnv>(async (c, next) => {
     c.set("userId", user.id);
     c.set("userEmail", user.email);
     c.set("isDemo", false);
-    return backstopThenNext(c, next, user.id, false);
+    return next();
   }
 
   return fail(c, "unauthorized", "No authenticated identity.", 401);
 });
-
-/**
- * Coarse per-user daily request ceiling — protects Workers/D1 from a single
- * abusive session. Skipped for demo (its user id is shared across all demo
- * visitors, so one abuser must not be able to lock everyone out).
- */
-async function backstopThenNext(c: Context<AppEnv>, next: Next, userId: string, isDemo: boolean) {
-  if (!isDemo) {
-    const rl = await allowUserDaily(c.env, userId, "requests");
-    if (!rl.allowed) return fail(c, "rate_limited", "Daily request limit reached.", 429);
-  }
-  await next();
-}

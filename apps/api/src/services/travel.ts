@@ -9,6 +9,7 @@ import {
 import type { CalendarEvent, EventTravel, StressFactor } from "@central-command/types";
 import type { Database } from "../lib/db";
 import { geocodeMany, normaliseQuery } from "./geocode-cache";
+import type { GeocodeResult } from "./openrouteservice";
 import { haversineKm, modeFor, routeMinutes, type Coords } from "./openrouteservice";
 import { isMappable } from "./maps";
 
@@ -79,9 +80,23 @@ export async function planTravel(
   const places = today.map((e) => e.location).filter(isMappable);
   if (places.length === 0) return noTravel();
 
-  // Home is the focus point: it is where the calendar lives, and without it
-  // a terse location resolves globally (see `geocode()`).
-  const coordsByQuery = await geocodeMany(db, places, apiKey, Date.now(), home);
+  // Home constrains the geocoder's search area; without it a terse location
+  // resolves globally (see `geocode()`).
+  //
+  // Wrapped because the calendar response must not depend on this succeeding.
+  // The comment at the call site in routes/calendar.ts promises travel is
+  // "best-effort by construction", and until this try/catch existed that was
+  // only true of network failures — a D1 error threw straight past it into the
+  // generic 500 handler. The concrete way to hit that: set ORS_API_KEY in
+  // production before applying migration 0017, and every calendar request dies
+  // on a missing `geocode_cache` table. Which the client would report as
+  // "An unexpected error occurred" (see the open reminder in HANDOVER.md).
+  let coordsByQuery: Map<string, GeocodeResult>;
+  try {
+    coordsByQuery = await geocodeMany(db, places, apiKey, Date.now(), home);
+  } catch {
+    return noTravel();
+  }
   const coordsFor = (e: CalendarEvent): Coords | null => {
     if (!isMappable(e.location)) return null;
     return coordsByQuery.get(normaliseQuery(e.location)) ?? null;

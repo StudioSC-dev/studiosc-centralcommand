@@ -15,11 +15,12 @@ const TTL_SEC = 60 * 60 * 48; // keep counters ~2 days so the daily key rolls cl
 /** Daily limits, centralized. */
 export const LIMITS = {
   // Per-user (bucket → max/day)
-  // Every bucket here MUST be cache-miss-gated — one KV write per counted op,
-  // against a 1k/day free-tier write cap. Never count a bucket on every request
-  // (the `requests` backstop did, and cost ~2.9k writes/day alone; removed in
-  // Session 43). If you need a per-request limit, it belongs in the WAF or a
-  // Durable Object, not here.
+  // Every bucket here MUST be gated behind a cache miss — `bump()` writes to KV
+  // on each call, and KV allows 1,000 writes/day. A `requests` bucket counting
+  // every authenticated request lived here until Session 44 and broke that rule
+  // (~2,880 writes/day, and its ceiling was below what one dashboard generates,
+  // so it locked the only user out daily). Per-request limiting belongs in the
+  // WAF or a Durable Object, never here. See middleware/auth.ts.
   user: {
     weather: 60, // fresh OWM fetches (cache is shared by location, so this is rarely hit)
     geocode: 40, // city search / reverse lookups

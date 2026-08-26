@@ -12,13 +12,25 @@ import { fail } from "../lib/response";
  *
  * Cloudflare Access has been removed — the app authenticates itself now.
  *
- * This middleware deliberately performs NO rate limiting. A coarse per-user
- * daily request ceiling used to live here and was removed in Session 43: it
- * cost one KV write per request, which is the wrong shape for KV (a read-heavy
- * cache with ~1k writes/day) and blew the free-tier write cap on its own. The
- * limits that matter — the ones protecting third-party keys — sit on the routes
- * that actually call out, and only fire on a cache miss. See HANDOVER.md
- * Session 43 before reintroducing anything per-request here.
+ * **There is deliberately no per-request rate limit here.** A coarse per-user
+ * daily counter used to live on this path and was removed twice — once in
+ * Session 43 and again, for real, in Session 44 when it was found still running.
+ * It failed in three ways at once:
+ *
+ * - It wrote to KV on *every* authenticated request, which is exactly what
+ *   CLAUDE.md forbids. At ~2,880 requests/day from two 60s polling cards it was
+ *   the single largest write source, and on its own over the 1,000/day free cap.
+ * - Its own 2,000/day ceiling was *below* what one always-on dashboard generates,
+ *   so the wall display locked itself out after ~16.7 hours and 429'd until UTC
+ *   midnight. A limiter that reliably takes down the only user is not protection.
+ * - KV is eventually consistent, so the count was approximate anyway.
+ *
+ * What still limits things: the per-third-party-API counters in
+ * `services/rate-limit.ts`, which protect the shared free-tier keys and are
+ * gated behind cache misses, so they cost a handful of writes a day. Abuse of
+ * the API surface itself is a WAF rate-limiting rule — free, zero storage ops,
+ * in front of the Worker — and is a **prerequisite for opening demo mode to the
+ * public** (see HANDOVER.md). Until then the app is gated to a single account.
  */
 export const sessionAuth = createMiddleware<AppEnv>(async (c, next) => {
   const session = await getSession(c);

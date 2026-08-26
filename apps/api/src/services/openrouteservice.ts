@@ -89,32 +89,88 @@ async function fetchJson(url: URL): Promise<unknown | null> {
 }
 
 /**
- * Resolve a free-text place to coordinates. Returns null when ORS has no
+ * Layers too coarse to be a destination. A country or region centroid is not a
+ * place you can drive to — the Philippines centroid is in the sea — and routing
+ * from one either fails or, worse, succeeds against some arbitrary nearby road.
+ */
+const COARSE_LAYERS = new Set(["country", "dependency", "macroregion", "region", "macrocounty"]);
+
+/** How many candidates to request before filtering. */
+const GEOCODE_CANDIDATES = 5;
+
+/**
+ * Radius of the search constraint around the user's home, in km.
+ *
+ * Wide enough for any journey you would actually drive to in a day, narrow
+ * enough to exclude the rest of the planet. An event further away than this is a
+ * flight, where a driving estimate would be meaningless anyway — so failing to
+ * resolve it is the right outcome, not a gap.
+ */
+const SEARCH_RADIUS_KM = 150;
+
+/**
+ * Resolve a free-text place to coordinates. Returns null when there is no
  * confident answer, which the caller caches as a miss so it is not re-asked.
+ *
+ * **`near` is doing the heavy lifting, and it must be a hard constraint.**
+ * Calendar locations are terse, messy and globally ambiguous, and this was
+ * established the hard way against a real address in Alabang:
+ *
+ * - Unconstrained, the full string returned only two `country` results (Pelias
+ *   latches onto the trailing "Philippines"), and a truncated version returned
+ *   five streets in England — each with confidence 1.0.
+ * - `focus.point`, which only *biases* ranking, changed nothing: still England.
+ * - `boundary.circle` — a hard filter — put the correct venue first on the very
+ *   first try.
+ *
+ * So confidence is not a quality signal here (it measures string match, not
+ * plausibility), and a soft hint is not enough. Constrain the search, then trust
+ * Pelias's ordering.
+ *
+ * **Take the first survivor, not the nearest.** Ranking the constrained results
+ * by distance from home was tried and is actively wrong: for that same address
+ * it picked a venue 3.8 km away over the correct one 15.6 km away, purely
+ * because it was closer. Once the search area is bounded, relevance beats
+ * proximity.
  *
  * Note this is a *venue* geocoder, unlike the OpenWeatherMap one already in this
  * codebase — that one resolves cities only ("Manila"), and cannot resolve
  * "Cafe Mura" or a street address. They are not interchangeable.
  */
-export async function geocode(text: string, apiKey: string): Promise<GeocodeResult | null> {
+export async function geocode(
+  text: string,
+  apiKey: string,
+  near?: Coords,
+): Promise<GeocodeResult | null> {
   const url = new URL(GEOCODE_ENDPOINT);
   url.searchParams.set("api_key", apiKey);
   url.searchParams.set("text", text);
-  url.searchParams.set("size", "1");
+  url.searchParams.set("size", String(GEOCODE_CANDIDATES));
+  if (near) {
+    url.searchParams.set("boundary.circle.lat", String(near.lat));
+    url.searchParams.set("boundary.circle.lon", String(near.lon));
+    url.searchParams.set("boundary.circle.radius", String(SEARCH_RADIUS_KM));
+  }
 
   const data = (await fetchJson(url)) as
-    | { features?: Array<{ geometry?: { coordinates?: [number, number] }; properties?: { label?: string } }> }
+    | {
+        features?: Array<{
+          geometry?: { coordinates?: [number, number] };
+          properties?: { label?: string; layer?: string };
+        }>;
+      }
     | null;
 
-  const feature = data?.features?.[0];
-  const coordinates = feature?.geometry?.coordinates;
-  if (!coordinates || coordinates.length < 2) return null;
-
-  // GeoJSON is [lon, lat] — the reverse of every other pair in this codebase.
-  const [lon, lat] = coordinates;
-  if (typeof lat !== "number" || typeof lon !== "number") return null;
-
-  return { lat, lon, label: feature?.properties?.label ?? text };
+  for (const feature of data?.features ?? []) {
+    if (COARSE_LAYERS.has(feature.properties?.layer ?? "")) continue;
+    const coordinates = feature.geometry?.coordinates;
+    if (!coordinates || coordinates.length < 2) continue;
+    // GeoJSON is [lon, lat] — the reverse of every other pair in this codebase.
+    const [lon, lat] = coordinates;
+    if (typeof lat !== "number" || typeof lon !== "number") continue;
+    return { lat, lon, label: feature.properties?.label ?? text };
+  }
+  return null;
 }
 
 /**

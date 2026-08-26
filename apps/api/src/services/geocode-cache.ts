@@ -1,7 +1,7 @@
 import { inArray } from "drizzle-orm";
 import { geocodeCache } from "@central-command/db";
 import type { Database } from "../lib/db";
-import { geocode, type GeocodeResult } from "./openrouteservice";
+import { geocode, type Coords, type GeocodeResult } from "./openrouteservice";
 
 /**
  * D1-backed cache in front of the ORS geocoder.
@@ -46,6 +46,12 @@ export async function geocodeMany(
   texts: readonly string[],
   apiKey: string,
   now: number,
+  /**
+   * Constrains the search to a radius around the user's home. Effectively
+   * required — without it a terse calendar location resolves to a same-named
+   * street on another continent, with full confidence. See `geocode()`.
+   */
+  near?: Coords,
 ): Promise<Map<string, GeocodeResult>> {
   const queries = [...new Set(texts.map(normaliseQuery))].filter(Boolean);
   const resolved = new Map<string, GeocodeResult>();
@@ -72,7 +78,7 @@ export async function geocodeMany(
 
   // ORS's free plan allows 40 concurrent requests and a day's schedule is a
   // handful of distinct places, so a plain parallel fan-out is within budget.
-  const looked = await Promise.all(misses.map(async (q) => [q, await geocode(q, apiKey)] as const));
+  const looked = await Promise.all(misses.map(async (q) => [q, await geocode(q, apiKey, near)] as const));
 
   for (const [query, result] of looked) {
     const staleAfter = now + (result ? HIT_TTL_MS : MISS_TTL_MS);

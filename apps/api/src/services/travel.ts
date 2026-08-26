@@ -79,7 +79,9 @@ export async function planTravel(
   const places = today.map((e) => e.location).filter(isMappable);
   if (places.length === 0) return noTravel();
 
-  const coordsByQuery = await geocodeMany(db, places, apiKey, Date.now());
+  // Home is the focus point: it is where the calendar lives, and without it
+  // a terse location resolves globally (see `geocode()`).
+  const coordsByQuery = await geocodeMany(db, places, apiKey, Date.now(), home);
   const coordsFor = (e: CalendarEvent): Coords | null => {
     if (!isMappable(e.location)) return null;
     return coordsByQuery.get(normaliseQuery(e.location)) ?? null;

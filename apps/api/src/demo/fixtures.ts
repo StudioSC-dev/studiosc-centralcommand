@@ -1,4 +1,4 @@
-import type { CalendarData, WeatherData } from "@central-command/types";
+import type { CalendarData, CalendarEvent, WeatherData } from "@central-command/types";
 
 /**
  * Request-time fixtures for the demo's live-fetch pillars (weather, calendar).
@@ -70,21 +70,75 @@ export function demoWeather(): WeatherData {
 }
 
 export function demoCalendar(): CalendarData {
-  const ev = (id: string, title: string, dayOffset: number, startH: number, durMin: number, location: string | null = null) => {
+  const ev = (
+    id: string,
+    title: string,
+    dayOffset: number,
+    startH: number,
+    durMin: number,
+    location: string | null = null,
+    extra: Partial<CalendarEvent> = {},
+  ): CalendarEvent => {
     const start = todayAt(startH) + dayOffset * DAY;
-    return { id, title, start, end: start + durMin * 60 * 1000, allDay: false, location };
+    return { id, title, start, end: start + durMin * 60 * 1000, allDay: false, location, ...extra };
   };
 
+  // The demo is the only place a portfolio visitor sees this feature, so the
+  // fixture has to exercise each branch of it rather than a happy path: a Zoom
+  // call with a code and passcode, a bare Meet link, a walkable lunch, a drive
+  // that is tight, and a plain event with neither call nor location.
   const events = [
-    ev("d1", "Morning standup", 0, 9, 15),
-    ev("d2", "Design review", 0, 11, 60, "Zoom"),
-    ev("d3", "Lunch with Sam", 0, 13, 60, "Cafe Mura"),
-    ev("d4", "Gym session", 0, 18, 60),
-    ev("d5", "1:1 with manager", 1, 10, 30),
-    ev("d6", "Dentist", 2, 15, 45, "Downtown Dental"),
-    ev("d7", "Project kickoff", 3, 9, 90, "Room 4B"),
-    ev("d8", "Team offsite", 6, 9, 240),
+    ev("d1", "Morning standup", 0, 9, 15, null, {
+      conference: { provider: "meet", url: "https://meet.google.com/abc-defg-hij", label: "Join Google Meet" },
+    }),
+    ev("d2", "Design review", 0, 11, 60, "https://zoom.us/j/81244609931", {
+      conference: {
+        provider: "zoom",
+        url: "https://zoom.us/j/81244609931",
+        label: "Join Zoom Meeting",
+        meetingCode: "812 4460 9931",
+        passcode: "4417",
+      },
+      description: "Walk through the revised lighting schedule before the client call.",
+    }),
+    ev("d3", "Lunch with Sam", 0, 13, 60, "Cafe Mura, Manila", {
+      travel: { mode: "walk", minutes: 14, km: 1.1, leaveBy: todayAt(13) - 24 * 60 * 1000, originLabel: null, bufferMinutes: 86 },
+      mapLinkUrl: "https://www.google.com/maps/search/?api=1&query=Cafe+Mura%2C+Manila",
+    }),
+    ev("d4", "Client workshop", 0, 15, 90, "Bonifacio Global City, Taguig", {
+      travel: {
+        mode: "drive",
+        minutes: 27,
+        km: 14.2,
+        leaveBy: todayAt(15) - 37 * 60 * 1000,
+        originLabel: "Cafe Mura, Manila",
+        bufferMinutes: 9,
+      },
+      mapLinkUrl: "https://www.google.com/maps/search/?api=1&query=Bonifacio+Global+City%2C+Taguig",
+      attendeeCount: 6,
+    }),
+    ev("d5", "Gym session", 0, 19, 60),
+    ev("d6", "1:1 with manager", 1, 10, 30, null, {
+      conference: { provider: "meet", url: "https://meet.google.com/klm-nopq-rst", label: "Join Google Meet" },
+    }),
+    ev("d7", "Dentist", 2, 15, 45, "Downtown Dental"),
+    ev("d8", "Project kickoff", 3, 9, 90, "Room 4B"),
+    ev("d9", "Team offsite", 6, 9, 240),
   ].sort((a, b) => a.start - b.start);
 
-  return { connected: true, events, todayBusyness: 48 };
+  return {
+    connected: true,
+    events,
+    todayBusyness: 48,
+    // Above density (48) because the 9-minute connection to the workshop is
+    // what actually makes the demo day feel tight — which is the whole point of
+    // the second number.
+    todayStress: 66,
+    stressFactors: [
+      { label: "9 min to get out the door", tone: "warn" },
+      { label: "4h 25m scheduled", tone: "neutral" },
+      { label: "41m in transit", tone: "neutral" },
+    ],
+  };
 }
+

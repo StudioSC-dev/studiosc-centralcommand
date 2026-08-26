@@ -58,3 +58,29 @@ export async function decryptSecret(payloadB64: string, keyB64: string): Promise
   const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
   return new TextDecoder().decode(plaintext);
 }
+
+/**
+ * SHA-256 of a UTF-8 string, lowercase hex.
+ *
+ * Used for bearer tokens at rest (`lab_sources.token_hash`). A hash — not
+ * `encryptSecret` — because we never need the token back: verification hashes
+ * what the caller presented and looks the digest up on a unique index. That
+ * also means no secret is ever compared byte-by-byte in app code, so there is
+ * no timing side channel to get wrong.
+ */
+export async function sha256Hex(input: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * A fresh bearer token: 32 random bytes, base64url, prefixed so a leaked string
+ * is identifiable at a glance (and greppable in a log that should not have it).
+ */
+export function newBearerToken(prefix = "ccl"): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const b64 = bytesToBase64(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `${prefix}_${b64}`;
+}

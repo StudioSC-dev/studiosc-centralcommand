@@ -30,11 +30,16 @@ export function EventDialog({ event, onClose }: { event: CalendarEvent | null; o
     if (!event && node.open) node.close();
   }, [event]);
 
-  // Escape closes the dialog and must go no further: the edit-mode provider
-  // listens for it on window, so without this, dismissing a dialog opened from a
-  // card in edit mode would also leave edit mode. Capture phase, for the same
-  // reason CardSizePicker uses it — window listeners would otherwise see it
-  // first. The dialog's own Escape handling still runs via the cancel event.
+  // Escape closes the dialog and must go no further, because the edit-mode
+  // provider also listens for it on window. Capture phase, for the same reason
+  // CardSizePicker uses it — window listeners would otherwise see it first. The
+  // dialog's own Escape handling still runs via the cancel event.
+  //
+  // Belt and braces today: `.dashboard.is-editing .card-body` is
+  // `pointer-events: none`, so a row cannot be clicked while arranging and the
+  // two states cannot currently overlap. This guard exists so that stays true if
+  // the inertness rule is ever relaxed — it is not evidence that they do
+  // overlap, and it has never been observed to fire.
   useEffect(() => {
     if (!event) return;
     const onKey = (e: KeyboardEvent) => {

@@ -35,7 +35,10 @@ function EventRow({ e, now, onOpen }: { e: CalendarEvent; now: number; onOpen: (
     <li className={`cal-event${live ? " live" : ""}`}>
       {/* The row is the control: every event opens the same dialog the Today
           card uses. `onPointerDown` stops here so a press is a click, not the
-          long-press that puts the dashboard into edit mode. */}
+          long-press that puts the dashboard into edit mode.
+          This card is mostly list, so it gives up more long-press surface than
+          Today does — the title and the card's padding are what remain. Worth
+          revisiting if entering edit mode from here starts to feel fiddly. */}
       <button
         type="button"
         className="cal-event-button"

@@ -18,6 +18,10 @@ DELETE FROM gaming_providers  WHERE user_id = 'demo0000-0000-7000-8000-000000000
 DELETE FROM weather_snapshots WHERE user_id = 'demo0000-0000-7000-8000-000000000000';
 -- No saved presets are seeded: edit mode is demo-gated, so a visitor never sees
 -- the preset row. The delete is here anyway so the reset stays total.
+DELETE FROM notifications        WHERE user_id = 'demo0000-0000-7000-8000-000000000000';
+DELETE FROM notification_sources WHERE user_id = 'demo0000-0000-7000-8000-000000000000';
+DELETE FROM lab_snapshots     WHERE source_id IN (SELECT id FROM lab_sources WHERE user_id = 'demo0000-0000-7000-8000-000000000000');
+DELETE FROM lab_sources       WHERE user_id = 'demo0000-0000-7000-8000-000000000000';
 DELETE FROM card_presets      WHERE user_id = 'demo0000-0000-7000-8000-000000000000';
 DELETE FROM dashboard_cards   WHERE user_id = 'demo0000-0000-7000-8000-000000000000';
 DELETE FROM user_settings     WHERE user_id = 'demo0000-0000-7000-8000-000000000000';
@@ -37,21 +41,29 @@ VALUES ('demo0000-0000-7000-8000-000000000000', 'America/New_York', 40.71, -74.0
 -- ── Dashboard layout ─────────────────────────────────────────────────────────
 -- One row per exception (docs/ui-suite.md D15). Exactly one is needed here.
 --
--- Nothing is hidden: the demo shows all nine cards, so a visitor sees the full
+-- Nothing is hidden: the demo shows all ELEVEN cards, so a visitor sees the full
 -- dashboard. Edit mode is hidden for demo sessions, and demoReadOnly blocks the
 -- PATCH server-side regardless.
 --
 -- No positions: registry order is the intended demo arrangement, and storing it
 -- would only freeze a default that is already correct.
 --
--- Weather gets a 2x2 hero tile, so a visitor sees that cards can be more than
--- one size without having to be told. It is chosen to pack exactly: 8 remaining
--- 1x1 cards + one 4-cell card = 12 cells, and Weather is first in registry
--- order, so gridShape() derives a 4x3 wall with zero holes. A 2x2 card placed
--- *late* in the order would push past three rows instead (the packing rule in
--- docs/ui-suite.md D9) — the position matters as much as the size.
+-- Weather gets a WIDE tile, so a visitor sees that cards can be more than one
+-- size without having to be told.
+--
+-- IT WAS 2x2 UNTIL THE HOMELAB AND NOTIFICATIONS CARDS SHIPPED, and that had to
+-- change rather than being carried forward. The cap is 4 x 3 = 12 cells
+-- (docs/ui-suite.md D2/D9). Nine cards with one 2x2 was 8 + 4 = 12, exactly
+-- full. Eleven cards with that same 2x2 is 10 + 4 = 14, which no shape up to
+-- four columns can pack into three rows — the demo would have rendered
+-- `overflows` on the one dashboard nobody signed in to fix.
+--
+-- 2x1 restores the property: 10 one-cell cards + one two-cell card = 12, and
+-- Weather is first in registry order, so gridShape() derives a 4x3 wall with
+-- zero holes. A wide card placed *late* in the order would push past three rows
+-- instead — position matters as much as size.
 INSERT INTO dashboard_cards (user_id, card, hidden, position, size, updated_at)
-VALUES ('demo0000-0000-7000-8000-000000000000', 'weather', 0, NULL, '2x2', unixepoch('now') * 1000);
+VALUES ('demo0000-0000-7000-8000-000000000000', 'weather', 0, NULL, '2x1', unixepoch('now') * 1000);
 
 -- ── Performance scores (last 30 days) ────────────────────────────────────────
 WITH RECURSIVE seq(n) AS (SELECT 0 UNION ALL SELECT n + 1 FROM seq WHERE n < 29)
@@ -155,3 +167,130 @@ SELECT
   CASE WHEN n % 6 = 3 THEN 2.5 ELSE NULL END,
   unixepoch('now', '-' || n || ' days') * 1000
 FROM seq;
+
+-- ── Fictional homelab (D4) ───────────────────────────────────────────────────
+--
+-- The demo gets its OWN lab source with INVENTED service names. This is not a
+-- nicety: Central Command is a portfolio piece and demo mode is scheduled to
+-- open to any Google account, so a real snapshot on screen would publish the
+-- actual service inventory and up/down timing of a private network.
+--
+-- It is enforced SERVER-SIDE, in readLab(), which scopes every read to the
+-- session's user id. Card visibility is a preference and must NEVER be treated
+-- as the control here — a visitor who un-hides the card still reaches only this
+-- row. See the risk register in ../integrations/homelab-telemetry.md.
+--
+-- The token hash is a literal, not a hash of anything. sourceForToken() compares
+-- against the SHA-256 hex of what a caller presented — always 64 hex characters
+-- — so this value cannot be matched by any token that exists, and nothing can
+-- ever push to the demo source.
+INSERT INTO lab_sources (id, user_id, label, token_hash, created_at, rotated_at, last_seen_at, agent_version)
+VALUES (
+  'demolab0-0000-7000-8000-000000000000',
+  'demo0000-0000-7000-8000-000000000000',
+  'Demo Lab',
+  'demo-source-not-a-sha256-and-therefore-unmatchable',
+  unixepoch('now', '-30 days') * 1000,
+  NULL,
+  -- Relative, so the demo always renders FRESH. A fixed timestamp would drift
+  -- past the 15-minute band and show every visitor an "offline" lab within the
+  -- hour — the card working correctly, on data that was never meant to age.
+  unixepoch('now', '-40 seconds') * 1000,
+  '0.1.0-demo'
+);
+
+-- One down service and one unhealthy collector, deliberately: an all-green
+-- snapshot would show the card at its least informative, and the design point is
+-- that it is most useful exactly when something is wrong.
+INSERT INTO lab_snapshots (source_id, version, captured_at, received_at, sections, agent_version)
+VALUES (
+  'demolab0-0000-7000-8000-000000000000',
+  1,
+  unixepoch('now', '-40 seconds') * 1000,
+  unixepoch('now', '-40 seconds') * 1000,
+  json_object(
+    'monitors', json_object(
+      'ok', json('true'),
+      'data', json_object(
+        'counts', json_object('up', 11, 'down', 1, 'paused', 1),
+        'items', json_array(
+          json_object('key','1','label','Media Server','status','up','uptime24h',99.9),
+          json_object('key','2','label','Photo Vault','status','up','uptime24h',100),
+          json_object('key','3','label','Document Store','status','up','uptime24h',99.7),
+          json_object('key','4','label','Password Vault','status','up','uptime24h',100),
+          json_object('key','5','label','Reverse Proxy','status','up','uptime24h',100),
+          json_object('key','6','label','DNS Filter','status','up','uptime24h',99.8),
+          json_object('key','7','label','Dashboard','status','up','uptime24h',99.9),
+          json_object('key','8','label','Home Automation','status','up','uptime24h',98.4),
+          json_object('key','9','label','Notification Bus','status','up','uptime24h',100),
+          json_object('key','10','label','Backup Agent','status','up','uptime24h',99.5),
+          json_object('key','11','label','Container Metrics','status','up','uptime24h',99.9),
+          json_object('key','12','label','Subtitle Fetcher','status','down',
+                      'since', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-14 minutes'), 'uptime24h', 96.1),
+          json_object('key','13','label','Indexer','status','paused','uptime24h',0)
+        )
+      )
+    ),
+    'backups', json_object(
+      'ok', json('true'),
+      'data', json_object('plans', json_array(
+        json_object('key','offsite','label','Offsite Snapshot',
+                    'lastRunAt', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-6 hours'), 'result','ok'),
+        json_object('key','local','label','Local Snapshot',
+                    'lastRunAt', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-2 hours'), 'result','ok')
+      ))
+    ),
+    'images', json_object(
+      'ok', json('true'),
+      'data', json_object('pendingUpdates', 3, 'items', json_array(
+        json_object('key','media','label','Media Server'),
+        json_object('key','photos','label','Photo Vault'),
+        json_object('key','docs','label','Document Store')
+      ))
+    ),
+    -- One section failing on purpose. It is the shape a visitor should see at
+    -- least once: the card says WHICH collector is unreachable rather than
+    -- rendering an empty list that reads as "all clear".
+    'containers', json_object('ok', json('false'), 'error', 'unreachable')
+  ),
+  '0.1.0-demo'
+);
+
+-- ── Notifications (the spine, multi-source) ──────────────────────────────────
+--
+-- Three sources on purpose, and two KINDS of source, because that distinction is
+-- the whole design: `lab` is a FEED (rows below, each dismissable) while `gmail`
+-- and `slack` are COUNT-ONLY (a number from a collector, no rows). A demo with
+-- only the lab connected would show a card that looks like it can do only one of
+-- those.
+INSERT INTO notification_sources (user_id, source, label, unread_count, last_event_at, last_sync_at, state, updated_at)
+VALUES
+  -- NULL unread_count → derived from the feed rows below. That is what every
+  -- feed source does.
+  ('demo0000-0000-7000-8000-000000000000', 'lab', 'Homelab', NULL,
+   unixepoch('now', '-14 minutes') * 1000, unixepoch('now') * 1000, 'ok', unixepoch('now') * 1000),
+  ('demo0000-0000-7000-8000-000000000000', 'gmail', 'Gmail', 12,
+   unixepoch('now', '-35 minutes') * 1000, unixepoch('now') * 1000, 'ok', unixepoch('now') * 1000),
+  ('demo0000-0000-7000-8000-000000000000', 'slack', 'Slack', 4,
+   unixepoch('now', '-2 hours') * 1000, unixepoch('now') * 1000, 'ok', unixepoch('now') * 1000);
+
+INSERT INTO notifications (id, user_id, source, kind, external_id, title, body, link, priority, tags, published_at, status, snooze_until, read_at, created_at)
+VALUES
+  ('demonot0-0000-7000-8000-000000000001', 'demo0000-0000-7000-8000-000000000000',
+   'lab', 'alert', 'demo-evt-1', 'Subtitle Fetcher is DOWN',
+   'No response from subtitle-fetcher for 3 consecutive checks.', NULL, 5, '["rotating_light"]',
+   unixepoch('now', '-14 minutes') * 1000, 'unread', NULL, NULL, unixepoch('now') * 1000),
+  ('demonot0-0000-7000-8000-000000000002', 'demo0000-0000-7000-8000-000000000000',
+   'lab', 'alert', 'demo-evt-2', 'Image updates available',
+   '3 containers have newer images upstream.', NULL, 3, '["package"]',
+   unixepoch('now', '-52 minutes') * 1000, 'unread', NULL, NULL, unixepoch('now') * 1000),
+  ('demonot0-0000-7000-8000-000000000003', 'demo0000-0000-7000-8000-000000000000',
+   'lab', 'alert', 'demo-evt-3', 'Offsite snapshot completed',
+   'Offsite Snapshot finished in 4m 12s.', NULL, 2, '["white_check_mark"]',
+   unixepoch('now', '-6 hours') * 1000, 'unread', NULL, NULL, unixepoch('now') * 1000),
+  -- One already handled, so the demo shows the state the count is driven toward
+  -- and the prune job has something in range to reason about.
+  ('demonot0-0000-7000-8000-000000000004', 'demo0000-0000-7000-8000-000000000000',
+   'lab', 'alert', 'demo-evt-4', 'Home Automation recovered',
+   'home-automation is answering again.', NULL, 3, '["white_check_mark"]',
+   unixepoch('now', '-1 days') * 1000, 'read', NULL, unixepoch('now', '-23 hours') * 1000, unixepoch('now') * 1000);

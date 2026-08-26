@@ -6,7 +6,7 @@ import { ClockGlyph, ConferenceGlyph, TravelGlyph } from "./EventGlyphs";
 import { useClampList } from "../lib/useClampList";
 import { useCalendar } from "../lib/calendar";
 import { isSameLocalDay, useNow } from "../lib/time";
-import type { CalendarEvent } from "@central-command/types";
+import type { CalendarEvent, ConferenceProvider } from "@central-command/types";
 
 /**
  * How long before departure the Next line switches from counting down to the
@@ -128,23 +128,52 @@ export function SummaryCard() {
     <Card title="Today" pillar="summary" ownFit>
       {next ? (
         <div className="today-next">
-          <span className="today-next-label">Next</span>
-          <span className="today-next-title">{next.title}</span>
-          {/* The clock time always stays; only what follows it changes — the
-              departure replaces the countdown when it is close enough to act on,
-              rather than adding a line the tile has no room for. */}
-          <span className="today-next-when">
-            {fmtWhen(next.start, now, next.allDay)}
-            {!next.allDay &&
-              (hasDeparture(next, now) ? (
-                <>
-                  {" · "}
-                  <DepartureNote event={next} now={now} />
-                </>
-              ) : (
-                <> · {untilLabel(next.start, now)}</>
-              ))}
-          </span>
+          {/* A button for the same reason the schedule rows are: this is the one
+              event the list deliberately does not repeat, so without this the
+              card's most prominent event was the only one with no way to open
+              its detail. `stopPropagation` on pointerdown for the same reason as
+              the rows — a press here is not the card's long-press to edit. */}
+          <button
+            type="button"
+            className="today-next-open"
+            onPointerDown={(ev) => ev.stopPropagation()}
+            onClick={() => setSelected(next)}
+          >
+            <span className="today-next-label">Next</span>
+            <span className="today-next-title">{next.title}</span>
+            {/* The clock time always stays; only what follows it changes — the
+                departure replaces the countdown when it is close enough to act on,
+                rather than adding a line the tile has no room for. */}
+            <span className="today-next-when">
+              {fmtWhen(next.start, now, next.allDay)}
+              {!next.allDay &&
+                (hasDeparture(next, now) ? (
+                  <>
+                    {" · "}
+                    <DepartureNote event={next} now={now} />
+                  </>
+                ) : (
+                  <> · {untilLabel(next.start, now)}</>
+                ))}
+            </span>
+          </button>
+          {/* Beside the block rather than under it, so joining costs the card no
+              height — and an anchor rather than a button inside one, because an
+              <a> cannot be nested in a <button> and a real link is what gives
+              middle-click, copy-link and the new tab for free. */}
+          {next.conference && (
+            <a
+              className="today-next-join"
+              href={next.conference.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onPointerDown={(ev) => ev.stopPropagation()}
+              title={next.conference.label}
+            >
+              <ConferenceGlyph provider={next.conference.provider} />
+              {joinLabel(next.conference.provider)}
+            </a>
+          )}
         </div>
       ) : (
         <p className="today-empty">Nothing left on the calendar today.</p>
@@ -243,6 +272,14 @@ export function SummaryCard() {
       <EventDialog event={selected} onClose={() => setSelected(null)} />
     </Card>
   );
+}
+
+/** Short button copy — the tile has room for the provider, not the sentence. */
+function joinLabel(provider: ConferenceProvider): string {
+  if (provider === "meet") return "Meet";
+  if (provider === "zoom") return "Zoom";
+  if (provider === "teams") return "Teams";
+  return "Join";
 }
 
 /** Whether the departure note is currently rendering, so the countdown yields. */

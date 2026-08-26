@@ -10,6 +10,8 @@ import { HealthCard } from "./HealthCard";
 import { GamingCard } from "./GamingCard";
 import { InsightsCard } from "./InsightsCard";
 import { NewsCard } from "./NewsCard";
+import { HomelabCard } from "./HomelabCard";
+import { NotificationsCard } from "./NotificationsCard";
 
 /**
  * Key → component. Typed as a total record over `CardKey`, so adding a key to
@@ -26,6 +28,8 @@ const CARD_COMPONENTS: Record<CardKey, ComponentType> = {
   gaming: GamingCard,
   insights: InsightsCard,
   news: NewsCard,
+  lab: HomelabCard,
+  notifications: NotificationsCard,
 };
 
 export interface CardDefinition extends CardMeta {

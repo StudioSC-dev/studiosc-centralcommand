@@ -70,4 +70,14 @@ export const CARD_CATALOG: readonly CardMeta[] = [
     label: "News",
     description: "Basketball, League, and tech headlines.",
   },
+  {
+    key: "lab",
+    label: "Homelab",
+    description: "Service health, backups, and how long since the lab last checked in.",
+  },
+  {
+    key: "notifications",
+    label: "Notifications",
+    description: "Every unread thing in one place — homelab alerts, mail, messages.",
+  },
 ] as const;

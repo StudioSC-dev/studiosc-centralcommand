@@ -72,6 +72,13 @@ export interface Variables {
   userEmail: string;
   /** True for the public read-only demo session (blocks writes / third-party calls). */
   isDemo: boolean;
+  /**
+   * Set by `labSourceAuth` on the two ingest routes only. Those routes have no
+   * session — the homelab agent authenticates with a per-source bearer token —
+   * so `userId` there comes from the source row rather than a cookie.
+   */
+  labSourceId: string;
+  labSourceLabel: string;
 }
 
 /** Hono generics for the whole app. */

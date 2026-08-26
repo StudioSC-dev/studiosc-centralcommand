@@ -373,3 +373,131 @@ export const geocodeCache = sqliteTable(
   },
   (table) => [index("geocode_cache_stale_after_idx").on(table.staleAfter)],
 );
+
+// ─── Notifications spine (docs/notifications.md) ─────────────────────────────
+//
+// ONE table, every source. The Zero Inbox direction is that notifications are a
+// *spine*, not a card: every producer writes here (the homelab's ntfy bus first,
+// Gmail and Slack later) and every delivery channel reads from here (the card
+// today, web push and native toasts later). A per-source table would make each
+// new source a migration and each new delivery channel a fan-in query.
+//
+// `source` is a plain TEXT discriminator rather than a CHECK or an enum column
+// precisely so adding Gmail is a collector and not a schema change.
+export const notifications = sqliteTable(
+  "notifications",
+  {
+    id: text("id").primaryKey(), // UUID v7
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    source: text("source").notNull(), // 'lab' | 'gmail' | 'slack' | …
+    kind: text("kind").notNull().default("alert"), // source-specific: 'alert' | 'mention' | …
+    // The producer's own id for this event — an ntfy message id for `lab`. This
+    // is what makes ingest idempotent: ntfy delivery is at-least-once across
+    // reconnects, so the consumer dedupes rather than trusting the stream.
+    // Nullable, because a source that has no stable id still gets rows.
+    externalId: text("external_id"),
+    title: text("title").notNull(),
+    body: text("body"),
+    link: text("link"),
+    priority: integer("priority").notNull().default(3), // ntfy's 1–5 scale
+    tags: text("tags"), // JSON string[]
+    publishedAt: integer("published_at").notNull(),
+    status: text("status").notNull().default("unread"), // 'unread' | 'read' | 'dismissed'
+    // Ships as a column with no UI. It is in the recorded design, it costs
+    // nothing now, and adding it later is a migration.
+    snoozeUntil: integer("snooze_until"),
+    readAt: integer("read_at"),
+    createdAt: integer("created_at").notNull(),
+  },
+  (table) => [
+    // Insert-or-ignore dedup. Scoped by user as well as source because two
+    // users' labs are two different streams that may reuse ids.
+    unique("notifications_source_external_idx").on(
+      table.userId,
+      table.source,
+      table.externalId,
+    ),
+    // The card's only read: this user's unread feed, newest first.
+    index("notifications_feed_idx").on(table.userId, table.status, table.publishedAt),
+  ],
+);
+
+// One row per (user, source) — the card's badge row, and the only place a
+// count-only source can live.
+//
+// WHY THIS IS NOT DERIVED. "All ntfy notifications" is a feed: real rows, each
+// read or dismissed individually. "Unread emails: 12" is a counter — Gmail is
+// never going to write four thousand rows into `notifications`, and a card that
+// assumes it will gets rebuilt the day Gmail lands.
+//
+// `unreadCount` is therefore NULLABLE with a specific meaning: null → derive it
+// from the feed (what `lab` does), a number → the collector reported it (what
+// Gmail and Slack will do). The read path is COALESCE over the two.
+export const notificationSources = sqliteTable(
+  "notification_sources",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    source: text("source").notNull(),
+    label: text("label").notNull(),
+    unreadCount: integer("unread_count"), // null → derive from the feed
+    lastEventAt: integer("last_event_at"),
+    lastSyncAt: integer("last_sync_at"),
+    state: text("state").notNull().default("ok"), // 'ok' | 'stale' | 'error'
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.source] })],
+);
+
+// ─── Homelab telemetry (../integrations/homelab-telemetry.md) ────────────────
+//
+// One row per push-capable agent. The token is the agent's whole identity, and
+// it belongs to the STACK, not the machine (D3): the same token keeps working
+// after the homelab moves to Linux, so a host change is not a re-registration.
+//
+// Only the SHA-256 hash is stored, and it carries the unique index — so
+// verifying a presented token is "hash it, look it up", and no secret is ever
+// compared byte-by-byte in app code. Rotation overwrites the hash in place;
+// revocation is a row delete. Both are first-class operations, not schema edits.
+export const labSources = sqliteTable(
+  "lab_sources",
+  {
+    id: text("id").primaryKey(), // UUID v7
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    label: text("label").notNull(),
+    tokenHash: text("token_hash").notNull(), // SHA-256 hex of the bearer token
+    createdAt: integer("created_at").notNull(),
+    rotatedAt: integer("rotated_at"),
+    // The dead-man's switch. Everything the card says about freshness is
+    // computed server-side from this column (risk 6) — silence looking like
+    // health is the exact failure this integration exists to fix.
+    lastSeenAt: integer("last_seen_at"),
+    agentVersion: text("agent_version"),
+  },
+  (table) => [unique("lab_sources_token_hash_idx").on(table.tokenHash)],
+);
+
+// LATEST ONLY — the primary key is the source, so every push is a single-row
+// upsert rather than an append (risk 3). At a 60s cadence an append would be
+// 1,440 rows/day/source of history nobody has asked for; there is no snapshot
+// history table until the card actually wants sparklines.
+//
+// `sections` is the payload's section map stored verbatim as JSON. It is not
+// normalised into columns because the producer is deliberately dumb (D6): it
+// pushes full monitor detail and the CONSUMER decides what to display, so the
+// shape evolves on the read side without a migration on the write side.
+export const labSnapshots = sqliteTable("lab_snapshots", {
+  sourceId: text("source_id")
+    .primaryKey()
+    .references(() => labSources.id),
+  version: integer("version").notNull(),
+  capturedAt: integer("captured_at").notNull(), // when the agent measured
+  receivedAt: integer("received_at").notNull(), // when we accepted it
+  sections: text("sections").notNull(), // JSON — see LabSnapshotPayload
+  agentVersion: text("agent_version"),
+});

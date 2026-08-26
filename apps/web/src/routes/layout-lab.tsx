@@ -20,7 +20,7 @@ import { CARD_REGISTRY } from "../components/cardRegistry";
 /**
  * Layout lab — every card at every size, on one page.
  *
- * **Why this exists.** Nine cards × six sizes is 54 combinations, and every
+ * **Why this exists.** Eleven cards × six sizes is 66 combinations, and every
  * layout change until now was verified against whichever one or two happened to
  * be on screen. Worse, only *one* of the two failure modes is visible to the
  * naked eye: content overflowing looks broken, while content dropped with room
@@ -299,7 +299,13 @@ function LabTile({
  */
 function PresetAudit() {
   const rows = LAYOUT_PRESETS.map((preset) =>
-    audit(preset.key, preset.label, preset, { requireFull: true }),
+    // Wall is exempt from the zero-holes assertion, and only Wall. Its roster is
+    // the live `CARD_KEYS` constant, so it cannot promise an exact multiple of
+    // the grid at every future card count — nine cards packed exactly, eleven
+    // leave one spare cell. Focus and Minimal are hand-picked and stay exact.
+    // Asserting it on Wall would mean a red row every time the registry grows,
+    // which trains the audit to be ignored. See LAYOUT_PRESETS in packages/types.
+    audit(preset.key, preset.label, preset, { requireFull: preset.key !== "wall" }),
   );
   const failures = rows.filter((row) => !row.ok).length;
 

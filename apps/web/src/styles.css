@@ -911,25 +911,31 @@ button {
   /* Cards fit their tile by default — a wall display nobody is sitting at
      cannot be scrolled. useFitSections drops [data-drop-order] blocks until the
      body fits; a card with none marked still scrolls, visibly, which beats
-     silently clipping a card nobody has audited. `.is-scrollable` is the
-     deliberate opt-out — Today, which really scrolls, and News, which pages
-     against a measured list and only needs the drop pass to stay out of it
-     (D10, and see CardProps.scrollable). */
+     silently clipping a card nobody has audited. `.is-own-fit` is the
+     deliberate opt-out — News, which pages against a measured list, and Today,
+     which clamps its schedule and counts the remainder. Neither scrolls
+     (D10, and see CardProps.ownFit). */
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-gutter: stable;
 }
 
-/* Keep body text out of the scrollbar's lane on the cards that scroll by design.
-   `scrollbar-gutter: stable` above reserves the track so the layout doesn't jump
-   when it appears — but it reserves nothing for an *overlay* scrollbar (Windows
-   11 Fluent, macOS), which is painted over the content box and drew straight
-   across the Today card's event titles. Padding sits between the content and the
-   track in both models, so it clears an overlay bar and gives a classic one some
-   breathing room. */
-.card-body.is-scrollable {
-  padding-right: 0.6rem;
+/* A card that manages its own height never scrolls: it measures what fits and
+   clamps the rest, so there is nothing for a scrollbar to reach. Hiding both
+   axes makes that structural rather than incidental — if the card's own
+   measurement is ever wrong, it crops (the dashboard's stated rule) instead of
+   quietly growing a scrollbar nobody sitting at a wall display would use.
+
+   `scrollbar-gutter` is released with it. The base rule reserves a track so the
+   layout does not jump when a bar appears; with no bar possible that reservation
+   is pure stolen width, and horizontal space is what these cards are short of.
+   (The old `padding-right` here did the same job for overlay scrollbars — the
+   Windows 11 / macOS kind painted over the content box, which used to draw
+   straight across Today's event titles. No scrollbar, no overlay, no padding.) */
+.card-body.is-own-fit {
+  overflow: hidden;
+  scrollbar-gutter: auto;
 }
 
 /* A droppable block must never shrink.
@@ -1698,10 +1704,12 @@ button {
   overflow: hidden;
 }
 
+/* The row's layout moved onto the button inside it when rows became clickable;
+   the <li> is now just the list item. Leaving it a flex container would make the
+   button a flex item, where its `calc(100% + 0.6rem)` width resolves against a
+   content-sized box instead of the list's. */
 .cal-event {
-  display: flex;
-  gap: 0.75rem;
-  align-items: baseline;
+  display: block;
 }
 
 .cal-event-when {
@@ -2387,6 +2395,11 @@ button {
   padding-bottom: 0.7rem;
   margin-bottom: 0.7rem;
   border-bottom: 1px solid var(--border);
+  /* Fixed blocks: the schedule below absorbs the shortfall by clamping rows, so
+     nothing up here may shrink to make room. Without this the flex column
+     compresses the anchor of the card to buy space for a list that was about to
+     hide those rows anyway. */
+  flex: none;
 }
 
 .today-next-label {
@@ -2418,6 +2431,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+  flex: none;
 }
 
 .today-gauge-row {
@@ -2455,6 +2469,16 @@ button {
   margin-top: 0.8rem;
   padding-top: 0.7rem;
   border-top: 1px solid var(--border);
+  /* Link two of three in the clamp chain (.card-body -> here -> the list).
+     `useClampList` measures rows against the list's own box, so that box has to
+     be the space actually left in the tile — which means every ancestor must
+     pass the remainder down rather than growing to fit its content. Miss one
+     `min-height: 0` and the list reports a box as tall as its rows, every row
+     "fits", and the card silently overflows again. */
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 .today-events-head {
@@ -2466,6 +2490,9 @@ button {
   letter-spacing: 0.06em;
   color: var(--text-faint);
   margin-bottom: 0.5rem;
+  /* `.today-events` is a flex column now — the header is a sibling of the list
+     and must keep its full height rather than shrinking beside it. */
+  flex: none;
 }
 
 .today-events-progress {
@@ -2480,6 +2507,10 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  /* Last link in the chain, and the box useClampList measures against. */
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .today-event {
@@ -3602,4 +3633,357 @@ button {
    `container-type: size` to work at all. */
 .lab-tile {
   display: grid;
+}
+
+/* ─── Event detail: rows, glyphs, dialog ────────────────────────────────────── */
+
+/* Rows became buttons so a click opens detail and the keyboard can reach them.
+   These reset the UA button box back to the layout the <li> used to provide —
+   without this every row grows a border, a background and a centred text
+   alignment the cards were never designed around. */
+.today-event,
+.cal-event-button {
+  appearance: none;
+  background: none;
+  border: 1px solid transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  /* Negative margin lets the hover background bleed to the card's text edge
+     while the row content stays aligned with everything above it. */
+  padding: 0.1rem 0.3rem;
+  margin: 0 -0.3rem;
+  width: calc(100% + 0.6rem);
+}
+
+.today-event:hover,
+.cal-event-button:hover {
+  background: color-mix(in srgb, var(--text-faint) 12%, transparent);
+  border-color: var(--border);
+}
+
+.today-event:focus-visible,
+.cal-event-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* The <li> is now only a container: the conflict strip and the row button stack
+   inside it, so the strip belongs to the event it warns about. */
+.today-event-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.cal-event-button {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+
+.today-event-glyph,
+.cal-event-glyphs {
+  display: inline-flex;
+  gap: 0.28rem;
+  flex: none;
+  color: var(--text-faint);
+  align-self: center;
+}
+
+.today-event-glyph svg,
+.cal-event-glyphs svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  display: block;
+}
+
+/* The departure half of the Next line. Inline, because it replaces the countdown
+   rather than joining it — the Today card has no spare row (see DepartureNote). */
+.today-departure {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.today-departure svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  flex: none;
+}
+
+.today-departure-lead {
+  font-weight: 600;
+}
+
+/* Tone sits on the departure, never on the clock time beside it: the time is a
+   fact and should not read as an alarm. */
+.today-departure.is-tight {
+  color: var(--warn);
+}
+
+.today-departure.is-late {
+  color: var(--bad);
+}
+
+.today-departure-detail {
+  color: var(--text-faint);
+  font-weight: 400;
+}
+
+/* A connection that cannot be made. The only travel state allowed a row of its
+   own — tight ones live on the Next line, comfortable ones only in the gauge. */
+.today-hop {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: 3.6rem;
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: var(--bad);
+  font-variant-numeric: tabular-nums;
+}
+
+.today-hop svg {
+  width: 0.65rem;
+  height: 0.65rem;
+  flex: none;
+}
+
+/* Where scheduled time alone would have put the gauge. The track clips its fill
+   to a pill, so the marker sits outside that clip — hence `overflow: visible`
+   here and the rounding moved onto the fill itself. */
+.today-gauge-track {
+  overflow: visible;
+}
+
+.today-gauge-fill {
+  overflow: hidden;
+}
+
+.today-gauge-notch {
+  position: absolute;
+  top: -0.15rem;
+  width: 2px;
+  height: 0.7rem;
+  border-radius: 1px;
+  background: var(--text);
+  opacity: 0.5;
+}
+
+/* ─── Event dialog ──────────────────────────────────────────────────────────── */
+
+/* Portaled to <body>, so none of the card's tokens or clipping apply and every
+   colour is named again from the root set. */
+.event-dialog {
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-lift);
+  width: min(30rem, calc(100vw - 2rem));
+  max-height: min(40rem, calc(100vh - 4rem));
+  overflow: hidden;
+}
+
+.event-dialog::backdrop {
+  background: rgba(5, 8, 15, 0.55);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+/* The scroll lives on the inner element, not the dialog: a scrolling <dialog>
+   scrolls its own padding box and detaches the rounded border from the content.
+   A dialog is also the one surface here allowed to scroll — the no-scroll rule
+   is about cards on a wall display, and this is a thing you deliberately opened. */
+.event-dialog-inner {
+  padding: 1.4rem;
+  overflow-y: auto;
+  max-height: inherit;
+}
+
+.event-dialog-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.event-dialog-title {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.event-dialog-when {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  margin: 0.2rem 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.event-dialog-close {
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  cursor: pointer;
+  background: color-mix(in srgb, var(--text-faint) 16%, transparent);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.event-dialog-close svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.event-dialog-close:hover {
+  color: var(--text);
+}
+
+.event-dialog-row {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.event-dialog-label {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+  font-weight: 700;
+  margin: 0 0 0.45rem;
+}
+
+.event-dialog-join {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.event-dialog-join svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.event-dialog-codes {
+  display: flex;
+  gap: 1.2rem;
+  margin-top: 0.65rem;
+  font-size: 0.78rem;
+  flex-wrap: wrap;
+}
+
+.event-dialog-code-key {
+  display: block;
+  color: var(--text-faint);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.event-dialog-code-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  /* Meeting IDs and passcodes get read aloud and typed elsewhere — let one be
+     selected without dragging across the whole dialog. */
+  user-select: all;
+}
+
+.event-dialog-place {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.event-dialog-place svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex: none;
+}
+
+.event-dialog-map {
+  display: block;
+  width: 100%;
+  height: 9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-inner);
+  background: var(--surface-2);
+}
+
+.event-dialog-travel {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.65rem 0 0;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.event-dialog-travel svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex: none;
+}
+
+.event-dialog-travel.is-tight {
+  color: var(--warn);
+}
+
+.event-dialog-travel.is-late {
+  color: var(--bad);
+}
+
+.event-dialog-description {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--text-dim);
+  /* Plain text by the time it reaches the browser, so newlines are the only
+     structure it has left — keep them. */
+  white-space: pre-wrap;
+}
+
+.event-dialog-foot {
+  display: flex;
+  gap: 1.1rem;
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.event-dialog-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.78rem;
+  display: inline-block;
+  margin-top: 0.6rem;
+}
+
+.event-dialog-foot .event-dialog-link {
+  margin-top: 0;
+}
+
+.event-dialog-link:hover {
+  text-decoration: underline;
 }

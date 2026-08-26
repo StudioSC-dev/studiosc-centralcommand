@@ -208,6 +208,11 @@ export function SummaryCard() {
                     className={`today-event${done ? " done" : ""}${live ? " live" : ""}`}
                     // A press here opens detail; it is not the long-press that
                     // enters edit mode, so it must not reach the card shell.
+                    // Consequence worth knowing: a long press *on a row* no
+                    // longer enters edit mode, only one on the title, the Next
+                    // block or the card's padding. That is the lesser evil —
+                    // letting the timer run would enter edit mode and fire this
+                    // click, opening a dialog over a card that just went inert.
                     onPointerDown={(ev) => ev.stopPropagation()}
                     onClick={() => setSelected(e)}
                   >

@@ -5,6 +5,8 @@ import type { AppEnv } from "../env";
 import { createDb } from "../lib/db";
 import { ok, fail } from "../lib/response";
 import { fetchUpcomingEvents } from "../services/google-calendar";
+import { buildMapUrls } from "../services/maps";
+import { planTravel } from "../services/travel";
 import { getUserSettings } from "../services/users";
 import { getGoogleProvider, getValidGoogleAccessToken } from "../services/google-token";
 import { GoogleReauthRequiredError } from "../services/google-oauth";
@@ -59,7 +61,8 @@ export const calendar = new Hono<AppEnv>().get("/", async (c) => {
   // Fetch from the start of the user's local day so today's already-finished
   // events come back too (the Today card strikes them through), and pull a
   // week-plus worth so the Calendar card's week view has enough to show.
-  const { start, end } = dayBounds((await getUserSettings(db, userId))?.timezone ?? undefined);
+  const settings = await getUserSettings(db, userId);
+  const { start, end } = dayBounds(settings?.timezone ?? undefined);
 
   const u = await allowUserDaily(c.env, userId, "calendar");
   const g = await allowGlobalDaily(c.env, "google");
@@ -85,10 +88,36 @@ export const calendar = new Hono<AppEnv>().get("/", async (c) => {
     throw err;
   }
 
+  // Map links first — pure string work, no network, no key required for the
+  // keyless link half.
+  const withMaps = events.map((e) => ({ ...e, ...buildMapUrls(e.location, c.env.GOOGLE_MAPS_EMBED_KEY) }));
+
+  const density = todayBusyness(withMaps, start, end);
+  const home =
+    settings?.homeLat != null && settings?.homeLon != null
+      ? { lat: settings.homeLat, lon: settings.homeLon }
+      : null;
+
+  // Travel is best-effort by construction: no key, no home location or an
+  // unroutable venue all yield events without `travel`, and the card falls back
+  // to a plain countdown rather than showing a departure time we cannot stand
+  // behind. It sits inside the cache miss, so its cost is bounded by the same
+  // 15-minute TTL as the Google fetch above.
+  const plan = await planTravel(db, {
+    events: withMaps,
+    dayStart: start,
+    dayEnd: end,
+    density,
+    home,
+    apiKey: c.env.ORS_API_KEY,
+  });
+
   const data: CalendarData = {
     connected: true,
-    events,
-    todayBusyness: todayBusyness(events, start, end),
+    events: plan.events,
+    todayBusyness: density,
+    todayStress: plan.todayStress,
+    stressFactors: plan.stressFactors,
   };
   await c.env.CACHE.put(cacheKey, JSON.stringify(data), { expirationTtl: CACHE_TTL });
   return ok(c, data);

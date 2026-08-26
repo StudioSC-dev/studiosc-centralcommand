@@ -1,4 +1,8 @@
-import type { CalendarEvent } from "@central-command/types";
+import type {
+  CalendarEvent,
+  ConferenceProvider,
+  EventConference,
+} from "@central-command/types";
 
 /**
  * Google Calendar API (read-only). Uses the v3 events list on the user's
@@ -14,18 +18,116 @@ interface GoogleEventDate {
   dateTime?: string; // RFC3339 for timed events
   date?: string; // YYYY-MM-DD for all-day events
 }
+interface GoogleConferenceEntryPoint {
+  entryPointType?: string; // "video" | "phone" | "sip" | "more"
+  uri?: string;
+  label?: string;
+  meetingCode?: string;
+  passcode?: string;
+}
 interface GoogleEvent {
   id: string;
   summary?: string;
   location?: string;
+  description?: string;
+  htmlLink?: string;
+  hangoutLink?: string;
+  attendees?: unknown[];
+  conferenceData?: {
+    entryPoints?: GoogleConferenceEntryPoint[];
+    conferenceSolution?: { name?: string };
+  };
   start: GoogleEventDate;
   end: GoogleEventDate;
+}
+
+/** Longest description we forward. Enough for joining instructions, not a novel. */
+const MAX_DESCRIPTION = 600;
+
+/**
+ * Google's `description` is HTML. Render it as HTML anywhere and every person
+ * who can send you an invite gets to run script in the dashboard, so it is
+ * flattened here — at the boundary — and the type says `string`, not markup.
+ */
+export function toPlainText(html: string): string {
+  const text = html
+    // <br> and </p> are the only tags carrying layout worth keeping.
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p\s*>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    // The handful of entities Google actually emits.
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return text.length > MAX_DESCRIPTION ? `${text.slice(0, MAX_DESCRIPTION - 1).trimEnd()}…` : text;
+}
+
+/** Provider patterns, in the order we test them. `other` is the fallback. */
+const PROVIDER_PATTERNS: ReadonlyArray<{ provider: ConferenceProvider; re: RegExp; label: string }> = [
+  { provider: "meet", re: /https:\/\/meet\.google\.com\/[a-z0-9-]+/i, label: "Join Google Meet" },
+  { provider: "zoom", re: /https:\/\/[\w.-]*zoom\.us\/(?:j|w|s)\/\d+(?:\?[^\s<"']*)?/i, label: "Join Zoom Meeting" },
+  {
+    provider: "teams",
+    re: /https:\/\/teams\.(?:microsoft|live)\.com\/l\/meetup-join\/[^\s<"']+/i,
+    label: "Join Teams Meeting",
+  },
+];
+
+function classify(url: string): { provider: ConferenceProvider; label: string } {
+  for (const p of PROVIDER_PATTERNS) if (p.re.test(url)) return { provider: p.provider, label: p.label };
+  return { provider: "other", label: "Join call" };
+}
+
+/**
+ * Find the joinable call on an event, best source first.
+ *
+ * The regex sweep at the end is not a fallback in practice — it is the common
+ * case. `conferenceData` is populated only when the organiser created the call
+ * through a Calendar add-on; a Zoom link someone pasted into the invite body is
+ * plain text, and that is most of them.
+ */
+export function detectConference(e: GoogleEvent): EventConference | undefined {
+  const video = e.conferenceData?.entryPoints?.find((p) => p.entryPointType === "video" && p.uri);
+  if (video?.uri) {
+    const { provider, label } = classify(video.uri);
+    const solution = e.conferenceData?.conferenceSolution?.name;
+    return {
+      provider,
+      url: video.uri,
+      label: solution ? `Join ${solution}` : label,
+      ...(video.meetingCode ? { meetingCode: video.meetingCode } : {}),
+      ...(video.passcode ? { passcode: video.passcode } : {}),
+    };
+  }
+
+  if (e.hangoutLink) {
+    return { provider: "meet", url: e.hangoutLink, label: "Join Google Meet" };
+  }
+
+  // Location first: a link pasted there is unambiguously the way in, whereas a
+  // description can also quote a link to some *other* meeting.
+  for (const field of [e.location, e.description]) {
+    if (!field) continue;
+    for (const { provider, re, label } of PROVIDER_PATTERNS) {
+      const match = field.match(re);
+      if (match) return { provider, url: match[0], label };
+    }
+  }
+  return undefined;
 }
 
 function toEvent(e: GoogleEvent): CalendarEvent {
   const allDay = !e.start.dateTime;
   const startStr = e.start.dateTime ?? e.start.date ?? "";
   const endStr = e.end.dateTime ?? e.end.date ?? "";
+  const conference = detectConference(e);
+  const description = e.description ? toPlainText(e.description) : "";
   return {
     id: e.id,
     title: e.summary ?? "(no title)",
@@ -33,6 +135,10 @@ function toEvent(e: GoogleEvent): CalendarEvent {
     end: Date.parse(endStr),
     allDay,
     location: e.location ?? null,
+    ...(conference ? { conference } : {}),
+    ...(description ? { description } : {}),
+    ...(e.htmlLink ? { htmlLink: e.htmlLink } : {}),
+    ...(e.attendees?.length ? { attendeeCount: e.attendees.length } : {}),
   };
 }
 

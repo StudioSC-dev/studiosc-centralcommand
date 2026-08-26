@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { Card } from "./Card";
 import { ClippedNote } from "./ClippedNote";
+import { EventDialog } from "./EventDialog";
+import { ConferenceGlyph, TravelGlyph } from "./EventGlyphs";
 import { useClampList } from "../lib/useClampList";
 import { useCalendar } from "../lib/calendar";
 import { isSameLocalDay, useNow } from "../lib/time";
@@ -23,18 +26,39 @@ function fmtWhen(e: CalendarEvent, now: number): string {
   return `${d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} · ${time}`;
 }
 
-function EventRow({ e, now }: { e: CalendarEvent; now: number }) {
+function EventRow({ e, now, onOpen }: { e: CalendarEvent; now: number; onOpen: (e: CalendarEvent) => void }) {
   const live = !e.allDay && e.start <= now && now < e.end;
+  // A location holding a conference URL is not a place — the glyph and the
+  // dialog's Join button say the same thing better than a wall of raw URL.
+  const locationIsLink = e.location ? /^(https?:\/\/|www\.)/i.test(e.location.trim()) : false;
   return (
     <li className={`cal-event${live ? " live" : ""}`}>
-      <span className="cal-event-when">{fmtWhen(e, now)}</span>
-      <span className="cal-event-body">
-        <span className="cal-event-title">
-          {e.title}
-          {live && <span className="cal-event-tag">Now</span>}
+      {/* The row is the control: every event opens the same dialog the Today
+          card uses. `onPointerDown` stops here so a press is a click, not the
+          long-press that puts the dashboard into edit mode.
+          This card is mostly list, so it gives up more long-press surface than
+          Today does — the title and the card's padding are what remain. Worth
+          revisiting if entering edit mode from here starts to feel fiddly. */}
+      <button
+        type="button"
+        className="cal-event-button"
+        onPointerDown={(ev) => ev.stopPropagation()}
+        onClick={() => onOpen(e)}
+      >
+        <span className="cal-event-when">{fmtWhen(e, now)}</span>
+        <span className="cal-event-body">
+          <span className="cal-event-title">
+            {e.title}
+            {live && <span className="cal-event-tag">Now</span>}
+          </span>
+          {e.location && !locationIsLink && <span className="cal-event-loc">{e.location}</span>}
+          {e.conference && locationIsLink && <span className="cal-event-loc">{e.conference.label}</span>}
         </span>
-        {e.location && <span className="cal-event-loc">{e.location}</span>}
-      </span>
+        <span className="cal-event-glyphs">
+          {e.conference && <ConferenceGlyph provider={e.conference.provider} />}
+          {e.travel && !e.conference && <TravelGlyph mode={e.travel.mode} />}
+        </span>
+      </button>
     </li>
   );
 }
@@ -44,6 +68,7 @@ function EventRow({ e, now }: { e: CalendarEvent; now: number }) {
 export function CalendarCard() {
   const { data, isPending, isError, error } = useCalendar();
   const now = useNow();
+  const [selected, setSelected] = useState<CalendarEvent | null>(null);
 
   const { ref: listRef, clippedCount } = useClampList<HTMLUListElement>();
 
@@ -81,18 +106,19 @@ export function CalendarCard() {
     <Card title="Calendar" pillar="calendar">
       <ul className="cal-week" ref={listRef}>
         {thisWeek.map((e) => (
-          <EventRow key={e.id} e={e} now={now} />
+          <EventRow key={e.id} e={e} now={now} onOpen={setSelected} />
         ))}
         {after.length > 0 && (
           <>
             <li className="cal-divider">events after this week</li>
             {after.map((e) => (
-              <EventRow key={e.id} e={e} now={now} />
+              <EventRow key={e.id} e={e} now={now} onOpen={setSelected} />
             ))}
           </>
         )}
       </ul>
       <ClippedNote count={clippedCount} noun="event" />
+      <EventDialog event={selected} onClose={() => setSelected(null)} />
     </Card>
   );
 }

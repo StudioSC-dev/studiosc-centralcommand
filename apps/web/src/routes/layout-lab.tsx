@@ -59,9 +59,11 @@ interface TileReport {
   dropped: number;
   /** List rows `useClampList` hid. */
   clipped: number;
-  /** The card is exempt from the shared fit pass (Today, News) — overflow here
-   * is the card's own business, not a fit failure. See CardProps.scrollable. */
-  scrollable: boolean;
+  /** The card is exempt from the shared fit pass (Today, News) because it
+   * measures and clamps its own content. Such a card must never scroll, so any
+   * overflow here is a real bug, not the card's own business. See
+   * CardProps.ownFit. */
+  ownFit: boolean;
 }
 
 /**
@@ -100,7 +102,7 @@ function useTileReport<T extends HTMLElement>() {
         slack: Math.max(0, body.clientHeight - body.scrollHeight),
         dropped: droppable.filter((el) => el.getClientRects().length === 0).length,
         clipped: node.querySelectorAll(".is-clipped").length,
-        scrollable: body.classList.contains("is-scrollable"),
+        ownFit: body.classList.contains("is-own-fit"),
       };
 
       // Only re-render on a real change: this observer watches class attributes,
@@ -134,8 +136,13 @@ function useTileReport<T extends HTMLElement>() {
 
 function verdict(report: TileReport | null): { label: string; tone: string } {
   if (!report) return { label: "…", tone: "idle" };
-  if (report.scrollable) {
-    return { label: report.overflow > 1 ? `scrolls · ${report.overflow}px` : "scrolls", tone: "ok" };
+  if (report.ownFit) {
+    // A self-managing card that overflows has failed at the one job the flag
+    // grants it. Before the rename this read as "scrolls · Npx" in a calm tone,
+    // which is exactly the reading that let Today overflow unnoticed.
+    return report.overflow > 1
+      ? { label: `OWN-FIT OVERFLOW ${report.overflow}px`, tone: "bad" }
+      : { label: "own fit", tone: "ok" };
   }
   // The card is being cropped — the fit pass ran out of things it was allowed
   // to drop, or nothing was marked droppable in the first place.

@@ -12,7 +12,7 @@
  * fleshed out per pillar in later sessions.
  */
 import { sql } from "drizzle-orm";
-import { integer, primaryKey, real, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, real, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
@@ -346,4 +346,30 @@ export const dashboardCards = sqliteTable(
     updatedAt: integer("updated_at").notNull(),
   },
   (table) => [primaryKey({ columns: [table.userId, table.card] })],
+);
+
+// Geocode cache — place string → coordinates, for the "leave by" estimate.
+//
+// In D1 rather than KV on purpose: a cache miss is a write, and KV writes are
+// this project's scarcest resource (see CLAUDE.md "KV Write Budget") while D1
+// writes are not. Not keyed by user, because a place resolves the same for
+// everyone and no user id belongs in a table of public coordinates.
+//
+// Misses are stored too (`resolved: 0`), so an unresolvable location — a room
+// name, a typo — is not re-asked of the geocoder on every calendar refresh.
+// `staleAfter` is what allows a retry eventually without allowing one constantly.
+export const geocodeCache = sqliteTable(
+  "geocode_cache",
+  {
+    // Normalised by normaliseQuery(): lowercased, whitespace collapsed.
+    query: text("query").primaryKey(),
+    lat: real("lat"),
+    lon: real("lon"),
+    label: text("label"),
+    // 0/1 — SQLite has no boolean; matches dashboardCards.hidden.
+    resolved: integer("resolved").notNull().default(0),
+    updatedAt: integer("updated_at").notNull(),
+    staleAfter: integer("stale_after").notNull(),
+  },
+  (table) => [index("geocode_cache_stale_after_idx").on(table.staleAfter)],
 );

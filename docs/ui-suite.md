@@ -446,6 +446,40 @@ every card is 1×1. The existing `.span-2 { grid-column: span 1 }` override at
 `styles.css:725` is the precedent and generalises to the whole size set. Vertical spans are
 kept at ≤1100px (there is room) and dropped at ≤720px.
 
+### D16 — `scrollable` becomes `ownFit`, and no card scrolls
+
+The `Card` shell had one flag doing two jobs, which §6 gap 9 already recorded: it excused a
+card from the shared fit pass **and** granted its body a scroll fallback. Two cards carried
+it for different reasons — News because it pages against a measured list, Today because it
+genuinely scrolled.
+
+The developer's stated direction settles it: **every card should fit as much information as
+possible and never scroll on either axis.** A wall display nobody is sitting at cannot be
+scrolled, so a scrollbar is content that effectively does not exist.
+
+So Today learned to clamp — `useClampList` + `ClippedNote`, the same machinery Calendar,
+Tasks, Insights and Gaming already use — and with the last real scroller gone, the fallback
+had no user left. The flag is now `ownFit`, meaning *stay out of the shared drop pass, I
+measure my own height*, and `.card-body.is-own-fit` sets `overflow: hidden` on both axes.
+
+Three consequences worth recording:
+
+- **News lost its scroll fallback.** By its own documentation it never overflows, so this
+  should be a no-op; if that documentation is optimistic, News now crops, which is the
+  dashboard's stated rule anyway.
+- **`scrollbar-gutter` is released with it.** The base `.card-body` reserves a track so
+  layout does not jump when a bar appears. With no bar possible that reservation is stolen
+  width, and horizontal space is what these cards are short of.
+- **The layout lab changed verdict.** `/layout-lab` used to report an exempt card's
+  overflow as "scrolls · Npx" in a calm tone. For a card that promises to manage its own
+  height, overflow is a failure, and it now reads `OWN-FIT OVERFLOW` in the bad tone. That
+  calm reading is exactly what let Today overflow unnoticed.
+
+Today's clamp needs an unbroken flex chain — `.card-body` → `.today-events` →
+`.today-event-list`, each `min-height: 0`, the list `flex: 1 1 0; overflow: hidden`. Miss
+one link and the list reports a box as tall as its rows, every row "fits", and the card
+silently overflows again.
+
 ---
 
 ## 4. Phases

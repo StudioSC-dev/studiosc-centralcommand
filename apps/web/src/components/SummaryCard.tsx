@@ -111,8 +111,17 @@ export function SummaryCard() {
   const todayEvents = data.events
     .filter((e) => !e.allDay && isSameLocalDay(e.start, now))
     .sort((a, b) => a.start - b.start);
+  // The day's true shape, counted before the Next event is removed below: the
+  // header describes today, not the list under it.
   const todayCount = todayEvents.length;
   const doneCount = todayEvents.filter((e) => e.end <= now).length;
+  // The Next block already renders this event, in more detail than a row can —
+  // title, clock, departure. Repeating it directly underneath spends a row on
+  // something the eye just read, and a row is the scarcest thing on this tile
+  // (the whole list budget is roughly one at 1x1). `next` can be tomorrow's
+  // event when today is done, hence matching by id rather than assuming it is
+  // in this list at all.
+  const listEvents = todayEvents.filter((e) => e.id !== next?.id);
   const stress = data.todayStress;
 
   return (
@@ -166,7 +175,10 @@ export function SummaryCard() {
         </div>
       </div>
 
-      {todayCount > 0 && (
+      {/* Guarded on the *list*, not the day: when today's only remaining event is
+          the one in the Next block, this section would otherwise render as a
+          header and a progress count over an empty list. */}
+      {listEvents.length > 0 && (
         <div className="today-events">
           <div className="today-events-head">
             <span>Today's schedule</span>
@@ -175,7 +187,7 @@ export function SummaryCard() {
             </span>
           </div>
           <ul className="today-event-list" ref={listRef}>
-            {todayEvents.map((e) => {
+            {listEvents.map((e) => {
               const done = e.end <= now;
               const live = e.start <= now && now < e.end;
               // Only an unmakeable connection earns a row of its own. Tight ones

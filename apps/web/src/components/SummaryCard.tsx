@@ -16,8 +16,20 @@ import type { CalendarEvent } from "@central-command/types";
  * it never claims to. The departure is shown only while it is actionable and
  * disappears when the event starts, so there is no stale state to track, nothing
  * to dismiss, and no moment where the card asserts something it cannot know.
+ *
+ * **It scales with the journey.** The window is measured from `leaveBy`, which
+ * already has travel subtracted, so a long trip surfaces earlier in absolute
+ * terms either way. But a flat half hour of notice is thin warning for an hour
+ * on the road and generous for a walk downstairs, so the lead time is roughly
+ * one journey — floored so a short hop still gives useful notice, capped so a
+ * long one cannot camp on the card for half the day.
  */
-const DEPARTURE_WINDOW_MS = 30 * 60 * 1000;
+const DEPARTURE_WINDOW_MIN = 30;
+const DEPARTURE_WINDOW_MAX = 90;
+
+function departureWindowMs(travelMinutes: number): number {
+  return Math.min(DEPARTURE_WINDOW_MAX, Math.max(DEPARTURE_WINDOW_MIN, travelMinutes)) * 60_000;
+}
 
 function fmtWhen(ms: number, now: number, allDay: boolean): string {
   const d = new Date(ms);
@@ -57,7 +69,7 @@ const gaugeColor = (s: number) =>
 function DepartureNote({ event, now }: { event: CalendarEvent; now: number }) {
   const travel = event.travel;
   if (!travel || event.start <= now) return null;
-  if (travel.leaveBy - now > DEPARTURE_WINDOW_MS) return null;
+  if (travel.leaveBy - now > departureWindowMs(travel.minutes)) return null;
 
   const overdue = now >= travel.leaveBy;
   const minutes = Math.max(0, Math.round((travel.leaveBy - now) / 60_000));
@@ -220,5 +232,5 @@ export function SummaryCard() {
 function hasDeparture(event: CalendarEvent, now: number): boolean {
   const travel = event.travel;
   if (!travel || event.start <= now) return false;
-  return travel.leaveBy - now <= DEPARTURE_WINDOW_MS;
+  return travel.leaveBy - now <= departureWindowMs(travel.minutes);
 }

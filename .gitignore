@@ -14,6 +14,9 @@ build/
 .wrangler/
 .dev.vars
 .dev.vars.*
+# ...but the template that documents which secrets are required must ship.
+# `.dev.vars.*` above swallowed it, so a fresh clone got no template at all.
+!.dev.vars.example
 wrangler.toml.bak
 
 # TanStack Router generated route tree

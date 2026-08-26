@@ -1710,6 +1710,9 @@ button {
    content-sized box instead of the list's. */
 .cal-event {
   display: block;
+  /* Must not shrink, for the same reason as `.today-event-item` — a compressed
+     row reads as "fits" to useClampList. */
+  flex: none;
 }
 
 .cal-event-when {
@@ -2392,8 +2395,11 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.12rem;
-  padding-bottom: 0.7rem;
-  margin-bottom: 0.7rem;
+  /* Tightened from 0.7/0.7. Every rem of fixed chrome above the schedule is
+     taken straight out of the clamped list, and at 1x1 the whole list budget is
+     roughly one row — so spacing here trades directly against events shown. */
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
   border-bottom: 1px solid var(--border);
   /* Fixed blocks: the schedule below absorbs the shortfall by clamping rows, so
      nothing up here may shrink to make room. Without this the flex column
@@ -2454,7 +2460,13 @@ button {
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-2) 55%, transparent);
   box-shadow: inset 0 1px 1px var(--glass-rim-bottom);
-  overflow: hidden;
+  /* Positioning context for the busyness notch. Without it the notch resolves
+     against `.card` (the nearest positioned ancestor) and draws a stray tick
+     near the card's top-left instead of on the track. */
+  position: relative;
+  /* The notch is taller than the track on purpose, so the track must not clip.
+     `.today-gauge-fill` carries its own pill radius, so nothing is lost. */
+  overflow: visible;
 }
 
 .today-gauge-fill {
@@ -2466,8 +2478,9 @@ button {
 
 /* Today's schedule — past events struck through to show what's crossed off. */
 .today-events {
-  margin-top: 0.8rem;
-  padding-top: 0.7rem;
+  /* Tightened from 0.8/0.7 — same trade as `.today-next`. */
+  margin-top: 0.55rem;
+  padding-top: 0.55rem;
   border-top: 1px solid var(--border);
   /* Link two of three in the clamp chain (.card-body -> here -> the list).
      `useClampList` measures rows against the list's own box, so that box has to
@@ -2489,7 +2502,7 @@ button {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-faint);
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.35rem;
   /* `.today-events` is a flex column now — the header is a sibling of the list
      and must keep its full height rather than shrinking beside it. */
   flex: none;
@@ -3676,6 +3689,14 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
+  /* A clamped row must never shrink.
+     The list is a flex column, so items shrink by default rather than overflow —
+     and a squeezed row is invisible to useClampList, which decides a row is
+     clipped by asking whether its bottom edge falls past the list box. A row
+     that compressed to fit has a bottom edge *inside* the box, so it counts as
+     visible: the card renders a half-height row, reports nothing clipped, and
+     shows no "+n more". Same lesson as `.card-body [data-drop-order]` above. */
+  flex: none;
 }
 
 .cal-event-button {
@@ -3755,14 +3776,6 @@ button {
 /* Where scheduled time alone would have put the gauge. The track clips its fill
    to a pill, so the marker sits outside that clip — hence `overflow: visible`
    here and the rounding moved onto the fill itself. */
-.today-gauge-track {
-  overflow: visible;
-}
-
-.today-gauge-fill {
-  overflow: hidden;
-}
-
 .today-gauge-notch {
   position: absolute;
   top: -0.15rem;

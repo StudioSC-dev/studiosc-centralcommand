@@ -76,7 +76,20 @@ function sectionFailures(sections: LabSections | null): string[] {
     containers: "Docker",
   };
   return Object.entries(sections)
-    .filter(([, section]) => section && !section.ok)
+    .filter(([name, section]) => {
+      if (!section || section.ok) return false;
+      // The images section reporting `unexpected_shape` is a DECIDED permanent
+      // state, not a failure: Diun's data model cannot express "pending
+      // updates" (integration contract, closed 2026-08-27), so the agent ships
+      // an honest stub forever. An alarm line that can never change carries no
+      // information and trains the card to be ignored — the exact failure this
+      // card exists to avoid. Any OTHER error from that section still shows.
+      // Remove this exception when a real images collector ships (Phase 4).
+      if (name === "images" && (section as { error: string }).error === "unexpected_shape") {
+        return false;
+      }
+      return true;
+    })
     .map(([name, section]) => `${labels[name] ?? name} ${(section as { error: string }).error}`);
 }
 

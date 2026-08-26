@@ -359,9 +359,13 @@ export interface CalendarData {
    */
   todayBusyness: number;
   /**
-   * 0–100. Density, transition pressure and committed span combined — how much
-   * of a rush today is, rather than how full it is. Equal to `todayBusyness`
-   * when no travel could be estimated.
+   * 0–100. How much of a rush today is, rather than how full it is.
+   *
+   * `todayBusyness` is the floor: transition pressure and committed span spend
+   * the headroom between it and 100, so this is never below it and the two are
+   * equal exactly when nothing is pressing. That ordering is load-bearing — the
+   * Today gauge renders this and marks busyness with a notch, so a fill behind
+   * the notch would read as travel having made the day calmer.
    */
   todayStress: number;
   /** What drove the score, in descending significance. */

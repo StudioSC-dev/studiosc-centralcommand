@@ -138,25 +138,44 @@ export function spanScore(committedHours: number, longDayHours = 12): number {
 }
 
 /**
+ * How much of the remaining headroom above density the other two terms may
+ * claim. Below 1 so a bad connection escalates a quiet day without pinning it
+ * straight to 100 — the score has to keep discriminating at the top end.
+ */
+const PRESSURE_HEADROOM = 0.65;
+
+/**
  * Today's stress, 0–100.
  *
  * Deliberately *not* a redefinition of `busynessScore`. That function's meaning
  * is published in CLAUDE.md and mirrored into the homelab-telemetry contract, so
  * it stays the duration-based density term and this composes on top of it.
  *
- * `transitions` is the worst pressure of the day rather than the mean: one
- * unmakeable connection is the thing that ruins a day, and averaging it against
- * three comfortable gaps is exactly how it would disappear.
+ * **Escalation, not a weighted average.** The first version averaged the three
+ * terms, and a live calendar caught it immediately: a quiet day scored density
+ * 15 but stress 9, because averaging *dilutes* density when the other terms are
+ * low. That is incoherent on screen — the gauge renders stress and marks density
+ * with a notch, so a fill behind the notch claims travel made the day calmer.
+ *
+ * Density is therefore the floor, and pressure spends what is left between it
+ * and 100. Travel can only ever add, `stress >= density` holds by construction,
+ * and the two are equal exactly when nothing else is pressing.
+ *
+ * `transitions` is the worst connection of the day rather than the mean: one
+ * unmakeable hop is what ruins a day, and averaging it against three comfortable
+ * gaps is precisely how it would disappear.
  */
 export function stressScore(opts: {
   density: number;
   transitionPressures: readonly number[];
   span: number;
 }): number {
+  const density = clamp(opts.density, 0, 100);
   const transitions = opts.transitionPressures.length
     ? Math.max(...opts.transitionPressures)
     : 0;
-  const score = opts.density * 0.45 + transitions * 0.4 + opts.span * 0.15;
+  const pressure = clamp(transitions * 0.7 + opts.span * 0.3, 0, 100) / 100;
+  const score = density + (100 - density) * pressure * PRESSURE_HEADROOM;
   return clamp(Math.round(score), 0, 100);
 }
 

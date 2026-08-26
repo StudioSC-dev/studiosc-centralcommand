@@ -6,7 +6,12 @@
 # production, and in an untracked `.dev.vars` file for local dev
 # (see .dev.vars.example):
 #   API_BEARER_TOKEN, OPENWEATHERMAP_API_KEY, RIOT_API_KEY, RIOT_DEV_RIOT_ID,
-#   GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, TOKEN_ENCRYPTION_KEY
+#   GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, TOKEN_ENCRYPTION_KEY,
+#   SESSION_SECRET, ORS_API_KEY
+#
+# GOOGLE_MAPS_EMBED_KEY is set the same way but is not really a secret — it
+# ships in the iframe URL and is protected by its console restriction instead.
+# Both it and ORS_API_KEY are optional; the features degrade rather than break.
 
 name = "centralcommand"
 main = "src/index.ts"

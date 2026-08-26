@@ -1,0 +1,63 @@
+# Copy to `apps/api/.dev.vars` for local `wrangler dev`. Never commit `.dev.vars`.
+# In production these are set with `wrangler secret put <NAME>`.
+
+# Static Bearer token guarding the API layer.
+API_BEARER_TOKEN=""
+
+# OpenWeatherMap API key (standard endpoints only — no One Call API 3.0).
+OPENWEATHERMAP_API_KEY=""
+
+# Riot Games dev API key.
+RIOT_API_KEY=""
+
+# Dev/test Riot ID (e.g. "BurritoBuster#3049"). Never hardcode in source.
+RIOT_DEV_RIOT_ID=""
+
+# Google OAuth 2.0 client credentials.
+GOOGLE_OAUTH_CLIENT_ID=""
+GOOGLE_OAUTH_CLIENT_SECRET=""
+
+# AES-256-GCM key for encrypting OAuth tokens at rest.
+# Generate: node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+TOKEN_ENCRYPTION_KEY=""
+
+# HMAC key (base64 of 32 bytes) for signing app session JWTs.
+# Generate: node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+SESSION_SECRET=""
+
+# Local dev only — DO NOT set in production. With no Cloudflare Access in front
+# of localhost, the auth middleware treats this email as the verified identity.
+DEV_AUTH_EMAIL="dev@studiosc.dev"
+
+# REQUIRED locally — overrides the wrangler.toml [vars] production value in
+# `wrangler dev`. This is the origin the BROWSER uses, i.e. the Vite dev server,
+# not the Worker's :8787: Vite proxies /api through to wrangler, and the SPA
+# only exists on :5173.
+#
+# It is the single source of truth for the Google OAuth redirect URI, the
+# post-callback redirect back into the SPA, and the Calendar push webhook. Do
+# NOT leave it empty and do NOT let the production value through: `wrangler dev`
+# simulates the [[routes]] hostname, so anything derived from the request origin
+# desyncs the OAuth legs and Google rejects the exchange with invalid_grant.
+#
+# Being http:// (not public HTTPS) it also self-disables the Calendar push
+# webhook — Google can't reach localhost — and polling keeps data fresh.
+#
+# `http://localhost:5173/api/auth/google/callback` must be registered as an
+# Authorized redirect URI on the Google Cloud OAuth client.
+APP_ORIGIN="http://localhost:5173"
+
+# Google Maps Embed API key — the map in the event dialog.
+# Public by design (it ships in the iframe URL); safety comes from the console
+# restriction, not from hiding it. Restrict it to the Maps Embed API ONLY and
+# referrer-lock it to https://centralcommand.studiosc.dev/* plus
+# http://localhost:5173/* for dev. Maps Embed is free and unmetered; an
+# unrestricted key on a project with a metered Maps API enabled is not.
+# Optional — with no key the dialog shows a plain Maps link instead of a map.
+GOOGLE_MAPS_EMBED_KEY=""
+
+# OpenRouteService key — geocoding + directions behind "leave by".
+# A real secret: called only from the Worker, never exposed to the browser.
+# Free plan, no card: 2,500 requests/day, 40,000/month. https://openrouteservice.org
+# Optional — with no key the Today card falls back to its plain countdown.
+ORS_API_KEY=""

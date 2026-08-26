@@ -36,6 +36,29 @@ export interface Bindings {
   /** HMAC key (base64 of 32 bytes) for signing app session JWTs. */
   SESSION_SECRET: string;
 
+  /**
+   * Google Maps Embed API key, for the map in the event dialog.
+   *
+   * NOT a secret in the usual sense — it ships inside the iframe URL and is
+   * readable in page source. What protects it is the console-side restriction:
+   * Maps Embed API only, referrer-locked to APP_ORIGIN. It lives here rather
+   * than in a `VITE_` var so it stays out of the frontend bundle and can be
+   * rotated without a rebuild.
+   *
+   * Optional: with no key we emit the keyless maps.google.com link instead of
+   * an embed, so local dev and a fresh deploy both work before it is set.
+   */
+  GOOGLE_MAPS_EMBED_KEY?: string;
+
+  /**
+   * OpenRouteService key — geocoding + directions for the "leave by" estimate.
+   * Called server-side only, so unlike the Maps key this one is a real secret.
+   *
+   * Optional: with no key we skip travel estimates entirely rather than
+   * guessing, so the Today card falls back to its plain countdown.
+   */
+  ORS_API_KEY?: string;
+
   // Local dev only — never set in production. When present and no Access JWT
   // is provided, the auth middleware treats this email as the verified identity.
   DEV_AUTH_EMAIL?: string;

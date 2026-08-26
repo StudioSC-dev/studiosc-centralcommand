@@ -7,6 +7,7 @@ import { securityHeaders } from "./middleware/security";
 import { ok } from "./lib/response";
 import { runRiotRefresh } from "./workers/riot-cron";
 import { runCalendarRenewal } from "./workers/calendar-cron";
+import { runNotificationPrune } from "./workers/notifications-cron";
 
 import { authPublic, authGuarded } from "./routes/auth";
 import { settings } from "./routes/settings";
@@ -23,6 +24,9 @@ import { news } from "./routes/news";
 import { performance } from "./routes/performance";
 import { tasks_routes } from "./routes/tasks";
 import { insights } from "./routes/insights";
+import { lab } from "./routes/lab";
+import { labEvents, labIngest } from "./routes/lab-ingest";
+import { notificationRoutes } from "./routes/notifications";
 
 const app = new Hono<AppEnv>();
 
@@ -44,6 +48,14 @@ app.route("/api/auth", authPublic);
 // OUTSIDE the session guard. It self-authenticates via the per-channel token.
 app.route("/api/calendar/notifications", calendarWebhook);
 
+// Homelab telemetry ingest. The pusher is a container on a LAN with no cookie,
+// so like the webhook above these sit OUTSIDE the session guard and authenticate
+// themselves with a per-source bearer token. Mounted at explicit paths rather
+// than as one `/api/lab` group, because GET /api/lab is guarded and must stay
+// that way — see routes/lab-ingest.ts.
+app.route("/api/lab/ingest", labIngest);
+app.route("/api/lab/events", labEvents);
+
 // Everything below requires an authenticated session (cookie, Access JWT, or dev).
 const api = new Hono<AppEnv>();
 api.use("*", sessionAuth);
@@ -63,6 +75,8 @@ api.route("/news", news);
 api.route("/performance", performance);
 api.route("/tasks", tasks_routes);
 api.route("/insights", insights);
+api.route("/lab", lab);
+api.route("/notifications", notificationRoutes);
 
 // The single-host topology routes centralcommand.studiosc.dev/api/* to this Worker.
 app.route("/api", api);
@@ -72,5 +86,6 @@ export default {
   async scheduled(_controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
     ctx.waitUntil(runRiotRefresh(env));
     ctx.waitUntil(runCalendarRenewal(env));
+    ctx.waitUntil(runNotificationPrune(env));
   },
 } satisfies ExportedHandler<Bindings>;

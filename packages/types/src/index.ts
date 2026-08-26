@@ -266,6 +266,58 @@ export type InsightsResponse = InsightsData;
 
 // ─── Calendar ────────────────────────────────────────────────────────────────
 
+/** Video-call providers we recognise well enough to name and badge. */
+export type ConferenceProvider = "meet" | "zoom" | "teams" | "other";
+
+/**
+ * A joinable video call attached to an event.
+ *
+ * Normalised on the API side rather than in the browser, because the raw shape
+ * varies by how the invite was made: Google populates `conferenceData` only when
+ * the organiser used a calendar add-on, older Meet events carry a bare
+ * `hangoutLink`, and a Zoom invite pasted by a human is plain text in the
+ * description or the location field. The card should not have to know that.
+ */
+export interface EventConference {
+  provider: ConferenceProvider;
+  /** The join URL. */
+  url: string;
+  /** Human label for the button, e.g. "Join Zoom Meeting". */
+  label: string;
+  meetingCode?: string;
+  passcode?: string;
+}
+
+/** How you get to an event, and therefore when you have to leave. */
+export type TravelMode = "walk" | "drive";
+
+/**
+ * A routed estimate for the leg that ends at this event.
+ *
+ * Absent whenever we could not honestly produce one — no ORS key, an
+ * unresolvable location, or no known origin — rather than guessed at, since a
+ * wrong departure time is worse than none.
+ */
+export interface EventTravel {
+  mode: TravelMode;
+  /** Routed duration for `mode`, in minutes. */
+  minutes: number;
+  /** Straight-line distance in km — what chose `mode` (the 2 km rule). */
+  km: number;
+  /** When to walk out: start − travel − prep. */
+  leaveBy: EpochMs;
+  /**
+   * Where the leg starts. Null means home, which is the first trip of the day;
+   * otherwise the previous event's location, so the copy can name it.
+   */
+  originLabel: string | null;
+  /**
+   * Slack in minutes between the previous event ending and `leaveBy`. Negative
+   * means the trip cannot be made in time. Null when nothing precedes it.
+   */
+  bufferMinutes: number | null;
+}
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -273,13 +325,47 @@ export interface CalendarEvent {
   end: EpochMs;
   allDay: boolean;
   location: string | null;
+  /** Present when the event has a joinable video call. */
+  conference?: EventConference;
+  /** Plain text — Google's HTML description, stripped and truncated. */
+  description?: string;
+  /** Google Calendar web link for this event. */
+  htmlLink?: string;
+  attendeeCount?: number;
+  /** Google Maps Embed URL; absent when unmappable or no key is configured. */
+  mapEmbedUrl?: string;
+  /** Keyless maps.google.com link; absent when the location is not a place. */
+  mapLinkUrl?: string;
+  travel?: EventTravel;
+}
+
+/** One named contributor to today's stress score, for the dialog's chip rack. */
+export interface StressFactor {
+  label: string;
+  tone: "neutral" | "warn" | "bad";
 }
 
 export interface CalendarData {
   connected: true;
   events: CalendarEvent[];
-  /** Duration-based busyness for today, 0–100 (Phase 1). */
+  /**
+   * Duration-based busyness for today, 0–100 (Phase 1).
+   *
+   * Deliberately unchanged by the travel work: this field is documented in
+   * CLAUDE.md as duration-based with Workers AI as the Phase 2 upgrade, and is
+   * mirrored into ../integrations/homelab-telemetry.md, so redefining it would
+   * change a number two repos already agree on. `todayStress` is the wider
+   * signal; this stays the density term inside it.
+   */
   todayBusyness: number;
+  /**
+   * 0–100. Density, transition pressure and committed span combined — how much
+   * of a rush today is, rather than how full it is. Equal to `todayBusyness`
+   * when no travel could be estimated.
+   */
+  todayStress: number;
+  /** What drove the score, in descending significance. */
+  stressFactors: StressFactor[];
 }
 
 /** Returned when no usable Google connection exists for the user. */

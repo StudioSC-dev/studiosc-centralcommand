@@ -83,3 +83,84 @@ export function busynessScore(scheduledHours: number, fullDayHours = 10): number
   const ratio = clamp(scheduledHours, 0, fullDayHours) / fullDayHours;
   return clamp(Math.round(ratio * 100), 0, 100);
 }
+
+// ─── Travel-aware stress ──────────────────────────────────────────────────────
+
+/**
+ * Minutes between "I should get moving" and actually being out of the door.
+ * A default, not a constant: it is the number most worth tuning after living
+ * with the feature, so it is a parameter everywhere below and will become a
+ * user setting.
+ */
+export const DEFAULT_PREP_MINUTES = 10;
+
+/** How a transition between two events feels once travel and prep are removed. */
+export type BufferBand = "easy" | "fine" | "tight" | "conflict";
+
+/**
+ * Classify the slack before a leg.
+ *
+ * The bands are the product decision, not the arithmetic: only `conflict` is
+ * allowed to spend a row on the Today card, `tight` tints the Next line, and the
+ * quieter two are felt only through the score. Everything still contributes —
+ * what differs is what earns pixels.
+ */
+export function bufferBand(bufferMinutes: number): BufferBand {
+  if (bufferMinutes < 0) return "conflict";
+  if (bufferMinutes <= 10) return "tight";
+  if (bufferMinutes <= 30) return "fine";
+  return "easy";
+}
+
+/** Each band's contribution to the transition term, 0–100. */
+const BAND_PRESSURE: Record<BufferBand, number> = {
+  easy: 0,
+  fine: 35,
+  tight: 75,
+  conflict: 100,
+};
+
+export function bandPressure(band: BufferBand): number {
+  return BAND_PRESSURE[band];
+}
+
+/**
+ * How much of the day is claimed, from the first departure to the last event's
+ * end, normalised against a long day.
+ *
+ * This is the term that catches the day which is not dense and has no tight
+ * connections, but still owns you from 7am to 9pm. Density alone reads that as
+ * quiet.
+ */
+export function spanScore(committedHours: number, longDayHours = 12): number {
+  if (longDayHours <= 0) return 0;
+  return clamp(Math.round((clamp(committedHours, 0, longDayHours) / longDayHours) * 100), 0, 100);
+}
+
+/**
+ * Today's stress, 0–100.
+ *
+ * Deliberately *not* a redefinition of `busynessScore`. That function's meaning
+ * is published in CLAUDE.md and mirrored into the homelab-telemetry contract, so
+ * it stays the duration-based density term and this composes on top of it.
+ *
+ * `transitions` is the worst pressure of the day rather than the mean: one
+ * unmakeable connection is the thing that ruins a day, and averaging it against
+ * three comfortable gaps is exactly how it would disappear.
+ */
+export function stressScore(opts: {
+  density: number;
+  transitionPressures: readonly number[];
+  span: number;
+}): number {
+  const transitions = opts.transitionPressures.length
+    ? Math.max(...opts.transitionPressures)
+    : 0;
+  const score = opts.density * 0.45 + transitions * 0.4 + opts.span * 0.15;
+  return clamp(Math.round(score), 0, 100);
+}
+
+/** Wall-clock departure: be there at `start`, minus travel, minus getting ready. */
+export function leaveBy(start: number, travelMinutes: number, prepMinutes = DEFAULT_PREP_MINUTES): number {
+  return start - (travelMinutes + prepMinutes) * 60_000;
+}

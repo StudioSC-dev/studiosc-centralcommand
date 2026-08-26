@@ -66,6 +66,8 @@
   --pillar-gaming: #5be0c8;
   --pillar-insights: #ffa94e;
   --pillar-news: #7f9bd0;
+  --pillar-lab: #64d2a8;
+  --pillar-notifications: #ff9d6e;
 
   --radius: 18px;
   /* Inner radius for nested glass panels — keeps corners visually concentric. */
@@ -127,6 +129,8 @@
   --pillar-gaming: #1aa893;
   --pillar-insights: #d98220;
   --pillar-news: #5b72a8;
+  --pillar-lab: #2c9e75;
+  --pillar-notifications: #e0703a;
 
   color-scheme: light;
 }
@@ -994,6 +998,8 @@ button {
 .pillar-gaming { --card-accent: var(--pillar-gaming); }
 .pillar-insights { --card-accent: var(--pillar-insights); }
 .pillar-news { --card-accent: var(--pillar-news); }
+.pillar-lab { --card-accent: var(--pillar-lab); }
+.pillar-notifications { --card-accent: var(--pillar-notifications); }
 
 /* ─── Glass sub-surface primitives ──────────────────────────────────────────── */
 /* Reusable translucent panels for content *inside* a card. (backdrop-filter does
@@ -3999,4 +4005,292 @@ button {
 
 .event-dialog-link:hover {
   text-decoration: underline;
+}
+
+/* ─── Homelab card ──────────────────────────────────────────────────────────── */
+/* Two blocks that must never drop (freshness, counts), one clamped list, and two
+   `data-drop-order` asides. See HomelabCard.tsx for why that split is what it
+   is — the fit strategy was decided before the card was written, per ui-suite
+   D10, because every card that decided it afterwards needed a fix. */
+
+.lab-freshness {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.35rem;
+  font-size: clamp(0.72rem, 4cqh, 0.85rem);
+  color: var(--text-dim);
+}
+
+.lab-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex: 0 0 auto;
+}
+
+.lab-freshness.is-fresh .lab-dot {
+  background: var(--pillar-perf);
+  /* A quiet pulse, so "live" is legible from across a room without reading it. */
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pillar-perf) 22%, transparent);
+}
+.lab-freshness.is-stale { color: var(--pillar-insights); }
+.lab-freshness.is-stale .lab-dot { background: var(--pillar-insights); }
+.lab-freshness.is-offline { color: var(--pillar-health); font-weight: 600; }
+.lab-freshness.is-offline .lab-dot { background: var(--pillar-health); }
+
+/* Everything below the freshness line is history once the lab goes quiet.
+   Greying it is the card saying so without needing to be read. */
+.card.lab-offline .lab-counts,
+.card.lab-offline .lab-list,
+.card.lab-offline .lab-aside {
+  opacity: 0.45;
+}
+
+.lab-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 0.5rem;
+  font-size: clamp(0.78rem, 5cqh, 0.95rem);
+  font-variant-numeric: tabular-nums;
+}
+
+.lab-count.is-up { color: var(--pillar-perf); }
+.lab-count.is-down { color: var(--pillar-health); font-weight: 600; }
+.lab-count.is-warn { color: var(--pillar-insights); }
+.lab-count.is-muted { color: var(--text-faint); }
+.lab-counts.is-unknown { color: var(--text-faint); font-style: italic; }
+
+.lab-failures {
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  color: var(--pillar-insights);
+}
+
+/* Clamped list — same shape as .insight-list: take the leftover space and clip,
+   so the card itself never scrolls and useClampList can measure what fits. */
+.lab-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.lab-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-inner);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  border: 1px solid var(--glass-border);
+  border-left: 3px solid var(--text-faint);
+  font-size: clamp(0.72rem, 4.2cqh, 0.85rem);
+}
+
+.lab-row.tone-bad { border-left-color: var(--pillar-health); }
+.lab-row.tone-warn { border-left-color: var(--pillar-insights); }
+.lab-row.tone-quiet { border-left-color: var(--pillar-lab); }
+
+.lab-row-label {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lab-row-detail {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.lab-allclear {
+  flex: 1 1 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.lab-aside {
+  margin: 0.3rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+/* ─── Notifications card ────────────────────────────────────────────────────── */
+/* Badge row and the action bar never drop; the feed is the part that clamps.
+   The badge row is the only content that is always true — an empty feed still
+   has counts — which is why it is the headline rather than a footer. */
+
+.notif-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0 0 0.5rem;
+  flex: 0 0 auto;
+}
+
+.notif-badges.is-empty {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.notif-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card-accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--card-accent) 35%, transparent);
+  font-size: clamp(0.68rem, 3.8cqh, 0.8rem);
+}
+
+.notif-badge.is-clear {
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  border-color: var(--glass-border);
+  color: var(--text-dim);
+}
+
+/* A source that has stopped reporting must be distinguishable from a source
+   with nothing to report — the same silence-is-not-health rule the Homelab
+   card's freshness band enforces, one level down. */
+.notif-badge.state-stale { border-style: dashed; }
+.notif-badge.state-error { border-color: var(--pillar-health); color: var(--pillar-health); }
+
+.notif-badge-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.notif-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.notif-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: var(--radius-inner);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  border: 1px solid var(--glass-border);
+  border-left: 3px solid var(--text-faint);
+  font-size: clamp(0.72rem, 4.2cqh, 0.85rem);
+}
+
+.notif-row.tone-bad { border-left-color: var(--pillar-health); }
+.notif-row.tone-warn { border-left-color: var(--pillar-insights); }
+.notif-row.tone-quiet { border-left-color: var(--card-accent); }
+
+.notif-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.notif-row-title {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notif-row-body {
+  color: var(--text-dim);
+  font-size: 0.92em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notif-row-age {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.notif-row-clear {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.notif-row-clear svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.notif-row-clear:hover {
+  color: var(--pillar-perf);
+  border-color: color-mix(in srgb, var(--pillar-perf) 45%, transparent);
+}
+
+.notif-empty {
+  flex: 1 1 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+/* Never dropped, and disabled rather than hidden at zero so the control does
+   not move as the feed drains under it. */
+.notif-actions {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.3rem;
+}
+
+.notif-clear-all {
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-inner);
+  border: 1px solid var(--glass-border);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.notif-clear-all:disabled {
+  opacity: 0.45;
+  cursor: default;
 }

@@ -510,9 +510,20 @@ export type CardKey =
   | "health"
   | "gaming"
   | "insights"
-  | "news";
+  | "news"
+  | "lab"
+  | "notifications";
 
-/** Every card key, in the dashboard's fixed render order. */
+/**
+ * Every card key, in the dashboard's fixed render order.
+ *
+ * **New keys go on the END, and that is load-bearing.** Storage records the
+ * exceptions (D4), and `resolveCardOrder()` places anything a stored order has
+ * never heard of *after* the keys it knows — in this array's order. So a card
+ * appended here appears for every existing user, at 1x1, at the end of their
+ * arrangement, with no backfill. Inserting one in the middle would instead
+ * silently reorder every user's dashboard.
+ */
 export const CARD_KEYS: readonly CardKey[] = [
   "weather",
   "summary",
@@ -523,6 +534,8 @@ export const CARD_KEYS: readonly CardKey[] = [
   "gaming",
   "insights",
   "news",
+  "lab",
+  "notifications",
 ] as const;
 
 /** Runtime guard — the single place an unknown key is rejected. */
@@ -857,17 +870,30 @@ export interface LayoutPreset extends PresetArrangement {
 /**
  * The built-in presets.
  *
- * All three are verified to pack with **zero holes** at their derived shape —
- * a preset that left the wall ragged would undercut the reason to offer one.
- * `/layout-lab` asserts this at dev time, since the repo has no test runner.
+ * Focus and Minimal are verified to pack with **zero holes** at their derived
+ * shape — a curated preset that left the wall ragged would undercut the reason
+ * to offer one. `/layout-lab` asserts this at dev time, since the repo has no
+ * test runner.
+ *
+ * **Wall is deliberately exempt from that assertion**, and the reason is the
+ * thing that makes Wall useful. Its roster is the live `CARD_KEYS` constant
+ * rather than a hand-picked list, so it grows for free whenever a card ships —
+ * and a roster it does not control cannot promise an exact multiple of the grid
+ * at every future card count. Nine cards packed exactly (3×3); eleven leave one
+ * spare cell in a 4×3. The alternatives were both worse: hand-tuning a size
+ * exception into Wall every time the registry grows re-introduces the
+ * maintenance it exists to avoid, and holding the roster back to keep the sum
+ * tidy defeats the point entirely. What Wall promises is *everything, evenly,
+ * in no more than three rows* — and that still holds.
  */
 export const LAYOUT_PRESETS: readonly LayoutPreset[] = [
   {
     key: "wall",
     label: "Wall",
-    description: "Everything, evenly. The full 3 × 3 secondary-monitor view.",
+    description: "Everything, evenly. The whole registry on one secondary monitor.",
     // Named, not spelled out: this is the preset that should grow when a card
-    // ships. 9 cards × 1×1 → 3 × 3, exactly full.
+    // ships — and it has, twice. 9 cards × 1×1 was a 3 × 3, exactly full;
+    // 11 is a 4 × 3 with one spare cell. See the exemption note above.
     visible: CARD_KEYS,
     sizes: {},
   },
@@ -1295,3 +1321,229 @@ export interface PerformanceData {
 }
 
 export type PerformanceResponse = PerformanceData;
+
+// ─── Homelab telemetry ───────────────────────────────────────────────────────
+//
+// The wire contract lives in ../integrations/homelab-telemetry.md and is
+// normative for BOTH repos — the homelab agent codes against the same field
+// names. Anything not declared here is not sent.
+
+/** Payload schema version. Bump when the shape changes incompatibly. */
+export const LAB_SCHEMA_VERSION = 1;
+
+/**
+ * Why a collector failed, as a closed enum.
+ *
+ * Never a raw exception string: those leak file paths and hostnames from the
+ * lab, which is precisely what the payload allowlist exists to keep out.
+ */
+export type LabSectionError = "unreachable" | "auth" | "timeout" | "unexpected_shape";
+
+export const LAB_SECTION_ERRORS: readonly LabSectionError[] = [
+  "unreachable",
+  "auth",
+  "timeout",
+  "unexpected_shape",
+] as const;
+
+export function isLabSectionError(value: unknown): value is LabSectionError {
+  return typeof value === "string" && (LAB_SECTION_ERRORS as readonly string[]).includes(value);
+}
+
+/**
+ * A section of the snapshot — always tagged, **never a bare `null`**.
+ *
+ * A null section is ambiguous between "nothing to report" and "the collector
+ * failed", and that ambiguity is the exact silence-looks-like-health failure
+ * this integration exists to fix. The card must be able to say *"Kuma
+ * unreachable"* rather than render an empty list that reads as "all clear".
+ */
+export type LabSectionResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: LabSectionError };
+
+export type LabMonitorStatus = "up" | "down" | "degraded" | "paused";
+
+export interface LabMonitor {
+  /** Stable id from the source, for diffing across pushes. NOT the label — a
+   *  rename must not read as a new service. */
+  key: string;
+  /** Display name. Labels only: no hostnames, no LAN or Tailscale addresses. */
+  label: string;
+  status: LabMonitorStatus;
+  /** ISO timestamp of the last state change — what lets the card say "down 14m". */
+  since?: string;
+  uptime24h?: number;
+}
+
+export interface LabMonitors {
+  counts: { up: number; down: number; paused: number; degraded?: number };
+  items: LabMonitor[];
+}
+
+export type LabBackupResult = "ok" | "failed" | "running";
+
+export interface LabBackupPlan {
+  key: string;
+  label: string;
+  lastRunAt?: string;
+  result: LabBackupResult;
+}
+
+export interface LabBackups {
+  plans: LabBackupPlan[];
+}
+
+export interface LabImages {
+  pendingUpdates: number;
+  items: { key: string; label: string }[];
+}
+
+export interface LabContainers {
+  running: number;
+  total: number;
+  unhealthy: { key: string; label: string }[];
+}
+
+export interface LabSections {
+  monitors: LabSectionResult<LabMonitors>;
+  backups: LabSectionResult<LabBackups>;
+  images: LabSectionResult<LabImages>;
+  containers: LabSectionResult<LabContainers>;
+}
+
+/** Body of `POST /api/lab/ingest`. */
+export interface LabSnapshotPayload {
+  version: number;
+  /** ISO 8601. When the agent measured, not when we received it. */
+  capturedAt: string;
+  agent?: { version?: string };
+  sections: LabSections;
+}
+
+/** One relayed ntfy event. Body of `POST /api/lab/events` is `{version, events}`. */
+export interface LabEventInput {
+  ntfyId: string;
+  topic: string;
+  publishedAt: string;
+  title: string;
+  message?: string;
+  priority?: number;
+  tags?: string[];
+}
+
+export interface LabEventsPayload {
+  version: number;
+  events: LabEventInput[];
+}
+
+/**
+ * How stale the lab data is. **Computed server-side, always** (risk 6) — the
+ * client never derives freshness, because a stale snapshot rendered as current
+ * is the precise failure mode this card exists to prevent.
+ */
+export type LabFreshness = "fresh" | "stale" | "offline";
+
+/** 3 minutes — 3× the 60s push cadence, so one missed push is not an alarm. */
+export const LAB_STALE_AFTER_MS = 3 * 60 * 1000;
+/** 15 minutes — also the Phase 3 alerting threshold (D8). */
+export const LAB_OFFLINE_AFTER_MS = 15 * 60 * 1000;
+
+export function labFreshness(lastSeenAt: number | null, now: number): LabFreshness {
+  // Never heard from at all is not "a bit stale" — it is offline. A source that
+  // has never pushed and one that stopped pushing are the same thing to a user.
+  if (lastSeenAt === null) return "offline";
+  const age = now - lastSeenAt;
+  if (age >= LAB_OFFLINE_AFTER_MS) return "offline";
+  if (age >= LAB_STALE_AFTER_MS) return "stale";
+  return "fresh";
+}
+
+/** `GET /api/lab`. `source` is null when this user has no lab connected. */
+export interface LabResponse {
+  source: {
+    id: string;
+    label: string;
+    lastSeenAt: number | null;
+    freshness: LabFreshness;
+    agentVersion: string | null;
+  } | null;
+  snapshot: {
+    version: number;
+    capturedAt: number;
+    receivedAt: number;
+    sections: LabSections;
+  } | null;
+  /** Recent lab notifications, for the card's green-state filler. */
+  events: Notification[];
+}
+
+/** Response of `POST /api/lab/sources` and `…/rotate`. The token is shown ONCE. */
+export interface LabSourceSecret {
+  id: string;
+  label: string;
+  /** Plaintext bearer token. Never stored, never returned again. */
+  token: string;
+}
+
+// ─── Notifications spine (docs/notifications.md) ─────────────────────────────
+
+/**
+ * Where a notification came from.
+ *
+ * A string union for the sources that exist, but the API and schema treat it as
+ * free TEXT — adding Gmail is a collector, not a migration, and an unknown
+ * source arriving from storage must render rather than crash.
+ */
+export type NotificationSourceKey = "lab" | "gmail" | "slack" | (string & {});
+
+export type NotificationStatus = "unread" | "read" | "dismissed";
+
+export const NOTIFICATION_STATUSES: readonly NotificationStatus[] = [
+  "unread",
+  "read",
+  "dismissed",
+] as const;
+
+export function isNotificationStatus(value: unknown): value is NotificationStatus {
+  return (
+    typeof value === "string" && (NOTIFICATION_STATUSES as readonly string[]).includes(value)
+  );
+}
+
+export interface Notification {
+  id: string;
+  source: NotificationSourceKey;
+  kind: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  /** ntfy's 1–5 scale; 3 is normal. */
+  priority: number;
+  tags: string[];
+  publishedAt: number;
+  status: NotificationStatus;
+}
+
+/**
+ * One badge on the card's top row.
+ *
+ * `unread` is already resolved: for a feed source it is a count of rows, for a
+ * count-only source (Gmail, Slack) it is what the collector reported. The card
+ * renders one number and does not need to know which kind it is looking at.
+ */
+export interface NotificationSourceSummary {
+  source: NotificationSourceKey;
+  label: string;
+  unread: number;
+  lastEventAt: number | null;
+  state: "ok" | "stale" | "error";
+}
+
+export interface NotificationsResponse {
+  sources: NotificationSourceSummary[];
+  /** Unread feed rows, newest first, capped server-side. */
+  items: Notification[];
+  /** Total unread across every source — the number Zero Inbox drives to zero. */
+  totalUnread: number;
+}

@@ -828,13 +828,23 @@ order can need a fourth row. Focus's two 2×2s must lead.
 
 | Preset | Cards | Shape | Cells |
 |---|---|---|---|
-| **Wall** | all nine, 1×1 | 3 × 3 | 9/9 |
+| **Wall** | the whole registry, 1×1 | 4 × 3 | 11/12 |
 | **Focus** | Today 2×2 · Calendar 2×2 · Tasks 2×1 · Weather 2×1 | 4 × 3 | 12/12 |
 | **Minimal** | Today 2×2 · Weather 1×2 | 3 × 2 | 6/6 |
 
-**All three pack with zero holes.** That is a requirement, not a coincidence: a preset is a
-promise that one click produces a *good* wall, and one that leaves dead cells undercuts the
-only reason to offer it. It is asserted in `/layout-lab` (6.7) rather than trusted.
+**Focus and Minimal pack with zero holes.** That is a requirement, not a coincidence: a
+curated preset is a promise that one click produces a *good* wall, and one that leaves dead
+cells undercuts the only reason to offer it. It is asserted in `/layout-lab` (6.7) rather
+than trusted.
+
+**Wall is exempt from that assertion, and only Wall** *(amended 2026-08-26, when the tenth
+and eleventh cards shipped)*. Its roster is the live `CARD_KEYS` constant rather than a
+hand-picked list — that is what lets it grow for free — and a roster it does not control
+cannot promise an exact multiple of the grid at every future card count. It was 9/9 at three
+cards per row; it is 11/12 now. Hand-tuning a size exception into Wall each time the registry
+grows would re-introduce exactly the maintenance Wall exists to avoid, and asserting a
+property that breaks on every new card trains the audit to be ignored. Wall's promise is
+*everything, evenly, in no more than three rows*, and that still holds.
 
 **Wall is exactly the shipped default** — no hidden, registry order, no sizes — so it doubles
 as "put it back" without a separate Reset control. Asserted too.
@@ -1245,7 +1255,7 @@ that says the feature is coming). Neither does anything.
 |---|---|---|---|
 | ~~B1~~ | ~~Drag library dependency~~ | — | **Closed 2026-08-22.** Reorder shipped on native pointer events; no package added. |
 | ~~B2~~ | ~~Confirmation of D1 (the 3×3 substrate)~~ | — | **Closed 2026-08-23.** Four phases shipped on it, spans included; the unit grid held without amendment. |
-| B3 | The Homelab card (the tenth card) does not exist yet | Nothing here | Informational. This work is that card's prerequisite, not the reverse. |
+| ~~B3~~ | ~~The Homelab card (the tenth card) does not exist yet~~ | — | **Closed 2026-08-26.** Two cards shipped, not one: `lab` (state) and `notifications` (events, from every source). See the Phase 9 entry in §10. |
 
 Note for sequencing: the integrations contract's Phase 2 (homelab snapshots + events) has
 its own prerequisites, and **none of them gate this work**. This ships first, alone.
@@ -1502,3 +1512,12 @@ browser.
 | 2026-08-24 | **Phase 8 scoped and built — consolidation and the unguarded edges** (8.1–8.9). There was no Phase 8 on record; three of the four candidates `HANDOVER.md` listed were taken and the Homelab card deliberately left out. **D14:** `1x3` joins the size union — the full-height column, earning its place on the same ground `3x1` did, and costing one thing the estimate missed: the picker's 3×2 glyph field cannot draw a 3-tall span and would have drawn it identically to the `1x2` beside it, so it is now 3×3. **D15:** the three layout JSON columns become rows in `dashboard_cards` (migration `0016`, which creates, backfills and drops in that order). D4 survives intact — `position` is a *sparse* sort key, so a card with no row is still visible, 1×1, in registry order and needs no backfill. Gap 6 closed, and closed here rather than in Phase 7 precisely because no feature needed it: with no user-visible difference to get wrong, the only thing that can fail is the migration. Gaps 15 and 16 closed on the preset chip — rename added (reversing Phase 7's "no third fused button", because the workaround it left was delete-then-save) and re-capture now arms like delete, sharing one arming slot so no chip can show two armed controls. Gap 14 made visible rather than fixed: a chip shows `n/9` when its roster is short of the live constant. Gap 9 closed by **keeping** `scrollable` — it was never inert, it does two things and the two exempt cards want them in different proportions; the bug was in the reason, not the code. **8.10 partially walked.** |
 | 2026-08-24 | **`0016` applied locally, after the backfill had to be rewritten twice.** The `json_each` form was correct SQL and correct against the data — and **D1 refuses it in a write**: `SELECT … json_each(s.card_order)` returns the right rows, the same query inside an `INSERT … SELECT` fails with `malformed JSON`. `CROSS JOIN`, a materialised CTE and `CREATE TABLE … AS SELECT` all fail the same way, so it is neither the `INSERT` nor join ordering. The nine-key `UNION ALL` that replaced it hit D1's compound-SELECT term limit. What ships is a recursive CTE over a literal key list with scalar `json_extract`/`instr` per key — and `position` backfilled as a byte offset rather than an index, which is sound because D15 makes it a sort key and the first write normalises it. The failed first attempt rolled back completely, so the retry started clean. Backfill verified row-by-row against the real user (nine rows in stored order) and the demo (one `weather → 2x2`); `seed:demo:local` re-run clean; 18 tables. **The live and lab passes are still unwalked** — the 54 tiles, and every UI change in the phase. |
 | 2026-08-24 | **Phase 8 verified** (8.10). Full §8 live pass walked, Phase 8 additions included: the dashboard is byte-for-byte the same wall across the migration (the whole claim of D15), the layout round-trip deletes rows rather than leaving them saying nothing, registry order writes no positions — which also normalised the backfilled `instr()` offsets away — all **54** lab tiles clean including the nine new `1x3` ones, `1x3` and `1x2` visibly distinct in the picker glyph, rename commits on `Enter` and leaves edit mode intact on `Escape`, no chip ever shows two armed controls, the roster count appears only on short rosters, and the demo session is still refused on every write verb. **Nothing outstanding in this document.** Gap 2 closes with it: every card is now audited at every size it can take. The next work here is the Homelab card — see `../../integrations/homelab-telemetry.md` D11(e)–(g). |
+| 2026-08-26 | **Phase 9 — the registry grows, twice over.** The tenth card was the whole point of Phase 1, and it arrived as **two**: `lab` (homelab *state* — freshness, counts, problems) and `notifications` (*events*, from every source, not only the lab). Splitting them was a product call, and it is the right one for this document too: an ntfy alert is the same kind of thing as an unread mail, so a card that mixed state and events would have been answering two questions badly at every size. The notifications spine gets its own owning document, [`notifications.md`](notifications.md); layout decisions stay here.
+
+**Nothing in D1–D15 needed changing, which is the result worth recording.** Two keys appended to `CARD_KEYS`, two catalogue entries, two component bindings, two `--pillar-*` accents — and no backfill, because D4 stores the exceptions and `resolveCardOrder()` puts an unknown key last (that is why new keys go on the *end*, and it is now commented as load-bearing rather than left as convention). `routes/index.tsx` was not touched at all. The build error from `Record<CardKey, ComponentType>` did exactly the job D3 was written for.
+
+**Both cards arrived with a fit strategy rather than acquiring one**, which is what D11(e) in the contract demanded and what every card before Phase 5 failed to do. Homelab: freshness line and counts never drop, a failed collector's notice never drops, the problems list clamps, backups and image updates are `data-drop-order` 2 and 1. Notifications: the badge row and *Mark all read* never drop, the feed clamps. One non-obvious consequence, and the reason the Homelab card falls back to recent events when nothing is wrong: an all-green lab would otherwise render short at `1x2`/`2x2`/`1x3` and report **`SLACK`** — content dropped while space went unused, the failure mode that survives eyeballing, which is the whole reason `/layout-lab` reports it.
+
+**The demo seed had to change, and would have shipped broken otherwise.** Weather's `2x2` was chosen in Phase 8 because nine cards plus one four-cell card is exactly 12 — the 4×3 cap. Eleven cards with that same `2x2` is **14 cells, which no shape up to four columns packs into three rows**: the demo would have rendered `overflows` on the one dashboard nobody is signed in to fix. It is `2x1` now — 10 + 2 = 12, still exactly full, still first in registry order so it packs with zero holes, and still demonstrating that cards come in more than one size. Worth carrying forward: **a fixed-size demo card is a cell budget written down in a place nobody re-checks when the roster grows.**
+
+`/layout-lab` goes from **54 tiles to 66**. |

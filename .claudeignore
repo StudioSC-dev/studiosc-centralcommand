@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Turborepo cache
+.turbo/
+
+# Cloudflare / Wrangler local state
+.wrangler/
+
+# TanStack Router generated route tree
+**/src/routeTree.gen.ts
+
+# Old migration backups
+.backup-*/
+
+# Git internals
+.git/
+
+# OS cruft
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Claude worktrees
+.claude/worktrees/
+
+# Local-only session state
+HANDOVER.md

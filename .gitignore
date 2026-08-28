@@ -44,7 +44,6 @@ Thumbs.db
 !.vscode/extensions.json
 .idea/
 
-# Project-private session files (Claude tooling) — never committed
-CLAUDE.md
+# Project-private session state
 HANDOVER.md
 .backup-0016/

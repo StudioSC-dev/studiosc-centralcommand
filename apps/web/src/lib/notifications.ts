@@ -68,6 +68,16 @@ export function useSetNotificationStatus() {
   });
 }
 
+/** Rename a notification source's display label. */
+export function useRenameSource() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ source, label }: { source: string; label: string }) =>
+      apiPatch(`/api/notifications/sources/${source}`, { label }),
+    onSettled: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
 /** Clear the feed — the Zero Inbox gesture. Optionally scoped to one source. */
 export function useMarkAllRead() {
   const qc = useQueryClient();

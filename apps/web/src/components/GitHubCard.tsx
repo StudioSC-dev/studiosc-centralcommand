@@ -1,17 +1,10 @@
-import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import type { GitHubActivityItem } from "@central-command/types";
-import { useGitHubActivity, useSetGitHubToken } from "../lib/github";
+import { useGitHubActivity } from "../lib/github";
 import { useNow } from "../lib/time";
 import { useClampList } from "../lib/useClampList";
 import { Card } from "./Card";
 import { ClippedNote } from "./ClippedNote";
-
-/**
- * GitHub Activity — recent commits, open PRs, and review requests.
- *
- * **Fit strategy:** the activity list clamps with `useClampList`. PRs
- * needing review sort first, then recent commits.
- */
 
 const fmtAge = (ms: number): string => {
   const mins = Math.floor(ms / 60_000);
@@ -31,39 +24,6 @@ const kindIcon = (item: GitHubActivityItem): string => {
   return item.kind;
 };
 
-function ConnectForm() {
-  const setToken = useSetGitHubToken();
-  const [pat, setPat] = useState("");
-
-  return (
-    <form
-      className="gh-connect"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (pat.trim()) setToken.mutate(pat.trim());
-      }}
-    >
-      <p className="gh-connect-hint">
-        Paste a GitHub personal access token to connect.
-      </p>
-      <input
-        type="password"
-        className="gh-connect-input"
-        value={pat}
-        onChange={(e) => setPat(e.target.value)}
-        placeholder="ghp_..."
-      />
-      <button
-        type="submit"
-        className="gh-connect-btn"
-        disabled={!pat.trim() || setToken.isPending}
-      >
-        {setToken.isPending ? "Connecting…" : "Connect"}
-      </button>
-    </form>
-  );
-}
-
 export function GitHubCard() {
   const { data, isPending, isError, error } = useGitHubActivity();
   const now = useNow(30_000);
@@ -79,7 +39,11 @@ export function GitHubCard() {
   if (!data.connected) {
     return (
       <Card title="GitHub" pillar="github">
-        <ConnectForm />
+        <p className="gh-empty">
+          <Link to="/settings" className="gh-settings-link">
+            Connect a GitHub account in Settings.
+          </Link>
+        </p>
       </Card>
     );
   }
@@ -104,7 +68,12 @@ export function GitHubCard() {
                 >
                   {item.title}
                 </a>
-                <span className="gh-row-repo">{item.repo.split("/").pop()}</span>
+                <span className="gh-row-repo">
+                  {item.account && data.accounts && data.accounts.length > 1
+                    ? `${item.account} · `
+                    : ""}
+                  {item.repo.split("/").pop()}
+                </span>
               </div>
               <span className="gh-row-age">{fmtAge(now - item.at)}</span>
               {item.ciStatus && (

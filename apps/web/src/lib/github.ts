@@ -27,3 +27,20 @@ export function useRemoveGitHubToken() {
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
   });
 }
+
+export function useAddGitHubAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ label, token }: { label: string; token: string }) =>
+      apiPut("/api/github/accounts", { label, token }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
+export function useRemoveGitHubAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiDelete(`/api/github/accounts/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}

@@ -81,6 +81,8 @@ export const userSettings = sqliteTable("user_settings", {
   homeLon: real("home_lon"),
   locationLabel: text("location_label"), // human-readable, e.g. "Brooklyn, NY"
   units: text("units"), // 'metric' | 'imperial' — weather display preference (null → metric)
+  clockZones: text("clock_zones"), // JSON string[] of IANA zone names for the world-clock card
+  githubPat: text("github_pat"), // encrypted GitHub PAT for the activity card
   // The dashboard layout used to live here as three JSON columns —
   // `hidden_cards` (0012), `card_order` (0013) and `card_sizes` (0014). They
   // are now rows in `dashboard_cards`; see that table and docs/ui-suite.md D15.
@@ -500,4 +502,18 @@ export const labSnapshots = sqliteTable("lab_snapshots", {
   receivedAt: integer("received_at").notNull(), // when we accepted it
   sections: text("sections").notNull(), // JSON — see LabSnapshotPayload
   agentVersion: text("agent_version"),
+});
+
+// ─── Focus sessions ────────────────────────────────────────────────────────
+// Pomodoro/focus-timer history. One row per completed or abandoned interval.
+// Feeds the timer card's daily total and, in Phase 2, the performance estimator.
+export const focusSessions = sqliteTable("focus_sessions", {
+  id: text("id").primaryKey(), // UUID v7
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id),
+  startedAt: integer("started_at").notNull(),
+  duration: integer("duration").notNull(), // seconds
+  completed: integer("completed").notNull().default(0), // 0/1
+  createdAt: integer("created_at").notNull(),
 });

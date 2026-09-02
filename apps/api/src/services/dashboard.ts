@@ -3,6 +3,7 @@ import { dashboardCards } from "@central-command/db";
 import {
   CARD_KEYS,
   DEFAULT_CARD_SIZE,
+  DEFAULT_HIDDEN_KEYS,
   isCardKey,
   isCardSize,
   normaliseCardSizes,
@@ -141,10 +142,16 @@ export function layoutRows(
   return rows;
 }
 
-/** The user's layout. A user who has never touched it has no rows and gets the
- * default, which is the same answer an absent settings row used to give. */
+/** The user's layout. A user who has never touched it has no rows; in that
+ * case we seed hidden rows for DEFAULT_HIDDEN_KEYS so the starter set is
+ * the original 9 cards, then return the seeded layout. */
 export async function readLayout(db: Database, userId: string): Promise<DashboardLayout> {
   const rows = await db.select().from(dashboardCards).where(eq(dashboardCards.userId, userId));
+  if (rows.length === 0 && DEFAULT_HIDDEN_KEYS.length > 0) {
+    const seeded = toLayout(DEFAULT_HIDDEN_KEYS);
+    await writeLayout(db, userId, seeded);
+    return seeded;
+  }
   return rowsToLayout(rows);
 }
 

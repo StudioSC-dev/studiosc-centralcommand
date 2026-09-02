@@ -4,7 +4,7 @@ import type { CalendarData, CalendarEvent } from "@central-command/types";
 import type { AppEnv } from "../env";
 import { createDb } from "../lib/db";
 import { ok, fail } from "../lib/response";
-import { fetchUpcomingEvents } from "../services/google-calendar";
+import { createCalendarEvent, fetchUpcomingEvents } from "../services/google-calendar";
 import { buildMapUrls } from "../services/maps";
 import { planTravel } from "../services/travel";
 import { getUserSettings } from "../services/users";
@@ -121,6 +121,54 @@ export const calendar = new Hono<AppEnv>().get("/", async (c) => {
   };
   await c.env.CACHE.put(cacheKey, JSON.stringify(data), { expirationTtl: CACHE_TTL });
   return ok(c, data);
+}).post("/events", async (c) => {
+  if (c.get("isDemo")) return fail(c, "forbidden", "Demo sessions cannot create events.", 403);
+
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return fail(c, "bad_request", "Invalid JSON body.", 400);
+
+  const { title, start: rawStart, end: rawEnd, description, location } = body;
+  if (typeof title !== "string" || !title.trim()) {
+    return fail(c, "bad_request", "title is required.", 400);
+  }
+  if (typeof rawStart !== "number" || typeof rawEnd !== "number" || rawEnd <= rawStart) {
+    return fail(c, "bad_request", "start/end must be epoch-ms numbers with end > start.", 400);
+  }
+
+  const db = createDb(c.env.DB);
+  const userId = c.get("userId");
+
+  const provider = await getGoogleProvider(db, userId);
+  if (!provider) return fail(c, "not_found", "Google account not connected.", 404);
+
+  let accessToken: string;
+  try {
+    accessToken = await getValidGoogleAccessToken(db, c.env, userId);
+  } catch (err) {
+    if (err instanceof GoogleReauthRequiredError) {
+      return ok(c, { created: false, needsReconnect: true });
+    }
+    throw err;
+  }
+
+  try {
+    const event = await createCalendarEvent(accessToken, {
+      title: title.trim(),
+      start: rawStart,
+      end: rawEnd,
+      description: typeof description === "string" ? description : undefined,
+      location: typeof location === "string" ? location : undefined,
+    });
+    // Bust the cache so the next GET picks up the new event.
+    await c.env.CACHE.delete(`calendar:${userId}`);
+    return ok(c, { created: true, event });
+  } catch (err) {
+    // A 403 from Google likely means the token lacks the write scope.
+    if (err instanceof Error && err.message.includes("403")) {
+      return ok(c, { created: false, needsReconnect: true });
+    }
+    throw err;
+  }
 });
 
 /**

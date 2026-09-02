@@ -142,6 +142,42 @@ function toEvent(e: GoogleEvent): CalendarEvent {
   };
 }
 
+export interface CreateEventInput {
+  title: string;
+  start: number; // epoch-ms
+  end: number; // epoch-ms
+  description?: string;
+  location?: string;
+}
+
+/** Create a new event on the user's primary calendar. */
+export async function createCalendarEvent(
+  accessToken: string,
+  input: CreateEventInput,
+): Promise<CalendarEvent> {
+  const body: Record<string, unknown> = {
+    summary: input.title,
+    start: { dateTime: new Date(input.start).toISOString() },
+    end: { dateTime: new Date(input.end).toISOString() },
+  };
+  if (input.description) body.description = input.description;
+  if (input.location) body.location = input.location;
+
+  const res = await fetch(EVENTS_ENDPOINT, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error(`Google Calendar create failed: ${res.status} ${await res.text()}`);
+  }
+  const event = (await res.json()) as GoogleEvent;
+  return toEvent(event);
+}
+
 /**
  * Fetch the user's events, soonest first. `timeMin` defaults to now; pass the
  * start of the local day to also include earlier events from today (so the

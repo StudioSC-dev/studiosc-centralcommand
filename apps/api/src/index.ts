@@ -27,6 +27,8 @@ import { insights } from "./routes/insights";
 import { lab } from "./routes/lab";
 import { labEvents, labIngest } from "./routes/lab-ingest";
 import { notificationRoutes } from "./routes/notifications";
+import { focus } from "./routes/focus";
+import { github } from "./routes/github";
 
 const app = new Hono<AppEnv>();
 
@@ -77,6 +79,8 @@ api.route("/tasks", tasks_routes);
 api.route("/insights", insights);
 api.route("/lab", lab);
 api.route("/notifications", notificationRoutes);
+api.route("/focus", focus);
+api.route("/github", github);
 
 // The single-host topology routes centralcommand.studiosc.dev/api/* to this Worker.
 app.route("/api", api);

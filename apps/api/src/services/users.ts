@@ -16,6 +16,8 @@ export interface SettingsInput {
   homeLon?: number | null;
   locationLabel?: string | null;
   units?: "metric" | "imperial" | null;
+  clockZones?: string | null; // JSON-serialised string[] of IANA zone names
+  githubPat?: string | null; // encrypted GitHub PAT
   // The dashboard layout used to be three JSON fields here. It is now rows in
   // `dashboard_cards` — see services/dashboard.ts and docs/ui-suite.md D15.
 }

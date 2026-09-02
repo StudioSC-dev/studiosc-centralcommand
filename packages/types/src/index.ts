@@ -1220,6 +1220,11 @@ export interface SetClockZonesResponse {
 
 // ─── GitHub activity ────────────────────────────────────────────────────────
 
+export interface GitHubAccount {
+  id: string;
+  label: string;
+}
+
 export interface GitHubActivityItem {
   id: string;
   kind: "commit" | "pr" | "review";
@@ -1229,11 +1234,13 @@ export interface GitHubActivityItem {
   state?: string; // "open" | "closed" | "merged" for PRs
   ciStatus?: string; // "success" | "failure" | "pending" for PRs
   at: EpochMs;
+  account?: string; // label of the account this came from
 }
 
 export interface GitHubActivityResponse {
   connected: boolean;
   items: GitHubActivityItem[];
+  accounts?: GitHubAccount[];
 }
 
 // ─── Focus sessions ─────────────────────────────────────────────────────────

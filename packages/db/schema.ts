@@ -82,7 +82,8 @@ export const userSettings = sqliteTable("user_settings", {
   locationLabel: text("location_label"), // human-readable, e.g. "Brooklyn, NY"
   units: text("units"), // 'metric' | 'imperial' — weather display preference (null → metric)
   clockZones: text("clock_zones"), // JSON string[] of IANA zone names for the world-clock card
-  githubPat: text("github_pat"), // encrypted GitHub PAT for the activity card
+  githubPat: text("github_pat"), // encrypted GitHub PAT for the activity card (legacy single-account)
+  githubAccounts: text("github_accounts"), // JSON [{id, label, pat}] — multi-account, pat is encrypted
   // The dashboard layout used to live here as three JSON columns —
   // `hidden_cards` (0012), `card_order` (0013) and `card_sizes` (0014). They
   // are now rows in `dashboard_cards`; see that table and docs/ui-suite.md D15.

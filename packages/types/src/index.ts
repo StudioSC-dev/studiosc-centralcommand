@@ -484,6 +484,7 @@ export interface UserSettings {
   homeLon: number | null;
   locationLabel: string | null; // human-readable, e.g. "Singapore"
   units: WeatherUnits | null; // weather display preference (null → metric)
+  clockZones: string[] | null; // IANA names for the world-clock card
   createdAt: EpochMs;
   updatedAt: EpochMs;
 }
@@ -512,7 +513,10 @@ export type CardKey =
   | "insights"
   | "news"
   | "lab"
-  | "notifications";
+  | "notifications"
+  | "clock"
+  | "timer"
+  | "github";
 
 /**
  * Every card key, in the dashboard's fixed render order.
@@ -536,7 +540,17 @@ export const CARD_KEYS: readonly CardKey[] = [
   "news",
   "lab",
   "notifications",
+  "clock",
+  "timer",
+  "github",
 ] as const;
+
+/**
+ * Cards that new users should not see by default. When `readLayout()` finds
+ * zero stored rows, it seeds hidden rows for these keys so the starter set
+ * is the original 9-card wall — not every card ever shipped.
+ */
+export const DEFAULT_HIDDEN_KEYS: readonly CardKey[] = ["lab", "notifications", "clock", "timer", "github"] as const;
 
 /** Runtime guard — the single place an unknown key is rejected. */
 export function isCardKey(value: unknown): value is CardKey {
@@ -1193,6 +1207,55 @@ export interface LocationInput {
 
 export interface SetLocationResponse {
   settings: UserSettings;
+}
+
+/** Body for PUT /settings/clock-zones. */
+export interface SetClockZonesInput {
+  zones: string[];
+}
+
+export interface SetClockZonesResponse {
+  settings: UserSettings;
+}
+
+// ─── GitHub activity ────────────────────────────────────────────────────────
+
+export interface GitHubActivityItem {
+  id: string;
+  kind: "commit" | "pr" | "review";
+  title: string;
+  repo: string;
+  url: string;
+  state?: string; // "open" | "closed" | "merged" for PRs
+  ciStatus?: string; // "success" | "failure" | "pending" for PRs
+  at: EpochMs;
+}
+
+export interface GitHubActivityResponse {
+  connected: boolean;
+  items: GitHubActivityItem[];
+}
+
+// ─── Focus sessions ─────────────────────────────────────────────────────────
+
+export interface FocusSession {
+  id: string;
+  userId: string;
+  startedAt: EpochMs;
+  duration: number; // seconds
+  completed: boolean;
+  createdAt: EpochMs;
+}
+
+export interface FocusSessionInput {
+  startedAt: EpochMs;
+  duration: number;
+  completed: boolean;
+}
+
+export interface FocusSessionsResponse {
+  sessions: FocusSession[];
+  todayTotal: number; // total completed seconds today
 }
 
 // ─── Manual logs (fitness / nutrition / sleep) ───────────────────────────────

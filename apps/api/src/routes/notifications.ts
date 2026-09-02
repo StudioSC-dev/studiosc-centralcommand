@@ -6,6 +6,7 @@ import { fail, ok } from "../lib/response";
 import {
   markAllRead,
   readNotifications,
+  renameSource,
   setNotificationStatus,
 } from "../services/notifications";
 
@@ -50,6 +51,21 @@ export const notificationRoutes = new Hono<AppEnv>()
     // is indistinguishable from one that does not exist. That is the intent.
     if (!updated) return fail(c, "not_found", "No such notification.", 404);
     return ok(c, updated);
+  })
+
+  .patch("/sources/:source", async (c) => {
+    const body = await c.req.json<{ label?: unknown }>().catch(() => ({}) as { label?: unknown });
+    if (typeof body.label !== "string" || !body.label.trim()) {
+      return fail(c, "bad_request", "label must be a non-empty string.", 400);
+    }
+    const updated = await renameSource(
+      createDb(c.env.DB),
+      c.get("userId"),
+      c.req.param("source"),
+      body.label,
+    );
+    if (!updated) return fail(c, "not_found", "No such source.", 404);
+    return ok(c, { renamed: true });
   })
 
   .post("/read-all", async (c) => {

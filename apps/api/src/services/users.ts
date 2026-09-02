@@ -17,7 +17,8 @@ export interface SettingsInput {
   locationLabel?: string | null;
   units?: "metric" | "imperial" | null;
   clockZones?: string | null; // JSON-serialised string[] of IANA zone names
-  githubPat?: string | null; // encrypted GitHub PAT
+  githubPat?: string | null; // encrypted GitHub PAT (legacy single-account)
+  githubAccounts?: string | null; // JSON [{id, label, pat}] — multi-account
   // The dashboard layout used to be three JSON fields here. It is now rows in
   // `dashboard_cards` — see services/dashboard.ts and docs/ui-suite.md D15.
 }

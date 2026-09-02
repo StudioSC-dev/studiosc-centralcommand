@@ -1,11 +1,5 @@
 import type { GitHubActivityItem } from "@central-command/types";
 
-/**
- * GitHub activity — fetches recent commits, open PRs, and review requests
- * using the GitHub REST API v3 (GraphQL would be more efficient but adds
- * complexity for a single-user dashboard).
- */
-
 const API_BASE = "https://api.github.com";
 
 interface GitHubCommitEvent {
@@ -16,7 +10,7 @@ interface GitHubCommitEvent {
   created_at: string;
 }
 
-interface GitHubPR {
+interface GitHubSearchPR {
   id: number;
   number: number;
   title: string;
@@ -24,9 +18,13 @@ interface GitHubPR {
   state: string;
   created_at: string;
   updated_at: string;
-  head: { repo: { full_name: string } | null };
   draft: boolean;
-  requested_reviewers?: { login: string }[];
+  pull_request?: { html_url: string; merged_at: string | null };
+  repository_url: string;
+}
+
+interface GitHubSearchResponse {
+  items: GitHubSearchPR[];
 }
 
 async function githubFetch<T>(path: string, token: string): Promise<T> {
@@ -43,19 +41,22 @@ async function githubFetch<T>(path: string, token: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-/** Fetch recent GitHub activity for the authenticated user. */
-export async function fetchGitHubActivity(token: string): Promise<GitHubActivityItem[]> {
-  const [events, prs] = await Promise.all([
+export async function fetchGitHubActivity(
+  token: string,
+  accountLabel?: string,
+): Promise<GitHubActivityItem[]> {
+  const [events, searchResult] = await Promise.all([
     githubFetch<GitHubCommitEvent[]>("/user/events?per_page=30", token),
-    githubFetch<GitHubPR[]>("/user/issues?filter=created&state=open&per_page=20&pulls=true", token)
-      .catch(() => [] as GitHubPR[]),
+    githubFetch<GitHubSearchResponse>(
+      "/search/issues?q=is:pr+author:@me+state:open&per_page=20",
+      token,
+    ).catch(() => ({ items: [] }) as GitHubSearchResponse),
   ]);
 
   const items: GitHubActivityItem[] = [];
   const now = Date.now();
   const dayAgo = now - 24 * 60 * 60 * 1000;
 
-  // Recent push events → commits
   for (const event of events) {
     if (event.type !== "PushEvent" || !event.payload.commits?.length) continue;
     const at = Date.parse(event.created_at);
@@ -69,20 +70,22 @@ export async function fetchGitHubActivity(token: string): Promise<GitHubActivity
       repo: event.repo.name,
       url: `https://github.com/${event.repo.name}/commit/${commit.sha}`,
       at,
+      account: accountLabel,
     });
   }
 
-  // Open PRs by the user
-  for (const pr of prs) {
-    const repo = pr.head.repo?.full_name ?? "unknown";
+  for (const pr of searchResult.items) {
+    const repoFullName = pr.repository_url.replace("https://api.github.com/repos/", "");
+    const state = pr.pull_request?.merged_at ? "merged" : pr.draft ? "draft" : pr.state;
     items.push({
       id: `pr-${pr.id}`,
       kind: "pr",
       title: pr.title,
-      repo,
+      repo: repoFullName,
       url: pr.html_url,
-      state: pr.draft ? "draft" : pr.state,
+      state,
       at: Date.parse(pr.updated_at),
+      account: accountLabel,
     });
   }
 

@@ -231,6 +231,23 @@ export async function readNotifications(
   };
 }
 
+/** Rename a notification source's display label. */
+export async function renameSource(
+  db: Database,
+  userId: string,
+  source: string,
+  label: string,
+): Promise<boolean> {
+  const cleaned = sanitiseText(label, 60);
+  if (!cleaned) return false;
+  const updated = await db
+    .update(notificationSources)
+    .set({ label: cleaned, updatedAt: Date.now() })
+    .where(and(eq(notificationSources.userId, userId), eq(notificationSources.source, source)))
+    .returning({ source: notificationSources.source });
+  return updated.length > 0;
+}
+
 /** Recent notifications from one source — the Homelab card's green-state filler. */
 export async function recentFromSource(
   db: Database,

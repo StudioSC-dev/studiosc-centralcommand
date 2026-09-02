@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { NotificationSourceSummary } from "@central-command/types";
 import { useMarkAllRead, useNotifications, useSetNotificationStatus } from "../lib/notifications";
 import { useNow } from "../lib/time";
@@ -22,6 +23,7 @@ import { ClippedNote } from "./ClippedNote";
  * **Fit strategy (ui-suite D10), decided before the card was written:**
  * - The badge row NEVER drops. It is the headline, and the only content that is
  *   always true — an empty feed still has counts to show.
+ * - Tabs NEVER drop. They are part of the badge-level fixed chrome.
  * - "Mark all read" NEVER drops. A submit you cannot reach is a functional
  *   failure, not a cosmetic one.
  * - The feed is the open-ended part and clamps with `useClampList`.
@@ -52,12 +54,15 @@ function SourceBadge({ source }: { source: NotificationSourceSummary }) {
   );
 }
 
+type ActiveTab = "all" | (string & {});
+
 export function NotificationsCard() {
   const { data, isPending, isError, error } = useNotifications();
   const setStatus = useSetNotificationStatus();
   const markAll = useMarkAllRead();
   const now = useNow(30_000);
   const { ref, clippedCount } = useClampList<HTMLUListElement>();
+  const [activeTab, setActiveTab] = useState<ActiveTab>("all");
 
   if (isPending) {
     return (
@@ -76,6 +81,20 @@ export function NotificationsCard() {
 
   const { sources, items, totalUnread } = data;
 
+  // Sources that have feed rows — only these get their own tab.
+  const sourcesWithRows = new Set(items.map((item) => item.source));
+  const tabSources = sources.filter((s) => sourcesWithRows.has(s.source));
+  const showTabs = tabSources.length > 1;
+
+  // If the active tab's source disappeared (all items read), fall back to "all".
+  const tab = activeTab !== "all" && !sourcesWithRows.has(activeTab) ? "all" : activeTab;
+
+  const filteredItems = tab === "all" ? items : items.filter((item) => item.source === tab);
+
+  const activeSource = tab !== "all" ? sources.find((s) => s.source === tab) : undefined;
+  const markReadLabel = activeSource ? `Mark ${activeSource.label} read` : "Mark all read";
+  const markReadCount = tab === "all" ? totalUnread : (activeSource?.unread ?? 0);
+
   return (
     <Card title="Notifications" pillar="notifications">
       {sources.length > 0 ? (
@@ -88,9 +107,38 @@ export function NotificationsCard() {
         <p className="notif-badges is-empty">No sources connected yet.</p>
       )}
 
-      {items.length > 0 ? (
+      {showTabs && (
+        <div className="notif-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            className={`notif-tab${tab === "all" ? " is-active" : ""}`}
+            aria-selected={tab === "all"}
+            onClick={() => setActiveTab("all")}
+          >
+            All
+          </button>
+          {tabSources.map((source) => (
+            <button
+              type="button"
+              role="tab"
+              key={source.source}
+              className={`notif-tab${tab === source.source ? " is-active" : ""}`}
+              aria-selected={tab === source.source}
+              onClick={() => setActiveTab(source.source)}
+            >
+              {source.label}
+              {source.unread > 0 && (
+                <span className="notif-tab-badge">{source.unread}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {filteredItems.length > 0 ? (
         <ul className="notif-list" ref={ref}>
-          {items.map((item) => (
+          {filteredItems.map((item) => (
             <li key={item.id} className={`notif-row ${toneFor(item.priority)}`}>
               <div className="notif-row-main">
                 <span className="notif-row-title">{item.title}</span>
@@ -112,23 +160,23 @@ export function NotificationsCard() {
           ))}
         </ul>
       ) : (
-        // Zero Inbox reached. Deliberately not a blank area: the empty state is
-        // the goal state, and it should read as having been achieved.
         <p className="notif-empty">Nothing unread.</p>
       )}
 
       <ClippedNote count={clippedCount} noun="notification" />
 
-      {/* Never drops — see the fit note above. Disabled rather than hidden at
-          zero, so the control does not move as the feed drains. */}
       <div className="notif-actions">
         <button
           type="button"
-          className="notif-clear-all"
-          onClick={() => markAll.mutate(undefined)}
-          disabled={totalUnread === 0 || markAll.isPending}
+          className="notif-mark-read"
+          onClick={() => markAll.mutate(tab === "all" ? undefined : tab)}
+          disabled={markReadCount === 0 || markAll.isPending}
+          title={markReadLabel}
         >
-          Mark all read
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <polyline points="5 13 10 18 19 7" />
+          </svg>
+          {markReadLabel}
         </button>
       </div>
     </Card>

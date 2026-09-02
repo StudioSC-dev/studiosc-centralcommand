@@ -68,6 +68,9 @@
   --pillar-news: #7f9bd0;
   --pillar-lab: #64d2a8;
   --pillar-notifications: #ff9d6e;
+  --pillar-clock: #7ec8e3;
+  --pillar-timer: #e07ea3;
+  --pillar-github: #a78bfa;
 
   --radius: 18px;
   /* Inner radius for nested glass panels — keeps corners visually concentric. */
@@ -131,6 +134,9 @@
   --pillar-news: #5b72a8;
   --pillar-lab: #2c9e75;
   --pillar-notifications: #e0703a;
+  --pillar-clock: #3a9abb;
+  --pillar-timer: #c4507a;
+  --pillar-github: #7c5cbf;
 
   color-scheme: light;
 }
@@ -1000,6 +1006,9 @@ button {
 .pillar-news { --card-accent: var(--pillar-news); }
 .pillar-lab { --card-accent: var(--pillar-lab); }
 .pillar-notifications { --card-accent: var(--pillar-notifications); }
+.pillar-clock { --card-accent: var(--pillar-clock); }
+.pillar-timer { --card-accent: var(--pillar-timer); }
+.pillar-github { --card-accent: var(--pillar-github); }
 
 /* ─── Glass sub-surface primitives ──────────────────────────────────────────── */
 /* Reusable translucent panels for content *inside* a card. (backdrop-filter does
@@ -4075,6 +4084,110 @@ button {
   text-decoration: underline;
 }
 
+/* ─── Calendar card — create ────────────────────────────────────────────────── */
+
+.cal-header-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 0.3rem;
+  flex: 0 0 auto;
+}
+
+.cal-add-btn {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.cal-add-btn svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+.cal-add-btn:hover {
+  color: var(--card-accent);
+  border-color: color-mix(in srgb, var(--card-accent) 45%, transparent);
+}
+
+.create-event-form {
+  padding: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.create-event-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.create-event-input {
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+.create-event-input:focus {
+  outline: 2px solid var(--card-accent);
+  outline-offset: -1px;
+}
+
+.create-event-time-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.create-event-time-row .create-event-label {
+  flex: 1 1 0;
+}
+
+.create-event-error {
+  margin: 0;
+  color: var(--pillar-health);
+  font-size: 0.78rem;
+}
+
+.create-event-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+}
+
+.create-event-cancel,
+.create-event-submit {
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.create-event-cancel {
+  background: transparent;
+  color: var(--text-dim);
+}
+.create-event-submit {
+  background: color-mix(in srgb, var(--pillar-calendar) 20%, transparent);
+  border-color: color-mix(in srgb, var(--pillar-calendar) 40%, transparent);
+  color: var(--pillar-calendar);
+}
+.create-event-submit:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* ─── Homelab card ──────────────────────────────────────────────────────────── */
 /* Two blocks that must never drop (freshness, counts), one clamped list, and two
    `data-drop-order` asides. See HomelabCard.tsx for why that split is what it
@@ -4086,6 +4199,7 @@ button {
   align-items: center;
   gap: 0.4rem;
   margin: 0 0 0.35rem;
+  padding-left: 3px;
   font-size: clamp(0.72rem, 4cqh, 0.85rem);
   color: var(--text-dim);
 }
@@ -4339,6 +4453,51 @@ button {
   font-size: 0.85rem;
 }
 
+/* — Tabs — dynamic, one per source with feed rows. Never drops. */
+.notif-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0 0 0.4rem;
+  flex: 0 0 auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.notif-tabs::-webkit-scrollbar { display: none; }
+
+.notif-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: clamp(0.65rem, 3.5cqh, 0.75rem);
+  cursor: pointer;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.notif-tab.is-active {
+  background: color-mix(in srgb, var(--card-accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--card-accent) 40%, transparent);
+  color: var(--card-accent);
+}
+
+.notif-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1em;
+  padding: 0 0.25em;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card-accent) 25%, transparent);
+  font-size: 0.85em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+
 /* Never dropped, and disabled rather than hidden at zero so the control does
    not move as the feed drains under it. */
 .notif-actions {
@@ -4348,17 +4507,344 @@ button {
   margin-top: 0.3rem;
 }
 
-.notif-clear-all {
-  padding: 0.25rem 0.6rem;
+.notif-mark-read {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
   border-radius: var(--radius-inner);
   border: 1px solid var(--glass-border);
   background: color-mix(in srgb, var(--surface-2) 55%, transparent);
   color: var(--text-dim);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   cursor: pointer;
+  white-space: nowrap;
+}
+.notif-mark-read svg {
+  width: 0.7rem;
+  height: 0.7rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.notif-clear-all:disabled {
+.notif-mark-read:disabled {
   opacity: 0.45;
   cursor: default;
 }
+
+/* ─── Clock card ─────────────────────────────────────────────────────────────── */
+
+.clock-empty {
+  flex: 1 1 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.clock-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.clock-zone {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: var(--radius-inner);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  border: 1px solid var(--glass-border);
+  font-size: clamp(0.72rem, 4.2cqh, 0.85rem);
+}
+
+.clock-zone-day {
+  flex: 0 0 auto;
+  font-size: 1em;
+  line-height: 1;
+}
+
+.clock-zone-city {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clock-zone-info {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.05rem;
+}
+
+.clock-zone-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.clock-zone-date {
+  font-size: 0.8em;
+  color: var(--text-dim);
+}
+
+/* ─── Timer card ─────────────────────────────────────────────────────────────── */
+
+.timer-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+
+.timer-presets {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.timer-preset {
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: clamp(0.6rem, 3cqh, 0.7rem);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.timer-preset.is-active {
+  background: color-mix(in srgb, var(--card-accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--card-accent) 40%, transparent);
+  color: var(--card-accent);
+}
+.timer-preset:disabled:not(.is-active) {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.timer-countdown {
+  font-size: clamp(1.8rem, 18cqh, 3.5rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  color: var(--text);
+}
+
+.timer-controls {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.timer-btn {
+  padding: 0.25rem 0.7rem;
+  border-radius: var(--radius-inner);
+  border: 1px solid var(--glass-border);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  color: var(--text-dim);
+  font-size: clamp(0.65rem, 3.5cqh, 0.78rem);
+  cursor: pointer;
+}
+.timer-btn-start {
+  background: color-mix(in srgb, var(--card-accent) 20%, transparent);
+  border-color: color-mix(in srgb, var(--card-accent) 40%, transparent);
+  color: var(--card-accent);
+}
+
+.timer-today {
+  margin: 0;
+  font-size: clamp(0.65rem, 3.5cqh, 0.78rem);
+  color: var(--text-dim);
+}
+
+.timer-history {
+  list-style: none;
+  margin: 0.3rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.timer-session {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-inner);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  border: 1px solid var(--glass-border);
+  font-size: clamp(0.65rem, 3.5cqh, 0.75rem);
+}
+.timer-session.is-skipped {
+  opacity: 0.6;
+}
+
+.timer-session-time {
+  flex: 1 1 auto;
+  color: var(--text-dim);
+}
+
+.timer-session-dur {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.timer-session-tag {
+  flex: 0 0 auto;
+  font-size: 0.85em;
+  color: var(--text-faint);
+}
+
+/* ─── GitHub card ────────────────────────────────────────────────────────────── */
+
+.gh-empty {
+  flex: 1 1 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.gh-connect {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 0;
+}
+
+.gh-connect-hint {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.gh-connect-input {
+  width: 100%;
+  max-width: 16rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.gh-connect-btn {
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--card-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--card-accent) 18%, transparent);
+  color: var(--card-accent);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.gh-connect-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.gh-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.gh-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: var(--radius-inner);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  border: 1px solid var(--glass-border);
+  font-size: clamp(0.72rem, 4.2cqh, 0.85rem);
+}
+
+.gh-row-icon {
+  flex: 0 0 auto;
+  font-size: 0.7em;
+  font-weight: 700;
+  color: var(--text-faint);
+  width: 1.6em;
+  text-align: center;
+}
+.gh-kind-open .gh-row-icon { color: var(--pillar-perf); }
+.gh-kind-merged .gh-row-icon { color: var(--pillar-calendar); }
+.gh-kind-closed .gh-row-icon { color: var(--pillar-health); }
+
+.gh-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.gh-row-title {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  text-decoration: none;
+}
+.gh-row-title:hover { text-decoration: underline; }
+
+.gh-row-repo {
+  color: var(--text-dim);
+  font-size: 0.85em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gh-row-age {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.gh-ci {
+  flex: 0 0 auto;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+.gh-ci-success { background: var(--pillar-perf); }
+.gh-ci-failure { background: var(--pillar-health); }
+.gh-ci-pending { background: var(--pillar-tasks); }

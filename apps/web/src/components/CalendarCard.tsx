@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card } from "./Card";
 import { ClippedNote } from "./ClippedNote";
 import { EventDialog } from "./EventDialog";
+import { CreateEventDialog } from "./CreateEventDialog";
 import { ConferenceGlyph, TravelGlyph } from "./EventGlyphs";
 import { useClampList } from "../lib/useClampList";
 import { useCalendar } from "../lib/calendar";
@@ -10,8 +11,6 @@ import type { CalendarEvent } from "@central-command/types";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Total upcoming events to surface across the week (+ overflow). */
-// Render ceiling only — how many events actually SHOW is measured per tile by
-// useClampList. This just bounds the DOM for a very busy calendar.
 const MAX_EVENTS = 30;
 
 /** "3:00 PM" for today, else "Mon, Jun 12 · 3:00 PM"; all-day shows the date. */
@@ -28,17 +27,9 @@ function fmtWhen(e: CalendarEvent, now: number): string {
 
 function EventRow({ e, now, onOpen }: { e: CalendarEvent; now: number; onOpen: (e: CalendarEvent) => void }) {
   const live = !e.allDay && e.start <= now && now < e.end;
-  // A location holding a conference URL is not a place — the glyph and the
-  // dialog's Join button say the same thing better than a wall of raw URL.
   const locationIsLink = e.location ? /^(https?:\/\/|www\.)/i.test(e.location.trim()) : false;
   return (
     <li className={`cal-event${live ? " live" : ""}`}>
-      {/* The row is the control: every event opens the same dialog the Today
-          card uses. `onPointerDown` stops here so a press is a click, not the
-          long-press that puts the dashboard into edit mode.
-          This card is mostly list, so it gives up more long-press surface than
-          Today does — the title and the card's padding are what remain. Worth
-          revisiting if entering edit mode from here starts to feel fiddly. */}
       <button
         type="button"
         className="cal-event-button"
@@ -63,12 +54,11 @@ function EventRow({ e, now, onOpen }: { e: CalendarEvent; now: number; onOpen: (
   );
 }
 
-/** Calendar as an upcoming-week agenda: events for the next 7 days (up to 10),
- * with a divider for anything that spills past this week. */
 export function CalendarCard() {
   const { data, isPending, isError, error } = useCalendar();
   const now = useNow();
   const [selected, setSelected] = useState<CalendarEvent | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
 
   const { ref: listRef, clippedCount } = useClampList<HTMLUListElement>();
 
@@ -88,37 +78,51 @@ export function CalendarCard() {
     );
   }
 
-  // Upcoming only (drop today's already-finished events — the Today card owns those).
   const upcoming = data.events.filter((e) => e.end > now).sort((a, b) => a.start - b.start);
   const weekEnd = now + 7 * DAY_MS;
   const thisWeek = upcoming.filter((e) => e.start < weekEnd).slice(0, MAX_EVENTS);
   const after = upcoming.filter((e) => e.start >= weekEnd).slice(0, MAX_EVENTS - thisWeek.length);
 
-  if (thisWeek.length === 0 && after.length === 0) {
-    return (
-      <Card title="Calendar" pillar="calendar">
-        <p className="news-empty">Nothing on the calendar in the week ahead.</p>
-      </Card>
-    );
-  }
-
   return (
     <Card title="Calendar" pillar="calendar">
-      <ul className="cal-week" ref={listRef}>
-        {thisWeek.map((e) => (
-          <EventRow key={e.id} e={e} now={now} onOpen={setSelected} />
-        ))}
-        {after.length > 0 && (
-          <>
-            <li className="cal-divider">events after this week</li>
-            {after.map((e) => (
+      <div className="cal-header-actions">
+        <button
+          type="button"
+          className="cal-add-btn"
+          onClick={() => setShowCreate(true)}
+          title="Create event"
+          aria-label="Create event"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </button>
+      </div>
+
+      {thisWeek.length === 0 && after.length === 0 ? (
+        <p className="news-empty">Nothing on the calendar in the week ahead.</p>
+      ) : (
+        <>
+          <ul className="cal-week" ref={listRef}>
+            {thisWeek.map((e) => (
               <EventRow key={e.id} e={e} now={now} onOpen={setSelected} />
             ))}
-          </>
-        )}
-      </ul>
-      <ClippedNote count={clippedCount} noun="event" />
+            {after.length > 0 && (
+              <>
+                <li className="cal-divider">events after this week</li>
+                {after.map((e) => (
+                  <EventRow key={e.id} e={e} now={now} onOpen={setSelected} />
+                ))}
+              </>
+            )}
+          </ul>
+          <ClippedNote count={clippedCount} noun="event" />
+        </>
+      )}
+
       <EventDialog event={selected} onClose={() => setSelected(null)} />
+      {showCreate && <CreateEventDialog onClose={() => setShowCreate(false)} />}
     </Card>
   );
 }

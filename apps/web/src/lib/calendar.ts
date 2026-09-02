@@ -18,6 +18,27 @@ export function useCalendar() {
   });
 }
 
+interface CreateEventInput {
+  title: string;
+  start: number;
+  end: number;
+  description?: string;
+  location?: string;
+}
+
+/** Create a calendar event via the API. Invalidates the calendar cache on success. */
+export function useCreateEvent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateEventInput) =>
+      apiPost<{ created: boolean; needsReconnect?: boolean }>("/api/calendar/events", input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["calendar"] });
+      qc.invalidateQueries({ queryKey: ["summary"] });
+    },
+  });
+}
+
 /** Disconnect Google: revokes the grant + drops stored tokens server-side. */
 export function useDisconnectGoogle() {
   const qc = useQueryClient();

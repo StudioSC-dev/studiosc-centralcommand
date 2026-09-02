@@ -1,5 +1,11 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { LocationInput, SetLocationResponse, SettingsResponse } from "@central-command/types";
+import type {
+  LocationInput,
+  SetClockZonesInput,
+  SetClockZonesResponse,
+  SetLocationResponse,
+  SettingsResponse,
+} from "@central-command/types";
 import { apiGet, apiPut } from "./api";
 
 /** The authenticated user's settings plus Cloudflare edge-geo defaults. Shared
@@ -29,5 +35,15 @@ export function useSetLocation() {
         qc.invalidateQueries({ queryKey: [key] });
       }
     },
+  });
+}
+
+/** Set the world-clock timezone list. */
+export function useSetClockZones() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SetClockZonesInput) =>
+      apiPut<SetClockZonesResponse>("/api/settings/clock-zones", input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["settings"] }),
   });
 }

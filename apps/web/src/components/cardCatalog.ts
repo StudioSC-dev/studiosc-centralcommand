@@ -12,6 +12,8 @@ export interface CardMeta {
   key: CardKey;
   label: string;
   description: string;
+  /** Cards not in the starter set. New users see these hidden until they add them. */
+  defaultHidden?: boolean;
 }
 
 /**
@@ -74,10 +76,30 @@ export const CARD_CATALOG: readonly CardMeta[] = [
     key: "lab",
     label: "Homelab",
     description: "Service health, backups, and how long since the lab last checked in.",
+    defaultHidden: true,
   },
   {
     key: "notifications",
     label: "Notifications",
     description: "Every unread thing in one place — homelab alerts, mail, messages.",
+    defaultHidden: true,
+  },
+  {
+    key: "clock",
+    label: "World Clock",
+    description: "Current time across your configured timezones.",
+    defaultHidden: true,
+  },
+  {
+    key: "timer",
+    label: "Focus Timer",
+    description: "Pomodoro intervals with session history and daily totals.",
+    defaultHidden: true,
+  },
+  {
+    key: "github",
+    label: "GitHub",
+    description: "Recent commits, open PRs, and review requests.",
+    defaultHidden: true,
   },
 ] as const;

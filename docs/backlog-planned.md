@@ -308,15 +308,189 @@ whole thing from the grid independently.
 
 ---
 
+## PL-7: Linear / Trello project card
+
+A dedicated card showing in-progress work and upcoming deadlines across project
+management tools — not just notifications, but a board-aware view of current state.
+
+### Scope
+
+- New `CardKey`: `projects` (or `boards` — decide on naming)
+- Display: items currently in progress, upcoming deadlines sorted by due date,
+  board/workspace label per item
+- Multi-account / multi-board support from day one — same pattern as the GitHub card
+  (stored as a JSON array of accounts with encrypted tokens)
+- Provider support: **Linear** (OAuth 2.0 or API key) and **Trello** (API key + token)
+  as launch providers
+- Colour-coded by board or workspace so items from different projects are visually
+  distinct
+
+### Data model
+
+| Provider | Auth | In-progress items | Deadlines | Free tier |
+|---|---|---|---|---|
+| **Linear** | OAuth 2.0 or personal API key | Issues in "In Progress" state | Issue due dates | Yes (unlimited personal) |
+| **Trello** | API key + user token | Cards in lists marked "doing" / user-configured | Card due dates | Yes (10 boards) |
+
+### What needs building
+
+- `POST /api/projects/accounts` — add/remove provider accounts (encrypted storage)
+- `GET /api/projects` — aggregates across all connected accounts, KV cached (5 min TTL)
+- Provider services: `services/linear.ts`, `services/trello.ts`
+- Settings section: manage connected boards/accounts (Connections tab)
+- Component with `useClampList` for the item list; deadlines with colour urgency
+
+### What needs deciding
+
+- **Card naming:** `projects`, `boards`, or `tracker`
+- **Which Linear states map to "in progress"** — Linear's workflow states are
+  customisable per team. Fetch the workflow and let the user pick, or use a heuristic
+  (states in the "started" category)?
+- **Trello list mapping** — similar question: which lists count as "in progress"?
+  A setting per board, or a naming convention?
+- **Overlap with PL-1:** Linear and Trello appear in PL-1 as notification sources.
+  The notification feed shows *events* (assigned, mentioned); this card shows *state*
+  (what's in progress, what's due). Different concerns, but share auth — wire the same
+  provider connection to both
+
+### Blockers
+
+- None hard — can start independently. Shares auth plumbing decisions with PL-1
+
+---
+
+## PL-8: Multi-account calendar + colour-coded events
+
+The calendar system currently supports a single Google account. This extends it to
+multiple Google accounts, multiple calendars per account, other providers (Outlook),
+and colour-coding events by calendar.
+
+### Scope
+
+- **Multiple Google accounts:** store multiple OAuth connections in `auth_providers`,
+  each with its own refresh token. Fetch calendars from all accounts in parallel
+  (same pattern as multi-account GitHub)
+- **Calendar selection:** each Google account exposes multiple calendars (primary,
+  shared, holidays). Let the user pick which calendars to show — stored as a JSON
+  setting
+- **Colour coding:** each calendar gets a colour (auto-assigned from a palette, user
+  can override). Events render with a left-border or dot in their calendar's colour
+  so overlapping calendars are distinguishable at a glance
+- **Multiple providers:** add Microsoft/Outlook Calendar as a second provider (OAuth
+  2.0 via Azure AD). Events from all providers merge into one timeline
+- **Multiple email accounts (Gmail):** if PL-1 ships Gmail notification counts, this
+  extends the same multi-account pattern — each Google OAuth connection already
+  carries scopes, so adding `gmail.readonly` per account is incremental
+
+### What needs building
+
+- Extend `auth_providers` to support multiple rows per provider type per user (it
+  already supports this structurally; the query needs to return all, not first)
+- Re-consent flow: adding a second Google account means a second OAuth dance — the
+  existing `/auth/google` route assumes one connection
+- Calendar list endpoint: `GET /api/calendar/calendars` — returns all calendars across
+  all connected accounts, with visibility and colour settings
+- Settings UI: manage connected accounts (Connections tab), pick visible calendars,
+  assign colours (Dashboard tab or inline on the calendar card)
+- Merge logic: events from all accounts/calendars sorted by start time, deduplicated
+  by event ID (a shared calendar event appears in multiple accounts)
+- Frontend: colour indicator per event in both the Today card and Calendar card
+
+### What needs deciding
+
+- **Colour assignment:** auto from a palette (deterministic by calendar ID hash) or
+  manual? Auto with override is probably right
+- **Outlook priority:** is this needed now, or is multi-Google enough for launch?
+  Outlook adds a whole new OAuth provider and token refresh flow
+- **Gmail scope interaction:** adding `gmail.readonly` to an existing Google OAuth
+  connection requires re-consent. Does this happen per-account or globally?
+
+### Blockers
+
+- The current Google OAuth flow assumes a single connection — refactoring it to
+  support multiple is the prerequisite for everything else here
+- Outlook requires Azure AD app registration (free, but a new external dependency)
+
+---
+
+## PL-9: Local model insights (homelab experiment)
+
+Replace the rule-based insights engine with actual model inference, running on the
+homelab rather than Workers AI — a self-hosted experiment that keeps the free-tier
+constraint and adds a real ML capability to the dashboard.
+
+### Concept
+
+The current `GET /insights` endpoint applies hand-written rules to logged data
+(correlations, streaks, observations). A local model can generate richer, more
+contextual narratives — daily briefings, trend explanations, anomaly detection — using
+the same data the rules engine sees.
+
+### Architecture options
+
+| Option | Model host | Inference path | Latency | Cost |
+|---|---|---|---|---|
+| **Homelab Ollama** | Homelab NAS/server running Ollama | Central Command API calls Ollama over the LAN (or Ollama pushes summaries) | 2–10s depending on model | Free (hardware already owned) |
+| **Homelab vLLM** | Same, but vLLM for higher throughput | Same call pattern | Lower per-token | Free, more setup |
+| **Workers AI** | Cloudflare edge | Direct from the Worker | Fast | Free tier limited (Phase 2 roadmap item) |
+
+**Recommendation:** start with **Ollama on the homelab**. It runs Llama, Mistral, or
+Phi models locally, exposes an OpenAI-compatible API, and costs nothing beyond the
+electricity. The Worker calls it through the lab tunnel or the homelab pushes generated
+summaries to an ingest endpoint (same pattern as telemetry).
+
+### What needs building
+
+**Homelab side:**
+- Ollama container in the homelab compose stack (if not already present)
+- A model runner service that receives a prompt (today's data context) and returns
+  structured insights
+- Push endpoint or pull API accessible from the Central Command Worker
+
+**Central Command side:**
+- `POST /api/insights/generate` — triggers insight generation (or receives pushed
+  results)
+- Prompt engineering: assemble the day's data (calendar density, sleep quality, fitness,
+  game performance, notifications) into a context window
+- Storage: generated insights in D1 with a TTL (regenerate daily or on-demand)
+- Frontend: render model-generated narrative alongside or replacing rule-based insights
+- Fallback: if the homelab model is unreachable, fall back to rule-based insights
+
+### What needs deciding
+
+- **Push vs. pull:** does the Worker call Ollama (requires the homelab to be reachable
+  from the internet — already true via the lab tunnel), or does a homelab cron job
+  generate insights and push them? Push is simpler and doesn't require the Worker to
+  wait on inference
+- **Model choice:** Llama 3.1 8B is a good starting point for structured output;
+  Mistral 7B is lighter. Depends on homelab hardware
+- **Prompt structure:** what data goes into the context? All pillars, or just the ones
+  with activity today?
+- **How this relates to Workers AI (Phase 2):** this experiment validates the insight
+  quality. If it works well, Workers AI becomes the production path (lower latency,
+  no homelab dependency); if the homelab is enough, skip Workers AI
+
+### Blockers
+
+- Homelab must have enough compute for inference (GPU preferred, CPU possible with
+  smaller models)
+- The homelab tunnel / networking must be stable enough for the Worker to call or for
+  push to be reliable
+- Cross-project work: Ollama setup is in the `homelab` repo
+
+---
+
 ## Sequencing
 
 ```
-ME-1 (notif cleanup)
-  └─► PL-1 (external notif sources)
-        ├─► PL-2 (Trailhead card — once Trailhead is stable)
-        └─► PWA (service worker + push)
-              └─► PL-5 (Tauri, if PWA is not enough)
+PL-1 (external notif sources)
+  ├─► PL-2 (Trailhead card — once Trailhead is stable)
+  └─► PWA (service worker + push)
+        └─► PL-5 (Tauri, if PWA is not enough)
 
+PL-7 (Linear/Trello card) — shares auth decisions with PL-1, can start independently
+PL-8 (multi-account calendar) — independent, large scope
+PL-9 (local model insights) — independent, cross-project with homelab
 PL-6 (network usage) — depends on homelab telemetry being stable
 PL-3 (health external) — independent, start when a device is available
 PL-4 (notes/capture) — independent, needs a product decision first

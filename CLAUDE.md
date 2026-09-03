@@ -144,6 +144,38 @@ routes/
 
 ---
 
+## Session Workflow
+
+### After every session
+
+1. **Update `HANDOVER.md`** — append the session's decisions, what shipped, and any
+   open reminders. This is the local narrative.
+2. **Update the Linear project** — post a project update on the
+   [Central Command](https://linear.app/studiosc/project/central-command-286a55b591f7)
+   project summarising what was done, what changed, and what's next. Move any completed
+   tickets to Done.
+
+### After every planning session
+
+1. **Create Linear tickets first.** Before writing any code, break the plan into atomic
+   steps and create a ticket for each one in the Central Command project. Each ticket
+   should map to a single PR.
+2. **Then execute.** Work through the tickets in dependency order, moving each to
+   In Progress → Done as it ships.
+
+### Linear details
+
+- **Team:** StudioSC (`STU`)
+- **Project:** Central Command
+- **API key location:** `/srv/Personal/trailhead/secrets/personal.env` (`LINEAR_API_KEY`,
+  `LINEAR_TEAM_ID`)
+- **Labels:** use `Trailhead - CC` on every ticket, plus type labels (`Feature`, `Bug`,
+  `Refactor`, etc.) and domain labels (`Frontend`, `Backend`, `Integration`, `Infra`)
+  as appropriate.
+- **States:** `Backlog` → `Todo` → `In Progress` → `Ready for QA` → `Done`
+
+---
+
 ## Commit Conventions
 
 **Conventional Commits**, one line only — no body, ever.

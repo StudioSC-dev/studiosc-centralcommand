@@ -169,12 +169,12 @@ export async function touchSource(
     .onConflictDoUpdate({
       target: [notificationSources.userId, notificationSources.source],
       set: {
-        label: values.label,
+        // label is deliberately absent: it is set on insert (when the source
+        // first appears) and after that belongs to the user — a rename via
+        // settings must not be overwritten by the next producer push.
         lastSyncAt: now,
         state: values.state,
         updatedAt: now,
-        // Only advance these when the caller actually has a value, so a sync
-        // that found nothing does not erase what the last one learned.
         ...(fields.lastEventAt !== undefined ? { lastEventAt: fields.lastEventAt } : {}),
         ...(fields.unreadCount !== undefined ? { unreadCount: fields.unreadCount } : {}),
       },
@@ -246,6 +246,24 @@ export async function renameSource(
     .where(and(eq(notificationSources.userId, userId), eq(notificationSources.source, source)))
     .returning({ source: notificationSources.source });
   return updated.length > 0;
+}
+
+/** Remove a notification source and all its notifications. */
+export async function deleteSource(
+  db: Database,
+  userId: string,
+  source: string,
+): Promise<boolean> {
+  const deleted = await db
+    .delete(notificationSources)
+    .where(and(eq(notificationSources.userId, userId), eq(notificationSources.source, source)))
+    .returning({ source: notificationSources.source });
+  if (deleted.length === 0) return false;
+
+  await db
+    .delete(notifications)
+    .where(and(eq(notifications.userId, userId), eq(notifications.source, source)));
+  return true;
 }
 
 /** Recent notifications from one source — the Homelab card's green-state filler. */

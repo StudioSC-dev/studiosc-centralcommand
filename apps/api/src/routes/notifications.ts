@@ -4,6 +4,7 @@ import type { AppEnv } from "../env";
 import { createDb } from "../lib/db";
 import { fail, ok } from "../lib/response";
 import {
+  deleteSource,
   markAllRead,
   readNotifications,
   renameSource,
@@ -66,6 +67,16 @@ export const notificationRoutes = new Hono<AppEnv>()
     );
     if (!updated) return fail(c, "not_found", "No such source.", 404);
     return ok(c, { renamed: true });
+  })
+
+  .delete("/sources/:source", async (c) => {
+    const deleted = await deleteSource(
+      createDb(c.env.DB),
+      c.get("userId"),
+      c.req.param("source"),
+    );
+    if (!deleted) return fail(c, "not_found", "No such source.", 404);
+    return ok(c, { deleted: true });
   })
 
   .post("/read-all", async (c) => {

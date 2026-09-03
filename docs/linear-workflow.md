@@ -28,6 +28,8 @@ How we use Linear for project management in Central Command.
 1. **Reconcile with acceptance criteria.** After pushing, compare the changes against
    the ticket's acceptance criteria checklist. Check off criteria that the push
    satisfies; note any that remain open.
+2. **When all criteria are checked,** push to the branch assigned by Linear and create
+   a PR following our template.
 
 ---
 

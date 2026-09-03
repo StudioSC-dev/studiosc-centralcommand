@@ -816,6 +816,45 @@ button {
   stroke-linejoin: round;
 }
 
+.source-key {
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  font-family: var(--font-mono, monospace);
+}
+
+.source-remove {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.source-remove:hover:not(:disabled) {
+  color: var(--bad);
+}
+
+.source-remove.is-confirming {
+  color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+}
+
+.source-remove:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.source-remove svg {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 /* ─── GitHub accounts settings ─────────────────────────────────────────────── */
 
 .gh-account-list {

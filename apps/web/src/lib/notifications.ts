@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { NotificationStatus, NotificationsResponse } from "@central-command/types";
-import { apiGet, apiPatch, apiPost } from "./api";
+import { apiDelete, apiGet, apiPatch, apiPost } from "./api";
 
 const KEY = ["notifications"] as const;
 
@@ -74,6 +74,16 @@ export function useRenameSource() {
   return useMutation({
     mutationFn: ({ source, label }: { source: string; label: string }) =>
       apiPatch(`/api/notifications/sources/${source}`, { label }),
+    onSettled: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
+/** Remove a notification source and all its notifications. */
+export function useDeleteSource() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (source: string) =>
+      apiDelete(`/api/notifications/sources/${source}`),
     onSettled: () => qc.invalidateQueries({ queryKey: KEY }),
   });
 }

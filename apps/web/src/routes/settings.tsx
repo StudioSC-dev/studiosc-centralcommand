@@ -9,7 +9,7 @@ import { useCalendar, useDisconnectGoogle } from "../lib/calendar";
 import { useSetUnits } from "../lib/weather";
 import { useTheme } from "../lib/theme";
 import { LocationSetter } from "../components/LocationSetter";
-import { useNotifications, useMarkAllRead, useRenameSource } from "../lib/notifications";
+import { useNotifications, useMarkAllRead, useRenameSource, useDeleteSource } from "../lib/notifications";
 import { useGitHubActivity, useAddGitHubAccount, useRemoveGitHubAccount } from "../lib/github";
 
 export const Route = createFileRoute("/settings")({
@@ -188,8 +188,10 @@ function NotificationSourcesSection() {
   const { data } = useNotifications();
   const markAll = useMarkAllRead();
   const rename = useRenameSource();
+  const remove = useDeleteSource();
   const [editing, setEditing] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState("");
+  const [confirming, setConfirming] = useState<string | null>(null);
 
   const sources = data?.sources ?? [];
 
@@ -204,9 +206,22 @@ function NotificationSourcesSection() {
     setEditing(null);
   };
 
+  const handleRemove = (source: string) => {
+    if (confirming === source) {
+      remove.mutate(source);
+      setConfirming(null);
+    } else {
+      setConfirming(source);
+    }
+  };
+
   return (
     <section className="settings-block">
       <h2 className="settings-section-title">Notification Sources</h2>
+      <p className="settings-hint">
+        Sources appear automatically when a service starts pushing notifications.
+        Rename them or remove ones you no longer need.
+      </p>
       {sources.length > 0 ? (
         <ul className="source-list">
           {sources.map((s) => (
@@ -236,6 +251,7 @@ function NotificationSourcesSection() {
                 ) : (
                   <>
                     <span className="source-label">{s.label}</span>
+                    <span className="source-key">{s.source}</span>
                     <button
                       type="button"
                       className="source-edit-btn"
@@ -262,6 +278,19 @@ function NotificationSourcesSection() {
                 >
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
                     <polyline points="5 13 10 18 19 7" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className={`source-remove${confirming === s.source ? " is-confirming" : ""}`}
+                  onClick={() => handleRemove(s.source)}
+                  onBlur={() => setConfirming(null)}
+                  disabled={remove.isPending}
+                  title={confirming === s.source ? "Click again to confirm" : `Remove ${s.label}`}
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                   </svg>
                 </button>
               </div>

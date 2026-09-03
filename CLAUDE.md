@@ -150,6 +150,10 @@ routes/
 Follow [docs/linear-workflow.md](docs/linear-workflow.md) — update HANDOVER.md and
 Linear after every session; create tickets before writing code in planning sessions.
 
+**Linear project:** [Central Command](https://linear.app/studiosc/project/central-command-286a55b591f7)
+**Labels:** `Trailhead - CC` on every ticket, plus type labels (`Feature`, `Bug`, etc.)
+and domain labels (`Frontend`, `Backend`, `Integration`, `Infra`) as appropriate.
+
 ---
 
 ## Commit Conventions

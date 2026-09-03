@@ -1,67 +1,47 @@
 # Linear Workflow
 
-How we use Linear for project management in Central Command.
+How we use Linear for project management across all StudioSC projects. This file is
+identical in every repo — project-specific details (project link, labels) live in each
+repo's `CLAUDE.md`.
 
 ---
 
 ## Session protocol
 
-### After every session
-
-1. **Update `HANDOVER.md`** — append the session's decisions, what shipped, and any
-   open reminders. This is the local narrative.
-2. **Update the Linear project** — post a project update on the
-   [Central Command](https://linear.app/studiosc/project/central-command-286a55b591f7)
-   project summarising what was done, what changed, and what's next. Move any completed
-   tickets to Done.
-
-### After every planning session
-
-1. **Create Linear tickets first.** Before writing any code, break the plan into atomic
-   steps and create a ticket for each one in the Central Command project. Each ticket
-   should map to a single PR.
-2. **Then execute.** Work through the tickets in dependency order, moving each to
-   In Progress → Done as it ships.
-
-### On push to a feature/fix branch
-
-1. **Reconcile with acceptance criteria.** After pushing, compare the changes against
-   the ticket's acceptance criteria checklist. Check off criteria that the push
-   satisfies; note any that remain open.
-2. **When all criteria are checked,** push to the branch assigned by Linear and create
-   a PR following our template.
+1. **After every session**, update `HANDOVER.md` (append at the top of the log) AND
+   update the Linear project — move tickets, add comments, note what was verified and
+   what was not.
+2. **After every planning session**, create Linear tickets for each atomic step BEFORE
+   executing any code. One ticket per PR; dependencies linked. The backlog is the plan
+   of record — design docs are reference, Linear is where progress lives.
+3. **Use issue templates.** Don't free-form descriptions — see [Issue templates](#issue-templates).
+4. **Create an Epic ticket for each major initiative.** An Epic is a non-work ticket
+   with checklists referencing the child tickets. Label it `Epic` only — never attach
+   `Trailhead - <project>` labels, so Trailhead does not pick it up as real work. The
+   Epic is the umbrella that shows which tickets belong to which group.
+5. **On push to a feature/fix branch**, reconcile the changes against the ticket's
+   acceptance criteria. Check each criterion, note what passes and what doesn't, and
+   update the ticket accordingly.
+6. **After all acceptance criteria are checked**, push to the branch assigned by Linear
+   and create a PR following our template.
 
 ---
 
 ## Definition of done
 
-- **Ticket level:** a ticket is done when it reaches **QA Verified** — code is merged,
-  deployed, and manually tested against every acceptance criterion.
-- **Task / checklist item level:** an individual task or checkbox is done when the
-  implementation **matches its acceptance criterion after testing** — not just coded,
-  but confirmed working.
-
----
-
-## Linear details
-
-- **Team:** StudioSC (`STU`)
-- **Project:** Central Command
-- **API key location:** `/srv/Personal/trailhead/secrets/personal.env` (`LINEAR_API_KEY`,
-  `LINEAR_TEAM_ID`)
-- **Labels:** use `Trailhead - CC` on every ticket, plus type labels (`Feature`, `Bug`,
-  `Refactor`, etc.) and domain labels (`Frontend`, `Backend`, `Integration`, `Infra`)
-  as appropriate.
-- **States:** `Backlog` → `Todo` → `In Progress` → `Ready for QA` → `Done`
+- **Ticket level:** QA Verified — all acceptance criteria confirmed after testing, not
+  just after implementation.
+- **Task / checklist item level:** the individual item matches its acceptance criterion
+  after testing. A checkbox is checked when the criterion is met in a running system,
+  not when the code is written.
 
 ---
 
 ## Issue templates
 
 The team has templates configured in Linear. **Always use the matching template** when
-creating tickets via the API — replicate the template's `descriptionData` structure in
-the `issueCreate` mutation's `descriptionData` field (ProseMirror JSON, not plain
-markdown in `description`).
+creating tickets — via the UI or the API (replicate the template's `descriptionData`
+structure in the `issueCreate` mutation's `descriptionData` field, ProseMirror JSON).
 
 | Template | Use for | Label applied |
 |---|---|---|
@@ -76,14 +56,21 @@ markdown in `description`).
 ## Epics
 
 For large features that span multiple tickets, create an **epic ticket** — an umbrella
-issue with a checklist of atomic sub-tasks. Reference: [STU-7](https://linear.app/studiosc/issue/STU-7).
+issue with a checklist of atomic sub-tasks.
 
-- **Label the epic `Epic` only.** Do not attach `Trailhead - CC` or any other
-  project-scoped label — this prevents Trailhead from picking it up as an automated
-  work item. The epic is an organisational container, not a code task.
-- **Child tickets get the normal labels** (`Trailhead - CC`, `Feature`/`Bug`, domain
+- **Label the epic `Epic` only.** No `Trailhead - <project>` or other project-scoped
+  labels — this prevents Trailhead from picking it up as automated work.
+- **Child tickets get the normal labels** (`Trailhead - <project>`, type labels, domain
   labels) so Trailhead can pick them up.
 - **Description format:** a checklist of the atomic steps, each linking to (or later
   replaced by) a child ticket.
-- **Project:** still assign it to the Central Command project so it appears in the
-  project view.
+- **Project:** still assign it to the relevant project so it appears in the project view.
+
+---
+
+## Linear details
+
+- **Team:** StudioSC (`STU`)
+- **API key location:** `/srv/Personal/trailhead/secrets/personal.env` (`LINEAR_API_KEY`,
+  `LINEAR_TEAM_ID`)
+- **States:** `Backlog` → `Todo` → `In Progress` → `Ready for QA` → `Done`

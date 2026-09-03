@@ -174,6 +174,36 @@ routes/
   as appropriate.
 - **States:** `Backlog` → `Todo` → `In Progress` → `Ready for QA` → `Done`
 
+### Issue templates
+
+The team has templates configured in Linear. **Always use the matching template** when
+creating tickets via the API — replicate the template's `descriptionData` structure in
+the `issueCreate` mutation's `descriptionData` field (ProseMirror JSON, not plain
+markdown in `description`).
+
+| Template | Use for | Label applied |
+|---|---|---|
+| **Feature Request** | New features or enhancements | `Feature` |
+| **Bug Report** | Bugs and regressions | `Bug` |
+| **Task** | Chores, refactors, non-feature work | `Chore` |
+| **QA Session** | Manual testing sessions | `QA Session` |
+| **QA Finding** | Issues found during QA | `Bug` + `QA Finding` |
+
+### Epics
+
+For large features that span multiple tickets, create an **epic ticket** — an umbrella
+issue with a checklist of atomic sub-tasks. Reference: [STU-7](https://linear.app/studiosc/issue/STU-7).
+
+- **Label the epic `Epic` only.** Do not attach `Trailhead - CC` or any other
+  project-scoped label — this prevents Trailhead from picking it up as an automated
+  work item. The epic is an organisational container, not a code task.
+- **Child tickets get the normal labels** (`Trailhead - CC`, `Feature`/`Bug`, domain
+  labels) so Trailhead can pick them up.
+- **Description format:** a checklist of the atomic steps, each linking to (or later
+  replaced by) a child ticket.
+- **Project:** still assign it to the Central Command project so it appears in the
+  project view.
+
 ---
 
 ## Commit Conventions

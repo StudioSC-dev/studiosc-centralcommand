@@ -23,6 +23,22 @@ How we use Linear for project management in Central Command.
 2. **Then execute.** Work through the tickets in dependency order, moving each to
    In Progress → Done as it ships.
 
+### On push to a feature/fix branch
+
+1. **Reconcile with acceptance criteria.** After pushing, compare the changes against
+   the ticket's acceptance criteria checklist. Check off criteria that the push
+   satisfies; note any that remain open.
+
+---
+
+## Definition of done
+
+- **Ticket level:** a ticket is done when it reaches **QA Verified** — code is merged,
+  deployed, and manually tested against every acceptance criterion.
+- **Task / checklist item level:** an individual task or checkbox is done when the
+  implementation **matches its acceptance criterion after testing** — not just coded,
+  but confirmed working.
+
 ---
 
 ## Linear details

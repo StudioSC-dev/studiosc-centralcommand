@@ -516,7 +516,8 @@ export type CardKey =
   | "notifications"
   | "clock"
   | "timer"
-  | "github";
+  | "github"
+  | "tickets";
 
 /**
  * Every card key, in the dashboard's fixed render order.
@@ -543,6 +544,7 @@ export const CARD_KEYS: readonly CardKey[] = [
   "clock",
   "timer",
   "github",
+  "tickets",
 ] as const;
 
 /**
@@ -550,7 +552,7 @@ export const CARD_KEYS: readonly CardKey[] = [
  * zero stored rows, it seeds hidden rows for these keys so the starter set
  * is the original 9-card wall — not every card ever shipped.
  */
-export const DEFAULT_HIDDEN_KEYS: readonly CardKey[] = ["lab", "notifications", "clock", "timer", "github"] as const;
+export const DEFAULT_HIDDEN_KEYS: readonly CardKey[] = ["lab", "notifications", "clock", "timer", "github", "tickets"] as const;
 
 /** Runtime guard — the single place an unknown key is rejected. */
 export function isCardKey(value: unknown): value is CardKey {
@@ -1243,6 +1245,64 @@ export interface GitHubActivityResponse {
   accounts?: GitHubAccount[];
 }
 
+// ─── Linear ────────────────────────────────────────────────────────────────
+
+export interface LinearAccount {
+  id: string;
+  label: string;
+}
+
+export interface LinearConnectionResponse {
+  connected: boolean;
+  accounts: LinearAccount[];
+}
+
+// ─── Slack ─────────────────────────────────────────────────────────────────
+
+export interface SlackAccount {
+  id: string;
+  label: string;
+}
+
+export interface SlackConnectionResponse {
+  connected: boolean;
+  accounts: SlackAccount[];
+}
+
+// ─── Trello ────────────────────────────────────────────────────────────────
+
+export interface TrelloAccount {
+  id: string;
+  label: string;
+}
+
+export interface TrelloConnectionResponse {
+  connected: boolean;
+  accounts: TrelloAccount[];
+}
+
+// ─── Urgent tickets ──────────────────────────────────────────────────────────
+
+export interface UrgentTicket {
+  id: string;
+  source: "linear" | "trello";
+  title: string;
+  url: string;
+  project: string;
+  priority: number;
+  dueDate: EpochMs | null;
+  urgencyScore: number;
+}
+
+export interface UrgentTicketsResponse {
+  connected: boolean;
+  items: UrgentTicket[];
+  accounts: {
+    linear: LinearAccount[];
+    trello: TrelloAccount[];
+  };
+}
+
 // ─── Focus sessions ─────────────────────────────────────────────────────────
 
 export interface FocusSession {
@@ -1565,7 +1625,13 @@ export interface LabSourceSecret {
  * free TEXT — adding Gmail is a collector, not a migration, and an unknown
  * source arriving from storage must render rather than crash.
  */
-export type NotificationSourceKey = "lab" | "gmail" | "slack" | (string & {});
+export type NotificationSourceKey =
+  | "lab"
+  | "gmail"
+  | "slack"
+  | "linear"
+  | "trello"
+  | (string & {});
 
 export type NotificationStatus = "unread" | "read" | "dismissed";
 

@@ -19,6 +19,9 @@ export interface SettingsInput {
   clockZones?: string | null; // JSON-serialised string[] of IANA zone names
   githubPat?: string | null; // encrypted GitHub PAT (legacy single-account)
   githubAccounts?: string | null; // JSON [{id, label, pat}] — multi-account
+  linearAccounts?: string | null; // JSON [{id, label, apiKey}] — apiKey encrypted
+  slackAccounts?: string | null; // JSON [{id, label, token}] — token encrypted
+  trelloAccounts?: string | null; // JSON [{id, label, apiKey, token}] — both encrypted
   // The dashboard layout used to be three JSON fields here. It is now rows in
   // `dashboard_cards` — see services/dashboard.ts and docs/ui-suite.md D15.
 }

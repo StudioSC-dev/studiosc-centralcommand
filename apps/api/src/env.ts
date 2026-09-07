@@ -59,6 +59,10 @@ export interface Bindings {
    */
   ORS_API_KEY?: string;
 
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  VAPID_SUBJECT?: string;
+
   // Local dev only — never set in production. When present and no Access JWT
   // is provided, the auth middleware treats this email as the verified identity.
   DEV_AUTH_EMAIL?: string;

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import { notificationSources, notifications } from "@central-command/db";
 import { sanitiseTags, sanitiseText } from "@central-command/utils";
 import type {
@@ -347,4 +347,22 @@ export async function pruneNotifications(db: Database, now: number): Promise<num
     )
     .returning({ id: notifications.id });
   return deleted.length;
+}
+
+const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+
+export async function markStaleSources(db: Database, now: number): Promise<number> {
+  const threshold = now - STALE_THRESHOLD_MS;
+  const updated = await db
+    .update(notificationSources)
+    .set({ state: "stale", updatedAt: now })
+    .where(
+      and(
+        eq(notificationSources.state, "ok"),
+        isNotNull(notificationSources.lastSyncAt),
+        lt(notificationSources.lastSyncAt, threshold),
+      ),
+    )
+    .returning({ source: notificationSources.source });
+  return updated.length;
 }

@@ -8,6 +8,9 @@ import { ok } from "./lib/response";
 import { runRiotRefresh } from "./workers/riot-cron";
 import { runCalendarRenewal } from "./workers/calendar-cron";
 import { runNotificationPrune } from "./workers/notifications-cron";
+import { runLinearRefresh } from "./workers/linear-cron";
+import { runSlackRefresh } from "./workers/slack-cron";
+import { runTrelloRefresh } from "./workers/trello-cron";
 
 import { authPublic, authGuarded } from "./routes/auth";
 import { settings } from "./routes/settings";
@@ -29,6 +32,11 @@ import { labEvents, labIngest } from "./routes/lab-ingest";
 import { notificationRoutes } from "./routes/notifications";
 import { focus } from "./routes/focus";
 import { github } from "./routes/github";
+import { linear } from "./routes/linear";
+import { slack } from "./routes/slack";
+import { trello } from "./routes/trello";
+import { tickets } from "./routes/tickets";
+import { push } from "./routes/push";
 
 const app = new Hono<AppEnv>();
 
@@ -81,6 +89,11 @@ api.route("/lab", lab);
 api.route("/notifications", notificationRoutes);
 api.route("/focus", focus);
 api.route("/github", github);
+api.route("/linear", linear);
+api.route("/slack", slack);
+api.route("/trello", trello);
+api.route("/tickets", tickets);
+api.route("/push", push);
 
 // The single-host topology routes centralcommand.studiosc.dev/api/* to this Worker.
 app.route("/api", api);
@@ -91,5 +104,8 @@ export default {
     ctx.waitUntil(runRiotRefresh(env));
     ctx.waitUntil(runCalendarRenewal(env));
     ctx.waitUntil(runNotificationPrune(env));
+    ctx.waitUntil(runLinearRefresh(env));
+    ctx.waitUntil(runSlackRefresh(env));
+    ctx.waitUntil(runTrelloRefresh(env));
   },
 } satisfies ExportedHandler<Bindings>;

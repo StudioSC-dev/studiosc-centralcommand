@@ -87,6 +87,8 @@ export const userSettings = sqliteTable("user_settings", {
   linearAccounts: text("linear_accounts"), // JSON [{id, label, apiKey}] — apiKey is encrypted
   slackAccounts: text("slack_accounts"), // JSON [{id, label, token}] — token is encrypted
   trelloAccounts: text("trello_accounts"), // JSON [{id, label, apiKey, token}] — both encrypted
+  googleAccounts: text("google_accounts"), // JSON [{id, label, email, refreshToken, accessToken, expiresAt}] — tokens encrypted
+  calendarConfig: text("calendar_config"), // JSON {[calendarId]: {visible, color}} — per-calendar settings
   // The dashboard layout used to live here as three JSON columns —
   // `hidden_cards` (0012), `card_order` (0013) and `card_sizes` (0014). They
   // are now rows in `dashboard_cards`; see that table and docs/ui-suite.md D15.
@@ -103,16 +105,21 @@ export const userSettings = sqliteTable("user_settings", {
 // stop the channel); `token` is our secret, echoed back in the push headers so
 // the unauthenticated webhook can validate + resolve the caller. Channels expire
 // (≤7 days) and are renewed by cron before `expiration`.
-export const calendarChannels = sqliteTable("calendar_channels", {
-  userId: text("user_id")
-    .primaryKey()
-    .references(() => users.id),
-  channelId: text("channel_id").notNull().unique(), // our UUID — the X-Goog-Channel-ID (webhook looks up by this)
-  resourceId: text("resource_id").notNull(), // Google's handle — needed to stop it
-  token: text("token").notNull(), // our secret — validates incoming push headers
-  expiration: integer("expiration").notNull(), // epoch ms when Google stops pushing
-  createdAt: integer("created_at").notNull(),
-});
+export const calendarChannels = sqliteTable(
+  "calendar_channels",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    accountId: text("account_id").notNull().default("legacy"),
+    channelId: text("channel_id").notNull().unique(),
+    resourceId: text("resource_id").notNull(),
+    token: text("token").notNull(),
+    expiration: integer("expiration").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.accountId] })],
+);
 
 // ─── Data (Phase 1 stubs) ────────────────────────────────────────────────────
 
@@ -268,6 +275,7 @@ export const tasks = sqliteTable("tasks", {
   externalId: text("external_id"), // id in the source system (null for native)
   deadline: integer("deadline"), // optional due date (epoch ms) — drives Eisenhower urgency
   createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at"),
   completedAt: integer("completed_at"),
 });
 

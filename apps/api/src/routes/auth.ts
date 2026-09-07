@@ -82,28 +82,41 @@ export const authPublic = new Hono<AppEnv>()
   .get("/login/google", (c) => startGoogle(c, "login"))
   .get("/google/callback", async (c) => {
     const error = c.req.query("error");
-    if (error) return fail(c, "oauth_error", `Google returned: ${error}`, 400);
+    if (error) return toApp(c, `/?auth_error=${encodeURIComponent(error)}`);
 
     const code = c.req.query("code");
     const state = c.req.query("state");
-    if (!code || !state) return fail(c, "oauth_error", "Missing code or state.", 400);
+    if (!code || !state) return toApp(c, "/?auth_error=missing_code_or_state");
 
     const stored = await c.env.CACHE.get(stateKey(state));
-    if (!stored) return fail(c, "oauth_error", "Invalid or expired state.", 400);
+    if (!stored) return toApp(c, "/?auth_error=invalid_or_expired_state");
     await c.env.CACHE.delete(stateKey(state));
     const { verifier, purpose } = JSON.parse(stored) as { verifier: string; purpose: Purpose };
 
-    const tokens = await exchangeCode({
-      code,
-      verifier,
-      redirectUri: callbackUrl(c.env),
-      clientId: c.env.GOOGLE_OAUTH_CLIENT_ID,
-      clientSecret: c.env.GOOGLE_OAUTH_CLIENT_SECRET,
-    });
-    const { sub, email } = await verifyGoogleIdToken(tokens.id_token, c.env.GOOGLE_OAUTH_CLIENT_ID);
+    let tokens;
+    try {
+      tokens = await exchangeCode({
+        code,
+        verifier,
+        redirectUri: callbackUrl(c.env),
+        clientId: c.env.GOOGLE_OAUTH_CLIENT_ID,
+        clientSecret: c.env.GOOGLE_OAUTH_CLIENT_SECRET,
+      });
+    } catch (err) {
+      console.error("[auth] Google token exchange failed:", err);
+      return toApp(c, "/?auth_error=token_exchange_failed");
+    }
+
+    let sub: string;
+    let email: string;
+    try {
+      ({ sub, email } = await verifyGoogleIdToken(tokens.id_token, c.env.GOOGLE_OAUTH_CLIENT_ID));
+    } catch (err) {
+      console.error("[auth] Google id_token verification failed:", err);
+      return toApp(c, "/?auth_error=id_verification_failed");
+    }
 
     if (purpose === "login") {
-      // Google sign-in IS the authentication: resolve our user and start a session.
       const user = await getOrCreateUser(createDb(c.env.DB), email);
       const token = await issueSession(c.env, user);
       setSessionCookie(c, token);
@@ -111,17 +124,22 @@ export const authPublic = new Hono<AppEnv>()
     }
 
     // Calendar connect: attach the tokens to the already-signed-in user.
+    // In local dev, DEV_AUTH_EMAIL stands in when no session cookie exists
+    // (sessionAuth sets context per-request but never issues a cookie).
     const session = await getSession(c);
-    if (!session) return fail(c, "unauthorized", "Sign in before connecting Calendar.", 401);
-    await storeGoogleTokens(createDb(c.env.DB), c.env, session.userId, sub, {
+    const userId = session?.userId
+      ?? (c.env.DEV_AUTH_EMAIL
+        ? (await getOrCreateUser(createDb(c.env.DB), c.env.DEV_AUTH_EMAIL)).id
+        : null);
+    if (!userId) return toApp(c, "/?auth_error=not_signed_in");
+
+    await storeGoogleTokens(createDb(c.env.DB), c.env, userId, sub, {
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
       expiresAt: Date.now() + tokens.expires_in * 1000,
     });
-    // Open a push channel so calendar changes invalidate our cache in near-real
-    // time. Best-effort + off the redirect's critical path (no-op in local dev).
     c.executionCtx.waitUntil(
-      ensureChannel(createDb(c.env.DB), session.userId, tokens.access_token, webhookAddress(c.env)),
+      ensureChannel(createDb(c.env.DB), userId, tokens.access_token, webhookAddress(c.env)),
     );
     return toApp(c, "/?connected=google");
   })

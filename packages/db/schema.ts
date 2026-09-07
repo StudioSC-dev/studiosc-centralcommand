@@ -84,6 +84,9 @@ export const userSettings = sqliteTable("user_settings", {
   clockZones: text("clock_zones"), // JSON string[] of IANA zone names for the world-clock card
   githubPat: text("github_pat"), // encrypted GitHub PAT for the activity card (legacy single-account)
   githubAccounts: text("github_accounts"), // JSON [{id, label, pat}] — multi-account, pat is encrypted
+  linearAccounts: text("linear_accounts"), // JSON [{id, label, apiKey}] — apiKey is encrypted
+  slackAccounts: text("slack_accounts"), // JSON [{id, label, token}] — token is encrypted
+  trelloAccounts: text("trello_accounts"), // JSON [{id, label, apiKey, token}] — both encrypted
   // The dashboard layout used to live here as three JSON columns —
   // `hidden_cards` (0012), `card_order` (0013) and `card_sizes` (0014). They
   // are now rows in `dashboard_cards`; see that table and docs/ui-suite.md D15.
@@ -453,6 +456,26 @@ export const notificationSources = sqliteTable(
     updatedAt: integer("updated_at").notNull(),
   },
   (table) => [primaryKey({ columns: [table.userId, table.source] })],
+);
+
+// ─── Push subscriptions ───────────────────────────────────────────────────────
+
+export const pushSubscriptions = sqliteTable(
+  "push_subscriptions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    endpoint: text("endpoint").notNull(),
+    keysP256dh: text("keys_p256dh").notNull(),
+    keysAuth: text("keys_auth").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (table) => [
+    index("idx_push_subs_user").on(table.userId),
+    unique("idx_push_subs_user_endpoint").on(table.userId, table.endpoint),
+  ],
 );
 
 // ─── Homelab telemetry (../integrations/homelab-telemetry.md) ────────────────

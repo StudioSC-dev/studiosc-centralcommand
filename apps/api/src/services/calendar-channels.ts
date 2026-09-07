@@ -1,4 +1,4 @@
-import { eq, lt } from "drizzle-orm";
+import { and, eq, lt } from "drizzle-orm";
 import { calendarChannels } from "@central-command/db";
 import type { Bindings } from "../env";
 import type { Database } from "../lib/db";
@@ -53,29 +53,32 @@ export function getExpiringChannels(db: Database, now = Date.now()): Promise<Cal
 }
 
 /**
- * Ensure the user has a live watch channel. No-ops if the current one is still
- * comfortably in-window; otherwise stops any stale channel and opens a fresh
- * one. Best-effort — failures (e.g. an unverified webhook domain, or localhost
- * in dev) are swallowed so calendar reads keep working via polling.
+ * Ensure a live watch channel exists for a (userId, accountId) pair. No-ops if
+ * the current one is still comfortably in-window; otherwise stops any stale
+ * channel and opens a fresh one. Best-effort — failures are swallowed so
+ * calendar reads keep working via polling.
  */
 export async function ensureChannel(
   db: Database,
   userId: string,
   accessToken: string,
   address: string,
-  opts: { force?: boolean } = {},
+  opts: { force?: boolean; accountId?: string } = {},
 ): Promise<void> {
-  // Google can only reach a public HTTPS webhook; skip in local dev.
   if (!address.startsWith("https://")) return;
+
+  const accountId = opts.accountId ?? "legacy";
 
   const existing = await db
     .select()
     .from(calendarChannels)
-    .where(eq(calendarChannels.userId, userId))
+    .where(
+      and(eq(calendarChannels.userId, userId), eq(calendarChannels.accountId, accountId)),
+    )
     .get();
 
   if (!opts.force && existing && existing.expiration > Date.now() + RENEW_BEFORE_MS) {
-    return; // still fresh
+    return;
   }
 
   try {
@@ -83,7 +86,7 @@ export async function ensureChannel(
       await stopChannel(accessToken, {
         channelId: existing.channelId,
         resourceId: existing.resourceId,
-      }).catch(() => {}); // stopping the old one must not block opening the new one
+      }).catch(() => {});
     }
 
     const channelId = newId();
@@ -97,39 +100,39 @@ export async function ensureChannel(
 
     await db
       .insert(calendarChannels)
-      .values({ userId, channelId, resourceId, token, expiration, createdAt: Date.now() })
+      .values({ userId, accountId, channelId, resourceId, token, expiration, createdAt: Date.now() })
       .onConflictDoUpdate({
-        target: calendarChannels.userId,
+        target: [calendarChannels.userId, calendarChannels.accountId],
         set: { channelId, resourceId, token, expiration },
       });
   } catch {
     // Swallow: the domain may not be verified yet, or Google may be down.
-    // Calendar still serves via the poll; the next ensure/cron retries.
   }
 }
 
 /**
- * Stop and forget the user's channel (on disconnect or dead credentials). Best-
- * effort at Google; the DB row is always removed. Pass a token when available so
- * Google is told to stop pushing.
+ * Stop and forget channels for a user. If `accountId` is given, only that
+ * account's channel is removed; otherwise all channels for the user are removed.
  */
 export async function stopAndDeleteChannel(
   db: Database,
   userId: string,
   accessToken?: string,
+  accountId?: string,
 ): Promise<void> {
-  const existing = await db
-    .select()
-    .from(calendarChannels)
-    .where(eq(calendarChannels.userId, userId))
-    .get();
-  if (!existing) return;
+  const where = accountId
+    ? and(eq(calendarChannels.userId, userId), eq(calendarChannels.accountId, accountId))
+    : eq(calendarChannels.userId, userId);
+
+  const rows = await db.select().from(calendarChannels).where(where).all();
+  if (rows.length === 0) return;
 
   if (accessToken) {
-    await stopChannel(accessToken, {
-      channelId: existing.channelId,
-      resourceId: existing.resourceId,
-    }).catch(() => {});
+    await Promise.allSettled(
+      rows.map((r) =>
+        stopChannel(accessToken, { channelId: r.channelId, resourceId: r.resourceId }),
+      ),
+    );
   }
-  await db.delete(calendarChannels).where(eq(calendarChannels.userId, userId));
+  await db.delete(calendarChannels).where(where);
 }

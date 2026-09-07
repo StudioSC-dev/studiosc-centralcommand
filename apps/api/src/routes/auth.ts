@@ -13,6 +13,7 @@ import {
   verifyGoogleIdToken,
 } from "../services/google-oauth";
 import { disconnectGoogle, storeGoogleTokens } from "../services/google-token";
+import { addGoogleAccount, getGoogleAccounts, removeGoogleAccount } from "../services/google-accounts";
 import { ensureChannel, webhookAddress } from "../services/calendar-channels";
 import { getOrCreateUser } from "../services/users";
 import { isProfileComplete } from "../services/profile";
@@ -20,7 +21,7 @@ import { getSession, issueSession, setSessionCookie, clearSessionCookie } from "
 import { publicAuthRateLimit } from "../middleware/rate-limit";
 import { DEMO_EMAIL, DEMO_USER_ID } from "../demo/constants";
 
-type Purpose = "login" | "connect";
+type Purpose = "login" | "connect" | "add-google";
 
 /** Where the PKCE verifier + purpose are parked between redirect and callback. */
 const stateKey = (state: string) => `oauth:google:${state}`;
@@ -53,20 +54,23 @@ function toApp(c: Context<AppEnv>, path: string) {
   return c.redirect(`${appOrigin(c.env)}${path}`);
 }
 
-/** Begin a Google OAuth flow for the given purpose (login vs calendar connect). */
-async function startGoogle(c: Context<AppEnv>, purpose: Purpose) {
+/** Begin a Google OAuth flow for the given purpose. */
+async function startGoogle(c: Context<AppEnv>, purpose: Purpose, label?: string) {
   const { verifier, challenge } = await generatePkce();
   const state = randomState();
-  await c.env.CACHE.put(stateKey(state), JSON.stringify({ verifier, purpose }), {
-    expirationTtl: 600,
-  });
+  await c.env.CACHE.put(
+    stateKey(state),
+    JSON.stringify({ verifier, purpose, ...(label && { label }) }),
+    { expirationTtl: 600 },
+  );
+  const needsCalendar = purpose === "connect" || purpose === "add-google";
   const url = buildAuthorizeUrl({
     clientId: c.env.GOOGLE_OAUTH_CLIENT_ID,
     redirectUri: callbackUrl(c.env),
     state,
     challenge,
-    scopes: purpose === "login" ? LOGIN_SCOPES : CALENDAR_SCOPES,
-    offline: purpose === "connect", // a refresh token is only needed for Calendar
+    scopes: needsCalendar ? CALENDAR_SCOPES : LOGIN_SCOPES,
+    offline: needsCalendar,
   });
   return c.redirect(url);
 }
@@ -91,7 +95,11 @@ export const authPublic = new Hono<AppEnv>()
     const stored = await c.env.CACHE.get(stateKey(state));
     if (!stored) return toApp(c, "/?auth_error=invalid_or_expired_state");
     await c.env.CACHE.delete(stateKey(state));
-    const { verifier, purpose } = JSON.parse(stored) as { verifier: string; purpose: Purpose };
+    const { verifier, purpose, label } = JSON.parse(stored) as {
+      verifier: string;
+      purpose: Purpose;
+      label?: string;
+    };
 
     let tokens;
     try {
@@ -123,9 +131,7 @@ export const authPublic = new Hono<AppEnv>()
       return toApp(c, "/");
     }
 
-    // Calendar connect: attach the tokens to the already-signed-in user.
-    // In local dev, DEV_AUTH_EMAIL stands in when no session cookie exists
-    // (sessionAuth sets context per-request but never issues a cookie).
+    // Both "connect" and "add-google" require an authenticated user.
     const session = await getSession(c);
     const userId = session?.userId
       ?? (c.env.DEV_AUTH_EMAIL
@@ -133,6 +139,22 @@ export const authPublic = new Hono<AppEnv>()
         : null);
     if (!userId) return toApp(c, "/?auth_error=not_signed_in");
 
+    if (purpose === "add-google") {
+      if (!tokens.refresh_token) {
+        return toApp(c, "/settings?auth_error=no_refresh_token");
+      }
+      await addGoogleAccount(createDb(c.env.DB), c.env, userId, {
+        label: label || email.split("@")[0]!,
+        email,
+        providerId: sub,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        expiresAt: Date.now() + tokens.expires_in * 1000,
+      });
+      return toApp(c, "/settings?connected=google");
+    }
+
+    // Legacy "connect" purpose — stores in auth_providers (backward compat).
     await storeGoogleTokens(createDb(c.env.DB), c.env, userId, sub, {
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
@@ -173,8 +195,22 @@ export const authGuarded = new Hono<AppEnv>()
     if (c.get("isDemo")) return fail(c, "demo_read_only", "The demo can't connect accounts.", 403);
     return startGoogle(c, "connect");
   })
-  // Disconnect Google: stop the calendar push channel, revoke the grant, and
-  // delete the stored tokens. (Demo POSTs are already blocked by demoReadOnly.)
+  .get("/google/add", (c) => {
+    if (c.get("isDemo")) return fail(c, "demo_read_only", "The demo can't connect accounts.", 403);
+    const label = c.req.query("label") || undefined;
+    return startGoogle(c, "add-google", label);
+  })
+  .get("/google/accounts", async (c) => {
+    const accounts = await getGoogleAccounts(createDb(c.env.DB), c.get("userId"));
+    return ok(c, {
+      accounts: accounts.map((a) => ({ id: a.id, label: a.label, email: a.email })),
+    });
+  })
+  .delete("/google/accounts/:id", async (c) => {
+    const accountId = c.req.param("id");
+    await removeGoogleAccount(createDb(c.env.DB), c.get("userId"), accountId);
+    return ok(c, { removed: true });
+  })
   .post("/google/disconnect", async (c) => {
     await disconnectGoogle(createDb(c.env.DB), c.env, c.get("userId"));
     return ok(c, { connected: false });

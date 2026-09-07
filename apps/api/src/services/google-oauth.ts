@@ -14,11 +14,12 @@ const REVOKE_ENDPOINT = "https://oauth2.googleapis.com/revoke";
 
 /** Minimal scopes for sign-in (no offline access needed). */
 export const LOGIN_SCOPES = ["openid", "email", "profile"];
-/** Incremental scopes when connecting Calendar (read + write + offline). */
+/** Incremental scopes when connecting a Google account (calendar + tasks). */
 export const CALENDAR_SCOPES = [
   ...LOGIN_SCOPES,
   "https://www.googleapis.com/auth/calendar.readonly",
   "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/tasks",
 ];
 
 // Google's id_token signing keys; jose caches the fetched JWKS internally.

@@ -12,6 +12,7 @@ import type { AppEnv } from "../env";
 import { createDb } from "../lib/db";
 import { ok, fail } from "../lib/response";
 import { newId } from "../lib/ids";
+import { pushTaskToGoogle, syncTasks, shouldSync } from "../services/task-sync";
 
 const PRIORITIES: TaskPriority[] = ["high", "med", "low"];
 const PRIORITY_RANK: Record<TaskPriority, number> = { high: 0, med: 1, low: 2 };
@@ -29,6 +30,7 @@ const toTask = (r: TaskRow): Task => ({
   source: r.source as Task["source"],
   deadline: r.deadline ?? null,
   createdAt: r.createdAt,
+  updatedAt: r.updatedAt ?? null,
   completedAt: r.completedAt ?? null,
 });
 
@@ -54,10 +56,15 @@ function sortTasks(rows: TaskRow[]): Task[] {
 /** Tasks pillar — native "current priorities" CRUD. */
 export const tasks_routes = new Hono<AppEnv>()
   .get("/", async (c) => {
-    const rows = await createDb(c.env.DB)
+    const db = createDb(c.env.DB);
+    const userId = c.get("userId");
+    if (await shouldSync(c.env, userId)) {
+      c.executionCtx.waitUntil(syncTasks(db, c.env, userId).catch(() => {}));
+    }
+    const rows = await db
       .select()
       .from(tasks)
-      .where(eq(tasks.userId, c.get("userId")))
+      .where(eq(tasks.userId, userId))
       .all();
     return ok(c, { tasks: sortTasks(rows) });
   })
@@ -78,9 +85,13 @@ export const tasks_routes = new Hono<AppEnv>()
       externalId: null,
       deadline: typeof body?.deadline === "number" ? body.deadline : null,
       createdAt: Date.now(),
+      updatedAt: Date.now(),
       completedAt: null,
     };
     await db.insert(tasks).values(row);
+    c.executionCtx.waitUntil(
+      pushTaskToGoogle(db, c.env, c.get("userId"), row.id, "create").catch(() => {}),
+    );
     return ok(c, toTask(row), 201);
   })
   .patch("/:id", async (c) => {
@@ -97,7 +108,7 @@ export const tasks_routes = new Hono<AppEnv>()
       .get();
     if (!existing) return fail(c, "not_found", "Task not found.", 404);
 
-    const patch: Partial<TaskRow> = {};
+    const patch: Partial<TaskRow> = { updatedAt: Date.now() };
     if (typeof body.title === "string" && body.title.trim()) patch.title = body.title.trim();
     if (isPriority(body.priority)) patch.priority = body.priority;
     if (typeof body.position === "number") patch.position = body.position;
@@ -108,13 +119,25 @@ export const tasks_routes = new Hono<AppEnv>()
     }
 
     await db.update(tasks).set(patch).where(and(eq(tasks.id, id), eq(tasks.userId, userId)));
+    c.executionCtx.waitUntil(
+      pushTaskToGoogle(db, c.env, userId, id, "update").catch(() => {}),
+    );
     return ok(c, toTask({ ...existing, ...patch }));
   })
   .delete("/:id", async (c) => {
     const id = c.req.param("id");
     const userId = c.get("userId");
-    await createDb(c.env.DB)
+    const db = createDb(c.env.DB);
+    c.executionCtx.waitUntil(
+      pushTaskToGoogle(db, c.env, userId, id, "delete").catch(() => {}),
+    );
+    await db
       .delete(tasks)
       .where(and(eq(tasks.id, id), eq(tasks.userId, userId)));
     return ok(c, { id });
+  })
+  .post("/sync", async (c) => {
+    const db = createDb(c.env.DB);
+    const result = await syncTasks(db, c.env, c.get("userId"));
+    return ok(c, result);
   });

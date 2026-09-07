@@ -4,12 +4,19 @@ import type { CalendarData, CalendarEvent } from "@central-command/types";
 import type { AppEnv } from "../env";
 import { createDb } from "../lib/db";
 import { ok, fail } from "../lib/response";
-import { createCalendarEvent, fetchUpcomingEvents } from "../services/google-calendar";
+import {
+  createCalendarEvent,
+  fetchCalendarEvents,
+  fetchCalendarList,
+  fetchUpcomingEvents,
+} from "../services/google-calendar";
+import { getGoogleAccounts, getValidAccountToken } from "../services/google-accounts";
 import { buildMapUrls } from "../services/maps";
 import { planTravel } from "../services/travel";
-import { getUserSettings } from "../services/users";
+import { getUserSettings, upsertUserSettings } from "../services/users";
 import { getGoogleProvider, getValidGoogleAccessToken } from "../services/google-token";
 import { GoogleReauthRequiredError } from "../services/google-oauth";
+import type { GoogleCalendarConfig } from "@central-command/types";
 import { demoCalendar } from "../demo/fixtures";
 import { allowGlobalDaily, allowUserDaily } from "../services/rate-limit";
 import {
@@ -45,47 +52,73 @@ function todayBusyness(events: CalendarEvent[], start: number, end: number): num
 
 /** GET /calendar — upcoming events + today's busyness for the user. */
 export const calendar = new Hono<AppEnv>().get("/", async (c) => {
-  // Demo: serve a fixture (no Google call, no KV write).
   if (c.get("isDemo")) return ok(c, demoCalendar());
 
   const db = createDb(c.env.DB);
   const userId = c.get("userId");
 
-  const provider = await getGoogleProvider(db, userId);
-  if (!provider) return ok(c, { connected: false });
+  const accounts = await getGoogleAccounts(db, userId);
+  const hasLegacy = accounts.length === 0 ? !!(await getGoogleProvider(db, userId)) : false;
+
+  if (accounts.length === 0 && !hasLegacy) return ok(c, { connected: false });
 
   const cacheKey = `calendar:${userId}`;
   const cached = await c.env.CACHE.get<CalendarData>(cacheKey, "json");
   if (cached) return ok(c, cached);
 
-  // Fetch from the start of the user's local day so today's already-finished
-  // events come back too (the Today card strikes them through), and pull a
-  // week-plus worth so the Calendar card's week view has enough to show.
   const settings = await getUserSettings(db, userId);
   const { start, end } = dayBounds(settings?.timezone ?? undefined);
+  const config: GoogleCalendarConfig = settings?.calendarConfig
+    ? JSON.parse(settings.calendarConfig)
+    : {};
 
   const u = await allowUserDaily(c.env, userId, "calendar");
   const g = await allowGlobalDaily(c.env, "google");
   if (!u.allowed || !g.allowed) return fail(c, "rate_limited", "Calendar refresh limit reached. Try later.", 429);
 
   let events: CalendarEvent[];
-  try {
-    const accessToken = await getValidGoogleAccessToken(db, c.env, userId);
-    events = await fetchUpcomingEvents(accessToken, { timeMin: start, maxResults: 20 });
-    // Make sure this user has a live push channel (registers on first fetch for
-    // accounts connected before push existed; renews a lapsing one). Best-effort,
-    // off the response path; no-op in local dev.
-    c.executionCtx.waitUntil(ensureChannel(db, userId, accessToken, webhookAddress(c.env)));
-  } catch (err) {
-    // Expired/revoked credentials are a recoverable, user-actionable state —
-    // prompt a reconnect instead of bubbling up to the generic 500 handler.
-    if (err instanceof GoogleReauthRequiredError) {
-      // Forget the now-orphaned push channel so its pushes stop busting our
-      // cache; the provider row stays so the card keeps showing "reconnect".
-      c.executionCtx.waitUntil(stopAndDeleteChannel(db, userId).catch(() => {}));
-      return ok(c, { connected: false, needsReconnect: true });
+
+  if (accounts.length > 0) {
+    const allEvents = await Promise.allSettled(
+      accounts.map(async (account) => {
+        const token = await getValidAccountToken(db, c.env, userId, account.id);
+        const calendars = await fetchCalendarList(token);
+        const visible = calendars.filter((cal) => config[cal.id]?.visible !== false);
+        const calEvents = await Promise.allSettled(
+          visible.map((cal) =>
+            fetchCalendarEvents(token, cal.id, {
+              timeMin: start,
+              maxResults: 20,
+              color: config[cal.id]?.color ?? cal.backgroundColor,
+            }),
+          ),
+        );
+        return calEvents.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+      }),
+    );
+    const raw = allEvents.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+    // Dedup by event ID — keep first occurrence (owner account preferred).
+    const seen = new Set<string>();
+    events = raw
+      .sort((a, b) => a.start - b.start)
+      .filter((e) => {
+        if (seen.has(e.id)) return false;
+        seen.add(e.id);
+        return true;
+      });
+  } else {
+    // Legacy single-account path (auth_providers).
+    try {
+      const accessToken = await getValidGoogleAccessToken(db, c.env, userId);
+      events = await fetchUpcomingEvents(accessToken, { timeMin: start, maxResults: 20 });
+      c.executionCtx.waitUntil(ensureChannel(db, userId, accessToken, webhookAddress(c.env)));
+    } catch (err) {
+      if (err instanceof GoogleReauthRequiredError) {
+        c.executionCtx.waitUntil(stopAndDeleteChannel(db, userId).catch(() => {}));
+        return ok(c, { connected: false, needsReconnect: true });
+      }
+      throw err;
     }
-    throw err;
   }
 
   // Map links first — pure string work, no network, no key required for the
@@ -197,3 +230,52 @@ export const calendarWebhook = new Hono<AppEnv>().post("/", async (c) => {
   }
   return c.body(null, 200);
 });
+
+/** GET /calendar/calendars — lists all calendars across all Google accounts. */
+export const calendarList = new Hono<AppEnv>()
+  .get("/", async (c) => {
+    const db = createDb(c.env.DB);
+    const userId = c.get("userId");
+
+    const accounts = await getGoogleAccounts(db, userId);
+    if (accounts.length === 0) return ok(c, { calendars: [] });
+
+    const settings = await getUserSettings(db, userId);
+    const config: GoogleCalendarConfig = settings?.calendarConfig
+      ? JSON.parse(settings.calendarConfig)
+      : {};
+
+    const results = await Promise.allSettled(
+      accounts.map(async (account) => {
+        const token = await getValidAccountToken(db, c.env, userId, account.id);
+        const cals = await fetchCalendarList(token);
+        return cals.map((cal) => ({
+          id: cal.id,
+          summary: cal.summary,
+          accountId: account.id,
+          accountLabel: account.label,
+          backgroundColor: cal.backgroundColor,
+          visible: config[cal.id]?.visible ?? true,
+          color: config[cal.id]?.color ?? cal.backgroundColor,
+        }));
+      }),
+    );
+
+    const calendars = results.flatMap((r) =>
+      r.status === "fulfilled" ? r.value : [],
+    );
+
+    return ok(c, { calendars });
+  })
+  .put("/", async (c) => {
+    const body = await c.req.json<GoogleCalendarConfig>().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return fail(c, "bad_request", "Expected a calendar config object.", 400);
+    }
+
+    const db = createDb(c.env.DB);
+    const userId = c.get("userId");
+    await upsertUserSettings(db, userId, { calendarConfig: JSON.stringify(body) });
+    await c.env.CACHE.delete(`calendar:${userId}`);
+    return ok(c, { updated: true });
+  });

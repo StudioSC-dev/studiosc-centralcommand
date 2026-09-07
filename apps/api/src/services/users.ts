@@ -22,8 +22,8 @@ export interface SettingsInput {
   linearAccounts?: string | null; // JSON [{id, label, apiKey}] — apiKey encrypted
   slackAccounts?: string | null; // JSON [{id, label, token}] — token encrypted
   trelloAccounts?: string | null; // JSON [{id, label, apiKey, token}] — both encrypted
-  // The dashboard layout used to be three JSON fields here. It is now rows in
-  // `dashboard_cards` — see services/dashboard.ts and docs/ui-suite.md D15.
+  googleAccounts?: string | null; // JSON [{id, label, email, refreshToken, accessToken, expiresAt}] — tokens encrypted
+  calendarConfig?: string | null; // JSON {[calendarId]: {visible, color}} — per-calendar settings
 }
 
 /**

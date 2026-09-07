@@ -11,13 +11,14 @@ import { runNotificationPrune } from "./workers/notifications-cron";
 import { runLinearRefresh } from "./workers/linear-cron";
 import { runSlackRefresh } from "./workers/slack-cron";
 import { runTrelloRefresh } from "./workers/trello-cron";
+import { runTasksSync } from "./workers/tasks-cron";
 
 import { authPublic, authGuarded } from "./routes/auth";
 import { settings } from "./routes/settings";
 import { dashboard } from "./routes/dashboard";
 import { profile } from "./routes/profile";
 import { summary } from "./routes/summary";
-import { calendar, calendarWebhook } from "./routes/calendar";
+import { calendar, calendarList, calendarWebhook } from "./routes/calendar";
 import { weather } from "./routes/weather";
 import { fitness } from "./routes/fitness";
 import { nutrition } from "./routes/nutrition";
@@ -76,6 +77,7 @@ api.route("/dashboard", dashboard);
 api.route("/profile", profile);
 api.route("/summary", summary);
 api.route("/calendar", calendar);
+api.route("/calendar/calendars", calendarList);
 api.route("/weather", weather);
 api.route("/fitness", fitness);
 api.route("/nutrition", nutrition);
@@ -107,5 +109,6 @@ export default {
     ctx.waitUntil(runLinearRefresh(env));
     ctx.waitUntil(runSlackRefresh(env));
     ctx.waitUntil(runTrelloRefresh(env));
+    ctx.waitUntil(runTasksSync(env));
   },
 } satisfies ExportedHandler<Bindings>;

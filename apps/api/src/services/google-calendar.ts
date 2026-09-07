@@ -11,8 +11,16 @@ import type {
 
 const EVENTS_ENDPOINT =
   "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+const CALENDAR_LIST_ENDPOINT =
+  "https://www.googleapis.com/calendar/v3/users/me/calendarList";
 const WATCH_ENDPOINT = `${EVENTS_ENDPOINT}/watch`;
 const STOP_ENDPOINT = "https://www.googleapis.com/calendar/v3/channels/stop";
+
+export interface GoogleCalendarListItem {
+  id: string;
+  summary: string;
+  backgroundColor: string;
+}
 
 interface GoogleEventDate {
   dateTime?: string; // RFC3339 for timed events
@@ -122,7 +130,11 @@ export function detectConference(e: GoogleEvent): EventConference | undefined {
   return undefined;
 }
 
-function toEvent(e: GoogleEvent): CalendarEvent {
+function toEvent(
+  e: GoogleEvent,
+  calendarId?: string,
+  color?: string,
+): CalendarEvent {
   const allDay = !e.start.dateTime;
   const startStr = e.start.dateTime ?? e.start.date ?? "";
   const endStr = e.end.dateTime ?? e.end.date ?? "";
@@ -135,6 +147,8 @@ function toEvent(e: GoogleEvent): CalendarEvent {
     end: Date.parse(endStr),
     allDay,
     location: e.location ?? null,
+    ...(calendarId ? { calendarId } : {}),
+    ...(color ? { color } : {}),
     ...(conference ? { conference } : {}),
     ...(description ? { description } : {}),
     ...(e.htmlLink ? { htmlLink: e.htmlLink } : {}),
@@ -202,7 +216,51 @@ export async function fetchUpcomingEvents(
   }
 
   const data = (await res.json()) as { items?: GoogleEvent[] };
-  return (data.items ?? []).map(toEvent);
+  return (data.items ?? []).map((e) => toEvent(e));
+}
+
+/** Fetch events from a specific calendar. */
+export async function fetchCalendarEvents(
+  accessToken: string,
+  calendarId: string,
+  opts: { timeMin?: number; maxResults?: number; color?: string } = {},
+): Promise<CalendarEvent[]> {
+  const { timeMin = Date.now(), maxResults = 20 } = opts;
+  const endpoint = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
+  const url = new URL(endpoint);
+  url.searchParams.set("timeMin", new Date(timeMin).toISOString());
+  url.searchParams.set("maxResults", String(maxResults));
+  url.searchParams.set("singleEvents", "true");
+  url.searchParams.set("orderBy", "startTime");
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    throw new Error(`Google Calendar events list failed: ${res.status}`);
+  }
+  const data = (await res.json()) as { items?: GoogleEvent[] };
+  return (data.items ?? []).map((e) => toEvent(e, calendarId, opts.color));
+}
+
+/** Fetch all calendars the user can see (owned + subscribed). */
+export async function fetchCalendarList(
+  accessToken: string,
+): Promise<GoogleCalendarListItem[]> {
+  const res = await fetch(CALENDAR_LIST_ENDPOINT, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    throw new Error(`Google calendarList failed: ${res.status}`);
+  }
+  const data = (await res.json()) as {
+    items?: { id: string; summary?: string; backgroundColor?: string }[];
+  };
+  return (data.items ?? []).map((c) => ({
+    id: c.id,
+    summary: c.summary ?? c.id,
+    backgroundColor: c.backgroundColor ?? "#4285f4",
+  }));
 }
 
 /**

@@ -48,7 +48,7 @@ export function TravelGlyph({ mode }: { mode: TravelMode }) {
       ) : (
         <>
           <path d="M5 17h14M6.5 17v2M17.5 17v2" />
-          <path d="M4 17l1.6-5.2A2 2 0 017.5 10h9a2 2 0 011.9 1.8L20 17z" />
+          <path d="M4 17l1.6-5.2A2 2 0 017.5 10h9a2 2 0 0118.4 11.8L20 17z" />
         </>
       )}
     </svg>

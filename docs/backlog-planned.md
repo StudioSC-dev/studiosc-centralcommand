@@ -115,383 +115,458 @@ endpoint. Needs a contract in `../integrations/`.
 
 ---
 
-## PL-3: Health card — external data sources
+## PL-3: Health card — computed metrics from Apple Health
 
-Phase 2 roadmap item. The Health card currently accepts manual input for sleep,
-fitness, and nutrition. External sources would populate it automatically.
+The health card shifts from manual-entry to a **computed metrics dashboard**. The user
+has an Apple Watch Ultra and uses Bevel (Apple Health overlay, no API), FoodNoms
+(nutrition, syncs to Apple Health), and Strava (workouts, has API + webhooks). Since
+Bevel has no public API, we interpret raw Apple Health data ourselves to produce
+equivalent scores.
 
-### Candidates
+### Data pipeline
 
-| Source | Data | Auth | Free tier | Notes |
-|---|---|---|---|---|
-| **Oura Ring** | Sleep, HRV, readiness, activity | OAuth 2.0 | Yes (personal use) | Best fit — exactly the data the performance estimator wants |
-| **Garmin Connect** | Sleep, HR, steps, stress | OAuth 1.0a | Yes | Awkward auth; data is good |
-| **Fitbit** | Sleep, HR, steps, active minutes | OAuth 2.0 | Yes (but Google-owned, API future uncertain) | Broad user base |
-| **Apple Health** | Everything | No direct API | N/A | Requires a mobile app bridge (Expo app in the stack, or a shortcut-based export). No server-to-server path exists |
-| **Whoop** | HRV, strain, recovery, sleep | OAuth 2.0 | Yes (but hardware is subscription) | Very good data if user has one |
+```
+Apple Watch → Apple Health ← Bevel (writes recovery/strain/sleep scores)
+                           ← FoodNoms (writes nutrition/calories)
+                           ← Strava (writes workouts)
+         ↓
+  Health Auto Export app ($5, REST API push)
+    — or Expo app (full control, more work)
+         ↓
+  POST /api/health/ingest (Central Command)
+         ↓
+  packages/utils/ scoring functions
+         ↓
+  Health card: Recovery, Sleep, Strain, Stress, Energy Bank + nutrition
+```
 
-### Recommendation
+### Data bridge options
 
-Start with **Oura** — clean OAuth 2.0, generous free tier, and the data maps directly
-to the performance estimator's inputs (sleep quality, HRV, readiness score). The
-existing manual-input path stays as a fallback and for users without a device.
+| Option | Effort | Autonomy | Cost |
+|---|---|---|---|
+| **Health Auto Export** (iOS app) | Near-zero — configure endpoint + interval | High — auto-push on timer, 150+ metrics, JSON format | $5 one-time |
+| **Expo app** (custom) | 2-3 sessions to scaffold | Full — control data shape, timing, retry | Free (no App Store needed for 1-2 users) |
+| **iOS Shortcuts** | Low | Low — fragile, no background execution | Free |
+
+**Decision:** start with Health Auto Export for speed. Expo app is the upgrade path if
+we outgrow it.
+
+### Computed metrics (Bevel equivalents)
+
+| Metric | Score range | Apple Health inputs |
+|---|---|---|
+| **Recovery** | 0-100 | Resting HR trend, HRV (SDNN/RMSSD), sleep duration + deep sleep % |
+| **Sleep** | 0-100 | Total sleep, sleep stages (deep/REM/light/awake), efficiency, bedtime consistency |
+| **Strain** | 0-100 | Active calories, workout duration + type + HR zones, exercise minutes |
+| **Stress** | 0-100 | HRV variability (lower = more stressed), resting HR elevation, respiratory rate |
+| **Energy Bank** | 0-100 | Rolling balance of Recovery minus Strain over 7-14 days |
+
+Scoring functions live in `packages/utils/` — calibrate against Bevel's scores initially.
+
+### Nutrition integration
+
+**FoodNoms** is the primary calorie/macro tracker. It syncs to Apple Health, so
+nutrition data flows through the same bridge — zero extra integration work. FoodNoms
+also has a Shortcuts integration (44 actions) and an MCP beta. MyFitnessPal's API has
+been closed to new developers since 2019 — not viable.
+
+### Strava
+
+Secondary source for workouts. Has OAuth 2.0 + webhooks (push on activity completion).
+Not primary — Apple Health already captures workout data from the Watch — but Strava
+adds social metadata (segments, PRs, route maps) that Apple Health doesn't carry.
 
 ### What needs building
 
-- OAuth flow for the chosen provider (extends `auth_providers`)
-- A sync service that pulls daily summaries (cron or on-demand)
+- `POST /api/health/ingest` — receives Apple Health JSON from the bridge app
+- `packages/utils/health-scoring.ts` — Recovery, Sleep, Strain, Stress, Energy Bank
+  scoring functions from raw Apple Health data
+- Migration: add `source` column (`'manual' | 'apple_health'`) to `fitness_logs`,
+  `sleep_logs`, `nutrition_logs`
+- Merge rule: external data wins by default, manual entry overrides
 - KV cache with appropriate TTL (health data changes at most daily)
-- Merge logic: when both manual and external data exist for the same day, which wins?
-  Probably external, with manual as override.
-- Migration to link `fitness_logs` / `sleep_logs` to a source
+- Health card component redesign: metric gauges/rings instead of log entry forms
+- Manual entry stays as fallback for untracked activities
+- (Later) Strava OAuth + webhook listener for enriched workout data
+
+### What needs deciding
+
+- **Health Auto Export vs. Expo app** — decided: Health Auto Export first
+- **Scoring calibration** — how closely do we need to match Bevel? Good enough vs.
+  exact. Recommend good enough (same directional signals, not pixel-identical numbers)
+- **Card layout** — five metric rings/gauges, or a prioritised list? The card needs to
+  show Recovery + Sleep + Strain at minimum; Stress and Energy Bank can shed via
+  `useFitSections`
 
 ### Blockers
 
-- Requires a physical device to test properly
-- OAuth verification for health APIs may have stricter requirements
-- The performance estimator should be validated against real data before relying on it
+- Health Auto Export must be purchased and configured on the user's iPhone
+- Ingest endpoint must handle the specific JSON shape Health Auto Export sends
+- Scoring functions need initial calibration data (a week of parallel Bevel + raw data)
 
 ---
 
-## PL-4: Keep / notes / quick-capture
+## PL-4: Tasks — Google Tasks sync (mobile access)
 
-Google Keep has no public API. Alternatives:
+The Tasks card is native D1-backed. The goal is not a new card or capture surface —
+it's **bidirectional sync with Google Tasks** so tasks are visible and editable on the
+user's phone when away from the dashboard.
 
-| Option | Pros | Cons |
-|---|---|---|
-| **Native quick-capture** (D1-backed) | No external dependency; full control; works offline | Yet another note-taking surface |
-| **Google Tasks** | Has an API; shares existing Google OAuth; "remind me" from Assistant lands here | Limited — no rich text, no images, no nested lists |
-| **Notion** | Rich API; popular | OAuth; a dependency on an external service; overkill for quick capture |
-| **Obsidian** | Local markdown files | No API; desktop-only; sync is paid |
+### Why Google Tasks
 
-### Recommendation
+- Reuses existing Google OAuth (add `tasks` scope on re-consent)
+- Native iOS app; also visible in Gmail and Google Calendar on any device
+- Free, stable API with full CRUD
+- "Remind me" from Google Assistant lands in Google Tasks automatically
 
-**Google Tasks** is the pragmatic choice — it reuses the existing Google OAuth, the
-API is stable, and it covers the "quick capture + reminder" use case. A native
-quick-capture card in D1 is the fallback if Google Tasks feels too limited.
+### Sync model
 
-Either way, this overlaps with the existing Tasks card (`tasks.ts`), which is a
-native task list. Decide whether this is a *second* card or an *extension* of the
-existing one (a `source` field on tasks, similar to how gaming has `provider`).
+D1 tasks remain the source of truth. Google Tasks is a mirror.
+
+| Action in CC | Effect on Google Tasks |
+|---|---|
+| Create task | Push to Google Tasks API |
+| Complete/uncomplete | Update status on Google Tasks |
+| Delete task | Delete from Google Tasks |
+| Edit title/notes | Update on Google Tasks |
+
+| Action on phone (Google Tasks) | Effect in CC |
+|---|---|
+| Create task | Pull into D1 on next sync |
+| Complete/delete/edit | Pull changes into D1 on next sync |
+
+Sync runs on the existing cron cadence or on-demand when the Tasks card loads.
+Conflict resolution: last-write-wins by timestamp.
+
+### What needs building
+
+- Add `tasks` scope to Google OAuth re-consent flow
+- Migration: add `external_id` (Google Tasks task ID) and `source` (`'native' |
+  'google_tasks'`) columns to `tasks` table
+- `services/google-tasks.ts` — CRUD wrapper around Google Tasks API
+- Sync service: push local changes, pull remote changes, dedup on `external_id`
+- KV cache for task list (short TTL, same pattern as calendar)
+- Settings: "Connect Google Tasks" toggle in Connections tab (uses existing Google
+  OAuth, just adds the scope)
+
+### What needs deciding
+
+- **Which Google Tasks list to sync** — default list only, or let user pick?
+  Recommend default list only for simplicity
+- **Sync frequency** — on card load + cron (every 5 min?), or just on card load?
+  On-load is simpler; cron keeps the phone in sync faster when tasks are created in CC
+- **Scope upgrade UX** — adding `tasks` scope requires re-consent. Same flow as
+  PL-8's multi-account re-consent. Handle gracefully (redirect to Google, come back)
 
 ### Blockers
 
-- Product decision: what is this card *for*? Quick thoughts? Reminders? A scratchpad?
-  The answer determines whether it's Google Tasks, a native capture, or something else.
+- Adding `tasks` scope triggers a new Google consent screen — same concern as PL-1's
+  Gmail scope. For single-user, this is fine. For demo mode, the scope list grows
 
 ---
 
-## PL-5: Native desktop client
+## PL-5: PWA — installable app + push notifications
 
-`notifications.md` build order step 4 names Tauri as the desktop shell. Rust toolchain
-is a new dependency requiring approval.
+Ship a Progressive Web App. Tauri is deferred indefinitely — PWA covers the need.
 
-### Why Tauri over Electron
+### What it delivers
 
-| | Tauri | Electron |
-|---|---|---|
-| Binary size | ~5 MB | ~150 MB |
-| Runtime | System webview | Bundled Chromium |
-| Backend | Rust | Node.js |
-| Memory | ~30 MB | ~150 MB+ |
-| Native APIs | Tray, notifications, global shortcuts | Same, plus more maturity |
-| Aligns with free-tier ethos | Yes — minimal, no bundled runtime | No — ships a browser |
-
-### What it would do
-
-- Wrap the existing web app in a native window
-- System tray with unread notification count
-- Native OS toast notifications (fed by the notification spine)
-- Global keyboard shortcut to show/hide
-- Auto-start on login (optional)
-
-### Prerequisite: PWA first
-
-A **Progressive Web App** covers 80% of the native client's value at 10% of the cost:
-
-- Installable on desktop (Windows, Mac, Linux) and mobile
-- Push notifications via the Web Push API (service worker + VAPID keys)
-- Offline shell with cached assets
+- **Installable** on desktop (Windows, Mac, Linux) and mobile (iOS, Android)
+- **Push notifications** via Web Push API (service worker + VAPID keys) — fed by
+  the notification spine
+- **Offline shell** with cached assets (service worker precache)
 - No new build toolchain, no new language, no app store
 
-The service worker needed for PWA push is also needed for web push notifications
-(notifications.md build order step 3), so this work pays for itself regardless.
+### What needs building
 
-**Recommendation:** ship PWA first. If the native-only features (tray icon, global
-shortcut, auto-start) turn out to matter, Tauri wraps the same web app later — the
-PWA work is not wasted, it becomes Tauri's frontend.
+- `apps/web/public/manifest.json` — app name, icons, theme colour, `display: standalone`
+- Service worker (Vite PWA plugin or hand-rolled) — asset precache + push handler
+- VAPID key pair generation + storage (Worker env vars)
+- `POST /api/push/subscribe` — stores push subscription per user in D1
+- Push dispatch: when the notification spine writes a new row, fire a web push to
+  all subscriptions for that user
+- App icons in multiple sizes (192, 512, maskable)
+
+### What needs deciding
+
+- **Vite PWA plugin vs. hand-rolled service worker** — plugin (`vite-plugin-pwa`) is
+  simpler for precaching; hand-rolled gives more control over push handling. Recommend
+  plugin with a custom push handler
+- **Push trigger** — on every notification row insert, or batched? Every insert is
+  simpler and more immediate
+- **Offline behaviour** — cache-first for the shell, network-first for API data?
+  Standard pattern: precache the app shell, let API calls fail gracefully offline
 
 ### Blockers
 
-- Web push (VAPID keys, service worker) is a prerequisite for meaningful push in
-  either path. New dependency — needs approval.
-- Tauri requires the Rust toolchain. New dependency — needs approval.
-- The notification spine should have multiple sources feeding it before a native
-  client is worth building — otherwise it is a native wrapper around a web app that
-  already works in a browser tab.
+- The notification spine should have at least one external source (PL-1) feeding it
+  before push is meaningful — otherwise push notifies about nothing
+- VAPID keys are a new secret to manage (Worker env var, not KV)
+- `vite-plugin-pwa` is a new dependency — needs approval when we start
 
 ---
 
-## PL-6: Homelab network usage
+## PL-6: Homelab card redesign — tiled layout + network
 
-Show current network throughput on the dashboard, primarily driven by qBittorrent but
-with the option to see overall network usage separately.
+The Homelab card becomes a **mini Central Command for the homelab** — a tiled layout
+where each concern gets its own tile instead of a flat list of rows. Network usage
+(including qBittorrent globals) is a new tile within this redesign, not a standalone
+card.
 
-### Data model
+### Tile layout
 
-Two views of the same data:
-
-| View | What it shows | Privacy concern |
+| Tile | Data | Source |
 |---|---|---|
-| **Overall network** | Aggregate up/down throughput for the homelab host | Low |
-| **qBittorrent** | Per-client up/down, active torrents, ratio | High — user must be able to hide this |
+| **Services** | Service health rows (existing) | lab-agent push (already live) |
+| **Docker** | Container count, running/stopped, resource usage | lab-agent push (extend payload) |
+| **Network** | Aggregate up/down throughput | System-level (`/proc/net/dev` or `vnstat`) |
+| **qBittorrent** | Global up/down rate, total ratio, active count | qBit Web API (`/api/v2/transfer/info`) |
+| **Storage** | Disk usage per volume/mount | lab-agent push (extend payload) |
+| **Backups** | Last backup time, status (existing `data-drop-order` section) | lab-agent push (already live) |
 
-The user needs the ability to **hide qBittorrent detail** while still seeing aggregate
-network stats, or hide the entire section. This maps naturally to the existing card
-visibility system — it could be a section within the Homelab card (toggleable) or a
-standalone card.
-
-### Integration model
-
-Same pattern as existing homelab telemetry: the homelab pushes snapshots to a Worker
-ingest endpoint. The collector on the homelab side reads from:
-
-- **System-level:** `/proc/net/dev` or `vnstat` for aggregate throughput
-- **qBittorrent:** its Web API (`/api/v2/transfer/info` for global rates,
-  `/api/v2/torrents/info` for active list) — already exposed behind Traefik
-
-### Options
-
-| Approach | Pros | Cons |
-|---|---|---|
-| **Section in Homelab card** | No new card; keeps lab data together; fits `data-drop-order` shedding | Card is already dense; network section competes with service health |
-| **Standalone `network` card** | Clean separation; own visibility toggle for free; can size independently | Another card in the registry; needs `defaultHidden` |
-| **Both, with toggle** | Maximum flexibility | More UI surface to maintain |
-
-**Recommendation:** standalone `network` card, defaultHidden. The Homelab card is about
-service health; network throughput is a different concern. A separate card lets the user
-show aggregate-only or aggregate+qBittorrent via a card-level setting, and hide the
-whole thing from the grid independently.
+Tiles are compact — icon + 1-3 key numbers. The card uses a CSS grid within itself
+(2-3 columns depending on card size), with `useFitSections` shedding lower-priority
+tiles when the card is small.
 
 ### What needs building
 
 **Homelab side (`homelab` repo):**
-- A network collector (shell script or container) that reads system throughput and
-  qBittorrent API, pushes to Central Command on an interval (30s–60s)
-- Contract: `../integrations/homelab-network.md`
+- Extend lab-agent payload to include network stats + qBittorrent globals + storage
+  usage + Docker summary
+- qBittorrent collector: reads `/api/v2/transfer/info` for global rates (total DL/UL
+  speed, session ratio, active torrent count — no per-torrent detail)
+- Network collector: reads system-level throughput
+- Contract update: `../integrations/homelab-telemetry.md` — add new fields to the
+  push schema
 
 **Central Command side:**
-- `POST /api/lab/network` ingest endpoint (or extend existing `/api/lab/events`)
-- KV snapshot storage (latest network state per user, short TTL)
-- New `CardKey`: `network`
-- Component: current up/down rates, qBittorrent section (active torrents, ratio) with
-  a toggle to hide it, sparkline or mini chart for recent throughput if card is 2x1+
-- Card-level setting: show/hide qBittorrent detail (stored in `dashboard_cards` or
-  `user_settings`)
+- Redesign `HomelabCard.tsx` from flat row list to tiled grid
+- Each tile is a small component: icon, label, 1-3 values
+- `useFitSections` with `data-drop-order` on tiles (services + network always show;
+  storage, backups, qBit shed first)
+- Extend KV snapshot schema to store the new fields
+- No new `CardKey` — stays as `lab`
 
 ### What needs deciding
 
-- **Standalone card vs. Homelab section** — recommendation above is standalone
-- **qBittorrent visibility toggle UX** — a setting on the card, a separate card-level
-  toggle in the edit bar, or a sub-tab within the card
-- **Snapshot frequency** — 30s gives near-real-time; 60s halves the push volume.
-  The homelab telemetry contract already pushes every 60s; piggyback or separate?
-- **Historical data** — just current snapshot, or store history in D1 for a throughput
-  chart? A chart is compelling but adds writes and a migration
+- **Tile priority order** — which tiles shed first when the card is small?
+  Recommend: services + network always visible; Docker, qBit, storage, backups shed
+  in that order
+- **Snapshot frequency** — piggyback on existing 60s push (add fields to same payload)
+  or separate push for network (higher frequency)?  Recommend piggyback on 60s
+- **Historical data** — just current snapshot per tile, or store history for sparklines?
+  Recommend snapshot-only for v1; sparklines are a v2 enhancement
 
 ### Blockers
 
-- Homelab telemetry integration (Phase 1) should be stable first — this extends the
-  same push pipeline
-- qBittorrent Web API must be accessible from the collector container (it already runs
-  behind Traefik, so this should work)
+- Homelab telemetry pipeline must remain stable — this extends it, not replaces it
+- qBittorrent Web API must be accessible from the lab-agent container
+- Contract update is cross-project work
 
 ---
 
-## PL-7: Linear / Trello project card
+## PL-7: Urgent tickets card (Linear / Trello)
 
-A dedicated card showing in-progress work and upcoming deadlines across project
-management tools — not just notifications, but a board-aware view of current state.
+A **priority-filtered attention surface** — not a board view, but "what needs your
+attention right now" across Linear and Trello. Items surface based on a computed
+urgency score combining priority level and due date proximity.
+
+### Urgency model
+
+| Priority | Due date | Surfaces? |
+|---|---|---|
+| Urgent/High | Any (or none) | Always — high-priority items show regardless of deadline |
+| Medium | ≤ 3 days out | Yes — approaching deadline elevates it |
+| Medium | > 3 days out | No — not urgent yet |
+| Low | ≤ 1 day out | Yes — about to be late |
+| Low | > 1 day out | No — defer or push the due date |
+
+The card sorts by urgency score (descending), not by due date. A high-priority item
+with no due date ranks above a low-priority item due tomorrow.
+
+Urgency thresholds are configurable in `user_settings` (e.g. medium surfaces at 5 days
+instead of 3).
 
 ### Scope
 
-- New `CardKey`: `projects` (or `boards` — decide on naming)
-- Display: items currently in progress, upcoming deadlines sorted by due date,
-  board/workspace label per item
-- Multi-account / multi-board support from day one — same pattern as the GitHub card
-  (stored as a JSON array of accounts with encrypted tokens)
-- Provider support: **Linear** (OAuth 2.0 or API key) and **Trello** (API key + token)
-  as launch providers
-- Colour-coded by board or workspace so items from different projects are visually
-  distinct
+- New `CardKey`: `tickets`
+- Multi-account from day one — same encrypted JSON blob pattern as GitHub card
+- Provider support: **Linear** (personal API key or OAuth) and **Trello** (API key +
+  token) as launch providers
+- Colour-coded by project/board so items from different workspaces are distinguishable
+- Shares auth with PL-1 (notifications) — same provider connection feeds both. PL-1
+  shows events (assigned, mentioned); this card shows filtered state (what's urgent)
 
 ### Data model
 
-| Provider | Auth | In-progress items | Deadlines | Free tier |
+| Provider | Auth | Items fetched | Urgency inputs | Free tier |
 |---|---|---|---|---|
-| **Linear** | OAuth 2.0 or personal API key | Issues in "In Progress" state | Issue due dates | Yes (unlimited personal) |
-| **Trello** | API key + user token | Cards in lists marked "doing" / user-configured | Card due dates | Yes (10 boards) |
+| **Linear** | Personal API key or OAuth 2.0 | Assigned issues in started states | Priority field (1-4) + due date | Yes |
+| **Trello** | API key + user token | Cards assigned to user | Label/priority + due date | Yes (10 boards) |
 
 ### What needs building
 
-- `POST /api/projects/accounts` — add/remove provider accounts (encrypted storage)
-- `GET /api/projects` — aggregates across all connected accounts, KV cached (5 min TTL)
+- `POST /api/tickets/accounts` — add/remove provider accounts (encrypted storage)
+- `GET /api/tickets` — fetch assigned items, compute urgency scores, return sorted
+  list. KV cached (5 min TTL)
+- `packages/utils/urgency.ts` — urgency scoring function (priority × due date proximity)
 - Provider services: `services/linear.ts`, `services/trello.ts`
-- Settings section: manage connected boards/accounts (Connections tab)
-- Component with `useClampList` for the item list; deadlines with colour urgency
+- Settings: manage connected accounts (Connections tab), urgency thresholds (optional)
+- Component with `useClampList` — each item shows title, project/board label, priority
+  indicator, due date (if set), colour stripe by source
 
 ### What needs deciding
 
-- **Card naming:** `projects`, `boards`, or `tracker`
-- **Which Linear states map to "in progress"** — Linear's workflow states are
-  customisable per team. Fetch the workflow and let the user pick, or use a heuristic
-  (states in the "started" category)?
-- **Trello list mapping** — similar question: which lists count as "in progress"?
-  A setting per board, or a naming convention?
-- **Overlap with PL-1:** Linear and Trello appear in PL-1 as notification sources.
-  The notification feed shows *events* (assigned, mentioned); this card shows *state*
-  (what's in progress, what's due). Different concerns, but share auth — wire the same
-  provider connection to both
+- **Urgency thresholds** — the table above is a starting point. Tune after real usage
+- **Zero-state** — when nothing is urgent, show "All clear" or hide the card entirely?
+  Recommend "All clear" message — the card staying visible is itself information
+- **Actions from the card** — link to the ticket in Linear/Trello? Snooze an item
+  (push it off the urgent list for N hours)? Recommend link-only for v1
 
 ### Blockers
 
-- None hard — can start independently. Shares auth plumbing decisions with PL-1
+- Shares auth plumbing with PL-1 — can start independently but the provider connection
+  pattern should be consistent across both
 
 ---
 
-## PL-8: Multi-account calendar + colour-coded events
+## PL-8: Multi-account Google Calendar + colour-coded events
 
-The calendar system currently supports a single Google account. This extends it to
-multiple Google accounts, multiple calendars per account, other providers (Outlook),
-and colour-coding events by calendar.
+The calendar supports one Google account. The user has 3 Gmail accounts that all need
+their calendars visible. Outlook support deferred to a future pass.
+
+### Auth pattern
+
+`auth_providers` has composite PK `(userId, provider)` — structurally one account per
+provider type. Two options:
+
+| Approach | Pros | Cons |
+|---|---|---|
+| **GitHub pattern** — encrypted JSON blob in `user_settings.google_accounts` | Proven in codebase, no schema change, stores N accounts | Bypasses `auth_providers` for a second pattern; token refresh logic moves |
+| **Extend `auth_providers`** — add `account_id` column, new composite PK `(userId, provider, account_id)` | Clean, one pattern for all providers | Migration touches existing rows; OAuth flow refactor |
+
+**Decision needed at build time**, but leaning GitHub pattern — it's already working
+for multi-account GitHub and avoids migrating the existing Google OAuth row.
 
 ### Scope
 
-- **Multiple Google accounts:** store multiple OAuth connections in `auth_providers`,
-  each with its own refresh token. Fetch calendars from all accounts in parallel
-  (same pattern as multi-account GitHub)
-- **Calendar selection:** each Google account exposes multiple calendars (primary,
-  shared, holidays). Let the user pick which calendars to show — stored as a JSON
-  setting
-- **Colour coding:** each calendar gets a colour (auto-assigned from a palette, user
-  can override). Events render with a left-border or dot in their calendar's colour
-  so overlapping calendars are distinguishable at a glance
-- **Multiple providers:** add Microsoft/Outlook Calendar as a second provider (OAuth
-  2.0 via Azure AD). Events from all providers merge into one timeline
-- **Multiple email accounts (Gmail):** if PL-1 ships Gmail notification counts, this
-  extends the same multi-account pattern — each Google OAuth connection already
-  carries scopes, so adding `gmail.readonly` per account is incremental
+- **3 Google accounts**, each with its own OAuth connection + refresh token
+- **Calendar selection** per account — each Google account exposes multiple calendars
+  (primary, shared, holidays). User picks which to show. Stored as JSON in
+  `user_settings.calendar_config`
+- **Colour coding** — each calendar gets a colour, auto-assigned from a palette
+  (deterministic by calendar ID hash), user can override. Events render with a
+  left-border or dot in their calendar's colour
+- **Merged timeline** — events from all accounts/calendars sorted by start time,
+  deduplicated by event ID (shared calendar events appear in multiple accounts)
 
 ### What needs building
 
-- Extend `auth_providers` to support multiple rows per provider type per user (it
-  already supports this structurally; the query needs to return all, not first)
-- Re-consent flow: adding a second Google account means a second OAuth dance — the
-  existing `/auth/google` route assumes one connection
-- Calendar list endpoint: `GET /api/calendar/calendars` — returns all calendars across
-  all connected accounts, with visibility and colour settings
-- Settings UI: manage connected accounts (Connections tab), pick visible calendars,
-  assign colours (Dashboard tab or inline on the calendar card)
-- Merge logic: events from all accounts/calendars sorted by start time, deduplicated
-  by event ID (a shared calendar event appears in multiple accounts)
-- Frontend: colour indicator per event in both the Today card and Calendar card
+- Multi-account Google OAuth storage (GitHub pattern or `auth_providers` extension)
+- OAuth flow refactor: `/auth/google` currently upserts on `(userId, 'google')` —
+  needs to support "add another account" without overwriting the first
+- `GET /api/calendar/calendars` — returns all calendars across all connected accounts,
+  with visibility and colour settings
+- `GET /api/calendar` refactor — fetch from all accounts in parallel, merge + dedup
+- Settings UI: manage connected Google accounts (Connections tab), pick visible
+  calendars per account, assign/override colours
+- Frontend: colour indicator per event in Today card and Calendar card
+- KV cache keyed per account (parallel fetch, separate TTLs)
 
 ### What needs deciding
 
-- **Colour assignment:** auto from a palette (deterministic by calendar ID hash) or
-  manual? Auto with override is probably right
-- **Outlook priority:** is this needed now, or is multi-Google enough for launch?
-  Outlook adds a whole new OAuth provider and token refresh flow
-- **Gmail scope interaction:** adding `gmail.readonly` to an existing Google OAuth
-  connection requires re-consent. Does this happen per-account or globally?
+- **Auth storage pattern** — GitHub-style JSON blob vs. `auth_providers` extension.
+  Recommend GitHub pattern for consistency
+- **Colour palette** — how many colours before they repeat? 8-10 distinguishable
+  colours is standard. Auto-assign from palette, override in settings
+- **Gmail scope interaction** — if PL-1 ships Gmail notification counts, adding
+  `gmail.readonly` per account is incremental since each account already has its own
+  OAuth token. Defer to PL-1 implementation
 
 ### Blockers
 
-- The current Google OAuth flow assumes a single connection — refactoring it to
-  support multiple is the prerequisite for everything else here
-- Outlook requires Azure AD app registration (free, but a new external dependency)
+- The existing `/auth/google` route assumes single connection — refactoring it is the
+  prerequisite for everything else
+- Each "add account" triggers a full Google OAuth consent screen — UX needs to be
+  clear about which account is being added
+- Dedup logic for shared calendar events needs testing with real data (same event
+  across 2 of 3 accounts)
 
 ---
 
-## PL-9: Local model insights (homelab experiment)
+## PL-9: Local model insights (homelab via Hermes)
 
-Replace the rule-based insights engine with actual model inference, running on the
-homelab rather than Workers AI — a self-hosted experiment that keeps the free-tier
-constraint and adds a real ML capability to the dashboard.
+Replace the rule-based insights engine with actual model inference running on the
+homelab. Keeps the free-tier constraint and adds real ML capability to the dashboard.
+**Hermes** (homelab orchestrator) owns hardware selection, model choice, and Ollama
+infra — Central Command owns prompt assembly and result rendering.
 
-### Concept
+### Architecture — pull model
 
-The current `GET /insights` endpoint applies hand-written rules to logged data
-(correlations, streaks, observations). A local model can generate richer, more
-contextual narratives — daily briefings, trend explanations, anomaly detection — using
-the same data the rules engine sees.
+The Worker assembles a prompt from the day's data, sends it to Ollama on the homelab
+via the lab tunnel, and gets structured insights back. One round trip.
 
-### Architecture options
+```
+Central Command Worker
+  → assembles prompt (calendar, sleep, fitness, gaming, notifications)
+  → POST to Ollama (OpenAI-compatible API) via lab tunnel
+  ← structured JSON response (insights array)
+  → stores in D1, renders on Insights card
+```
 
-| Option | Model host | Inference path | Latency | Cost |
-|---|---|---|---|---|
-| **Homelab Ollama** | Homelab NAS/server running Ollama | Central Command API calls Ollama over the LAN (or Ollama pushes summaries) | 2–10s depending on model | Free (hardware already owned) |
-| **Homelab vLLM** | Same, but vLLM for higher throughput | Same call pattern | Lower per-token | Free, more setup |
-| **Workers AI** | Cloudflare edge | Direct from the Worker | Fast | Free tier limited (Phase 2 roadmap item) |
-
-**Recommendation:** start with **Ollama on the homelab**. It runs Llama, Mistral, or
-Phi models locally, exposes an OpenAI-compatible API, and costs nothing beyond the
-electricity. The Worker calls it through the lab tunnel or the homelab pushes generated
-summaries to an ingest endpoint (same pattern as telemetry).
+Pull was chosen over push because the Worker already has all the data context — no
+need for a two-step dance where CC sends data to the homelab first.
 
 ### What needs building
 
-**Homelab side:**
-- Ollama container in the homelab compose stack (if not already present)
-- A model runner service that receives a prompt (today's data context) and returns
-  structured insights
-- Push endpoint or pull API accessible from the Central Command Worker
+**Hermes / homelab side (owned by Hermes):**
+- Ollama container in the homelab compose stack
+- Model selection and hardware allocation
+- Ollama API accessible via lab tunnel
 
 **Central Command side:**
-- `POST /api/insights/generate` — triggers insight generation (or receives pushed
-  results)
-- Prompt engineering: assemble the day's data (calendar density, sleep quality, fitness,
-  game performance, notifications) into a context window
-- Storage: generated insights in D1 with a TTL (regenerate daily or on-demand)
+- Prompt engineering: assemble the day's data (calendar density, sleep quality, fitness
+  logs, game performance, notification volume) into a structured prompt
+- `GET /insights` refactor — call Ollama, parse structured output, fall back to
+  rule-based insights if homelab is unreachable
+- D1 storage: cache generated insights with a daily TTL (regenerate on first request
+  each day, or on-demand refresh)
 - Frontend: render model-generated narrative alongside or replacing rule-based insights
-- Fallback: if the homelab model is unreachable, fall back to rule-based insights
+- Contract: `../integrations/hermes-insights.md` — defines the prompt format, expected
+  response schema, Ollama endpoint, and timeout behaviour
 
 ### What needs deciding
 
-- **Push vs. pull:** does the Worker call Ollama (requires the homelab to be reachable
-  from the internet — already true via the lab tunnel), or does a homelab cron job
-  generate insights and push them? Push is simpler and doesn't require the Worker to
-  wait on inference
-- **Model choice:** Llama 3.1 8B is a good starting point for structured output;
-  Mistral 7B is lighter. Depends on homelab hardware
-- **Prompt structure:** what data goes into the context? All pillars, or just the ones
-  with activity today?
-- **How this relates to Workers AI (Phase 2):** this experiment validates the insight
-  quality. If it works well, Workers AI becomes the production path (lower latency,
-  no homelab dependency); if the homelab is enough, skip Workers AI
+- **Prompt structure** — all pillars every time, or only pillars with activity today?
+  Recommend all pillars — absence of data is itself a signal ("no sleep logged" is
+  worth noting)
+- **Response schema** — structured JSON (array of `{type, title, body, severity}`) or
+  freeform markdown? Structured is easier to render and cache
+- **Timeout + fallback** — if Ollama doesn't respond within N seconds, fall back to
+  rule-based. Recommend 15s timeout
+- **How this relates to Workers AI** — this experiment validates insight quality. If
+  it works well, Workers AI becomes the production path (lower latency, no homelab
+  dependency); if the homelab is enough, skip Workers AI entirely
 
 ### Blockers
 
-- Homelab must have enough compute for inference (GPU preferred, CPU possible with
-  smaller models)
-- The homelab tunnel / networking must be stable enough for the Worker to call or for
-  push to be reliable
-- Cross-project work: Ollama setup is in the `homelab` repo
+- Hermes must have Ollama running and accessible via the lab tunnel
+- Lab tunnel must be stable for the Worker to reach Ollama on demand
+- Cross-project work: contract needed before either side builds
 
 ---
 
 ## Sequencing
 
 ```
-PL-1 (external notif sources)
+PL-1 (external notif sources — Slack, Linear, Trello)
   ├─► PL-2 (Trailhead card — once Trailhead is stable)
-  └─► PWA (service worker + push)
-        └─► PL-5 (Tauri, if PWA is not enough)
+  ├─► PL-5 (PWA + push notifications — needs spine feeding it)
+  └─► PL-7 (urgent tickets card — shares auth with PL-1)
 
-PL-7 (Linear/Trello card) — shares auth decisions with PL-1, can start independently
-PL-8 (multi-account calendar) — independent, large scope
-PL-9 (local model insights) — independent, cross-project with homelab
-PL-6 (network usage) — depends on homelab telemetry being stable
-PL-3 (health external) — independent, start when a device is available
-PL-4 (notes/capture) — independent, needs a product decision first
+PL-3 (health card — Apple Health bridge + scoring) — independent, device ready
+PL-4 (Google Tasks sync) — independent, lightweight
+PL-6 (homelab card redesign — tiles + network) — extends homelab telemetry pipeline
+PL-8 (multi-account Google Calendar) — independent, large scope
+PL-9 (local model insights — Hermes/Ollama) — independent, cross-project with homelab
 ```

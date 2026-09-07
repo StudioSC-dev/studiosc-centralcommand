@@ -1,7 +1,7 @@
 # Notifications — the spine
 
-**Status:** Slot 1 shipped (spine + route + card). Producers: the homelab ntfy relay.
-Everything else on this page is designed-for, not built.
+**Status:** Spine + route + card shipped. Producers: homelab ntfy relay, Linear (feed),
+Slack (count-only), Trello (feed). Stale detection active (24h threshold).
 **Owns:** every decision about how notifications are stored, counted, acted on and
 delivered. Layout decisions belong to [`ui-suite.md`](ui-suite.md); the homelab wire
 contract belongs to [`../../integrations/homelab-telemetry.md`](../../integrations/homelab-telemetry.md).
@@ -159,10 +159,15 @@ guard, validates the ntfy topic against a server-side allowlist, and then calls
 3. **Web push** — service worker + VAPID. New dependency, needs approval.
 4. **Desktop shell** — Tauri, `apps/desktop`, native OS toasts and a tray. Rust toolchain
    is a new dependency, needs approval.
-5. **Gmail** — extends the existing Google OAuth with `gmail.readonly`. A **restricted**
-   scope: it raises the verification bar if the app goes public, which interacts with the
-   open Cloudflare Access demo-mode reminder. Count-only source (D1).
-6. **Slack / Linear / Trello** — webhook sniffers. Count or feed per source.
+5. ✅ **External collectors** — Linear (feed), Slack (count-only), Trello (feed).
+   Polling-based with 15-min KV rate gates, following the GitHub multi-account pattern.
+6. ✅ **Stale detection** — `markStaleSources()` runs on each cron tick; sources with
+   `state='ok'` and `last_sync_at` > 24h are marked `state='stale'`.
+7. **Gmail** — deferred. Extends the existing Google OAuth with `gmail.readonly`. A
+   **restricted** scope: it raises the verification bar if the app goes public, which
+   interacts with the open Cloudflare Access demo-mode question. Count-only source (D1).
+   Decision: wait until the demo-mode architecture is settled before requesting the scope,
+   since restricted scopes trigger Google's app verification flow.
 
 ## Open
 
@@ -170,8 +175,7 @@ guard, validates the ntfy topic against a server-side allowlist, and then calls
       has room for at `1x1`.
 - [ ] Whether the badge row should be clickable to filter the feed by source. Cheap, but
       it is a second interaction on a card whose primary gesture is "clear".
-- [ ] `state: 'stale'` is written by nothing yet. A collector that stops reporting should
-      set it — the same silence-is-not-health rule the Homelab card's freshness band
-      enforces, one level down.
+- [x] `state: 'stale'` — `markStaleSources()` now runs on each cron tick. Sources with
+      `state='ok'` and `last_sync_at` > 24h are transitioned to `state='stale'`.
 - [ ] Whether either new card should join the built-in `focus` preset. Deferred
       deliberately; see `ui-suite.md` and the homelab contract's D11(f).

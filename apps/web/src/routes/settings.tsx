@@ -11,6 +11,11 @@ import { useTheme } from "../lib/theme";
 import { LocationSetter } from "../components/LocationSetter";
 import { useNotifications, useMarkAllRead, useRenameSource, useDeleteSource } from "../lib/notifications";
 import { useGitHubActivity, useAddGitHubAccount, useRemoveGitHubAccount } from "../lib/github";
+import { useLinearConnection, useAddLinearAccount, useRemoveLinearAccount } from "../lib/linear";
+import { useSlackConnection, useAddSlackAccount, useRemoveSlackAccount } from "../lib/slack";
+import { useTrelloConnection, useAddTrelloAccount, useRemoveTrelloAccount } from "../lib/trello";
+import { useInstallPrompt } from "../lib/install";
+import { useVapidKey, useSubscribePush, useUnsubscribePush, usePushStatus } from "../lib/push";
 
 export const Route = createFileRoute("/settings")({
   beforeLoad: async ({ context }) => {
@@ -89,6 +94,9 @@ function ConnectionsTab() {
       <CalendarConnectionSection />
       <GameConnectionSection />
       <GitHubConnectionSection />
+      <LinearConnectionSection />
+      <SlackConnectionSection />
+      <TrelloConnectionSection />
     </>
   );
 }
@@ -394,6 +402,270 @@ function GitHubConnectionSection() {
   );
 }
 
+/* ─── Linear connection ───────────────────────────────────────────────────── */
+
+function LinearConnectionSection() {
+  const demo = useIsDemo();
+  const { data } = useLinearConnection();
+  const addAccount = useAddLinearAccount();
+  const removeAccount = useRemoveLinearAccount();
+  const [label, setLabel] = useState("");
+  const [apiKey, setApiKey] = useState("");
+
+  const accounts: { id: string; label: string }[] = data?.accounts ?? [];
+  const connected = data?.connected === true;
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const l = label.trim() || "Default";
+    const k = apiKey.trim();
+    if (!k) return;
+    addAccount.mutate({ label: l, apiKey: k });
+    setLabel("");
+    setApiKey("");
+  };
+
+  return (
+    <section className="settings-block">
+      <h2 className="settings-section-title">Linear</h2>
+      {connected && accounts.length > 0 && (
+        <ul className="gh-account-list">
+          {accounts.map((a) => (
+            <li key={a.id} className="gh-account-item">
+              <span>{a.label}</span>
+              <button
+                type="button"
+                className="tz-remove"
+                onClick={() => removeAccount.mutate(a.id)}
+                title={`Remove ${a.label}`}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {demo ? (
+        <p className="settings-hint">Sign in to connect a Linear account.</p>
+      ) : (
+        <form className="settings-form" onSubmit={submit}>
+          <label className="field">
+            <span className="field-label">Account label</span>
+            <input
+              type="text"
+              value={label}
+              placeholder="e.g. Personal, Work"
+              maxLength={40}
+              onChange={(e) => setLabel(e.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">Personal API key</span>
+            <input
+              type="password"
+              value={apiKey}
+              placeholder="lin_api_..."
+              onChange={(e) => setApiKey(e.target.value)}
+            />
+          </label>
+          {addAccount.isError && (
+            <p className="log-error">Couldn't connect: {addAccount.error.message}</p>
+          )}
+          <div className="settings-actions">
+            <button
+              type="submit"
+              className="onboard-submit"
+              disabled={!apiKey.trim() || addAccount.isPending}
+            >
+              {addAccount.isPending ? "Connecting…" : "Add account"}
+            </button>
+          </div>
+        </form>
+      )}
+    </section>
+  );
+}
+
+/* ─── Trello connection ───────────────────────────────────────────────────── */
+
+function TrelloConnectionSection() {
+  const demo = useIsDemo();
+  const { data } = useTrelloConnection();
+  const addAccount = useAddTrelloAccount();
+  const removeAccount = useRemoveTrelloAccount();
+  const [label, setLabel] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [token, setToken] = useState("");
+
+  const accounts: { id: string; label: string }[] = data?.accounts ?? [];
+  const connected = data?.connected === true;
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const l = label.trim() || "Default";
+    const k = apiKey.trim();
+    const t = token.trim();
+    if (!k || !t) return;
+    addAccount.mutate({ label: l, apiKey: k, token: t });
+    setLabel("");
+    setApiKey("");
+    setToken("");
+  };
+
+  return (
+    <section className="settings-block">
+      <h2 className="settings-section-title">Trello</h2>
+      {connected && accounts.length > 0 && (
+        <ul className="gh-account-list">
+          {accounts.map((a) => (
+            <li key={a.id} className="gh-account-item">
+              <span>{a.label}</span>
+              <button
+                type="button"
+                className="tz-remove"
+                onClick={() => removeAccount.mutate(a.id)}
+                title={`Remove ${a.label}`}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {demo ? (
+        <p className="settings-hint">Sign in to connect a Trello account.</p>
+      ) : (
+        <form className="settings-form" onSubmit={submit}>
+          <label className="field">
+            <span className="field-label">Account label</span>
+            <input
+              type="text"
+              value={label}
+              placeholder="e.g. Personal, Work"
+              maxLength={40}
+              onChange={(e) => setLabel(e.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">API key</span>
+            <input
+              type="password"
+              value={apiKey}
+              placeholder="Your Trello API key"
+              onChange={(e) => setApiKey(e.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">Token</span>
+            <input
+              type="password"
+              value={token}
+              placeholder="Your Trello token"
+              onChange={(e) => setToken(e.target.value)}
+            />
+          </label>
+          {addAccount.isError && (
+            <p className="log-error">Couldn't connect: {addAccount.error.message}</p>
+          )}
+          <div className="settings-actions">
+            <button
+              type="submit"
+              className="onboard-submit"
+              disabled={(!apiKey.trim() || !token.trim()) || addAccount.isPending}
+            >
+              {addAccount.isPending ? "Connecting…" : "Add account"}
+            </button>
+          </div>
+        </form>
+      )}
+    </section>
+  );
+}
+
+/* ─── Slack connection ────────────────────────────────────────────────────── */
+
+function SlackConnectionSection() {
+  const demo = useIsDemo();
+  const { data } = useSlackConnection();
+  const addAccount = useAddSlackAccount();
+  const removeAccount = useRemoveSlackAccount();
+  const [label, setLabel] = useState("");
+  const [token, setToken] = useState("");
+
+  const accounts: { id: string; label: string }[] = data?.accounts ?? [];
+  const connected = data?.connected === true;
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const l = label.trim() || "Default";
+    const t = token.trim();
+    if (!t) return;
+    addAccount.mutate({ label: l, token: t });
+    setLabel("");
+    setToken("");
+  };
+
+  return (
+    <section className="settings-block">
+      <h2 className="settings-section-title">Slack</h2>
+      {connected && accounts.length > 0 && (
+        <ul className="gh-account-list">
+          {accounts.map((a) => (
+            <li key={a.id} className="gh-account-item">
+              <span>{a.label}</span>
+              <button
+                type="button"
+                className="tz-remove"
+                onClick={() => removeAccount.mutate(a.id)}
+                title={`Remove ${a.label}`}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {demo ? (
+        <p className="settings-hint">Sign in to connect a Slack workspace.</p>
+      ) : (
+        <form className="settings-form" onSubmit={submit}>
+          <label className="field">
+            <span className="field-label">Workspace label</span>
+            <input
+              type="text"
+              value={label}
+              placeholder="e.g. Personal, Work"
+              maxLength={40}
+              onChange={(e) => setLabel(e.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">Bot user OAuth token</span>
+            <input
+              type="password"
+              value={token}
+              placeholder="xoxb-..."
+              onChange={(e) => setToken(e.target.value)}
+            />
+          </label>
+          {addAccount.isError && (
+            <p className="log-error">Couldn't connect: {addAccount.error.message}</p>
+          )}
+          <div className="settings-actions">
+            <button
+              type="submit"
+              className="onboard-submit"
+              disabled={!token.trim() || addAccount.isPending}
+            >
+              {addAccount.isPending ? "Connecting…" : "Add workspace"}
+            </button>
+          </div>
+        </form>
+      )}
+    </section>
+  );
+}
+
 /* ─── About ────────────────────────────────────────────────────────────────── */
 
 function AboutSection() {
@@ -691,6 +963,105 @@ function PreferencesSection() {
         <h2 className="settings-section-title">Home location</h2>
         <LocationSetter />
       </section>
+
+      <PwaSection />
+      <PushNotificationsSection />
     </>
+  );
+}
+
+/* ─── PWA install ─────────────────────────────────────────────────────────── */
+
+function PwaSection() {
+  const { canInstall, isInstalled, install } = useInstallPrompt();
+
+  return (
+    <section className="settings-block">
+      <h2 className="settings-section-title">App</h2>
+      {isInstalled ? (
+        <p className="settings-hint">Central Command is installed as an app.</p>
+      ) : canInstall ? (
+        <>
+          <p className="settings-hint">
+            Install Central Command as a standalone app for a native experience.
+          </p>
+          <div className="settings-actions">
+            <button type="button" className="onboard-submit" onClick={install}>
+              Install app
+            </button>
+          </div>
+        </>
+      ) : (
+        <p className="settings-hint">
+          Open in a supported browser to install as an app.
+        </p>
+      )}
+    </section>
+  );
+}
+
+/* ─── Push notifications ──────────────────────────────────────────────────── */
+
+function PushNotificationsSection() {
+  const { data: status } = usePushStatus();
+  const { data: vapid } = useVapidKey();
+  const subscribe = useSubscribePush();
+  const unsubscribe = useUnsubscribePush();
+
+  if (!status?.supported) {
+    return (
+      <section className="settings-block">
+        <h2 className="settings-section-title">Push Notifications</h2>
+        <p className="settings-hint">Push notifications are not supported in this browser.</p>
+      </section>
+    );
+  }
+
+  if (!vapid?.publicKey) {
+    return (
+      <section className="settings-block">
+        <h2 className="settings-section-title">Push Notifications</h2>
+        <p className="settings-hint">Push notifications are not configured on this server.</p>
+      </section>
+    );
+  }
+
+  const isSubscribed = status.subscribed;
+
+  return (
+    <section className="settings-block">
+      <h2 className="settings-section-title">Push Notifications</h2>
+      <p className="settings-hint">
+        {isSubscribed
+          ? "You are receiving push notifications for new alerts."
+          : "Enable push notifications to get alerted when new notifications arrive."}
+      </p>
+      <div className="settings-actions">
+        {isSubscribed ? (
+          <button
+            type="button"
+            className="onboard-submit settings-disconnect"
+            onClick={() => unsubscribe.mutate()}
+            disabled={unsubscribe.isPending}
+          >
+            {unsubscribe.isPending ? "Disabling…" : "Disable notifications"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="onboard-submit"
+            onClick={() => subscribe.mutate(vapid.publicKey!)}
+            disabled={subscribe.isPending || status.permission === "denied"}
+          >
+            {subscribe.isPending ? "Enabling…" : "Enable notifications"}
+          </button>
+        )}
+        {status.permission === "denied" && (
+          <p className="log-error">
+            Notifications are blocked. Allow them in your browser settings.
+          </p>
+        )}
+      </div>
+    </section>
   );
 }

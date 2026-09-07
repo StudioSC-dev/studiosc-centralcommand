@@ -102,4 +102,10 @@ export const CARD_CATALOG: readonly CardMeta[] = [
     description: "Recent commits, open PRs, and review requests.",
     defaultHidden: true,
   },
+  {
+    key: "tickets",
+    label: "Tickets",
+    description: "Urgent items from Linear and Trello that need attention now.",
+    defaultHidden: true,
+  },
 ] as const;

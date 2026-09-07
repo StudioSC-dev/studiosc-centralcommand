@@ -15,6 +15,7 @@ import { NotificationsCard } from "./NotificationsCard";
 import { ClockCard } from "./ClockCard";
 import { TimerCard } from "./TimerCard";
 import { GitHubCard } from "./GitHubCard";
+import { TicketsCard } from "./TicketsCard";
 
 /**
  * Key → component. Typed as a total record over `CardKey`, so adding a key to
@@ -36,6 +37,7 @@ const CARD_COMPONENTS: Record<CardKey, ComponentType> = {
   clock: ClockCard,
   timer: TimerCard,
   github: GitHubCard,
+  tickets: TicketsCard,
 };
 
 export interface CardDefinition extends CardMeta {

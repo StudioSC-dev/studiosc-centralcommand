@@ -2058,6 +2058,8 @@ button {
   /* Must not shrink, for the same reason as `.today-event-item` — a compressed
      row reads as "fits" to useClampList. */
   flex: none;
+  border-left: 3px solid var(--event-color, transparent);
+  padding-left: 0.4rem;
 }
 
 .cal-event-when {
@@ -2944,6 +2946,8 @@ button {
   align-items: baseline;
   gap: 0.55rem;
   font-size: 0.8rem;
+  border-left: 3px solid var(--event-color, transparent);
+  padding-left: 0.4rem;
 }
 
 .today-event-time {
@@ -3296,10 +3300,27 @@ button {
   display: inline-block;
 }
 
+.task-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0.5rem 0 0;
+}
 .task-done-count {
-  margin: 0.7rem 0 0;
   font-size: 0.78rem;
   color: var(--text-faint);
+}
+.task-sync-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0.15rem 0.3rem;
+  border-radius: 4px;
+}
+.task-sync-btn:hover {
+  background: var(--card-border);
 }
 
 /* ─── Inline edit primitive (shared by Tasks + Health rows) ──────────────────── */
@@ -4640,6 +4661,35 @@ button {
   margin: 0.3rem 0 0;
   font-size: 0.75rem;
   color: var(--text-dim);
+}
+
+.lab-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+.lab-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 0.75rem;
+}
+.lab-tile-label {
+  font-weight: 600;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.lab-tile-val {
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ─── Notifications card ────────────────────────────────────────────────────── */

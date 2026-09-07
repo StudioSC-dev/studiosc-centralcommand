@@ -5,7 +5,8 @@ import { meQueryOptions, useIsDemo } from "../lib/auth";
 import { profileQueryOptions, useProfile, useSaveProfile } from "../lib/profile";
 import { settingsQueryOptions, useSettings, useSetClockZones } from "../lib/settings";
 import { RIOT_REGIONS, useConnectRiot, useGaming } from "../lib/gaming";
-import { useCalendar, useDisconnectGoogle } from "../lib/calendar";
+import { useDisconnectGoogle } from "../lib/calendar";
+import { useGoogleAccounts, useRemoveGoogleAccount } from "../lib/google";
 import { useSetUnits } from "../lib/weather";
 import { useTheme } from "../lib/theme";
 import { LocationSetter } from "../components/LocationSetter";
@@ -91,7 +92,7 @@ function SettingsPage() {
 function ConnectionsTab() {
   return (
     <>
-      <CalendarConnectionSection />
+      <GoogleAccountsSection />
       <GameConnectionSection />
       <GitHubConnectionSection />
       <LinearConnectionSection />
@@ -868,42 +869,84 @@ function GameConnectionSection() {
   );
 }
 
-/* ─── Calendar connection ──────────────────────────────────────────────────── */
+/* ─── Google accounts ─────────────────────────────────────────────────────── */
 
-function CalendarConnectionSection() {
-  const { data } = useCalendar();
+function GoogleAccountsSection() {
+  const demo = useIsDemo();
+  const { data } = useGoogleAccounts();
+  const removeAccount = useRemoveGoogleAccount();
   const disconnect = useDisconnectGoogle();
-  const connected = data?.connected === true;
+  const [label, setLabel] = useState("");
+
+  const accounts = data?.accounts ?? [];
+
+  const addAccount = (e: React.FormEvent) => {
+    e.preventDefault();
+    const l = encodeURIComponent(label.trim() || "Default");
+    window.location.href = `/api/auth/google/add?label=${l}`;
+  };
 
   return (
     <section className="settings-block">
-      <h2 className="settings-section-title">Calendar connection</h2>
-      {connected ? (
-        <>
-          <p className="settings-hint">Google Calendar is connected.</p>
-          <div className="settings-actions">
-            <button
-              type="button"
-              className="onboard-submit settings-disconnect"
-              onClick={() => disconnect.mutate()}
-              disabled={disconnect.isPending}
-            >
-              {disconnect.isPending ? "Disconnecting…" : "Disconnect Google Calendar"}
-            </button>
-            {disconnect.isError && (
-              <span className="settings-hint">Couldn't disconnect: {disconnect.error.message}</span>
-            )}
-          </div>
-        </>
+      <h2 className="settings-section-title">Google</h2>
+      {accounts.length > 0 && (
+        <ul className="gh-account-list">
+          {accounts.map((a) => (
+            <li key={a.id} className="gh-account-item">
+              <span>{a.label}</span>
+              <span className="settings-hint" style={{ marginLeft: 8 }}>{a.email}</span>
+              <button
+                type="button"
+                className="tz-remove"
+                onClick={() => removeAccount.mutate(a.id)}
+                title={`Remove ${a.label}`}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {accounts.length === 0 && !demo && (
+        <p className="settings-hint">
+          Connect a Google account to show calendar events and daily busyness.
+        </p>
+      )}
+      {demo ? (
+        <p className="settings-hint">Sign in to connect a Google account.</p>
       ) : (
-        <>
-          <p className="settings-hint">
-            Connect Google Calendar to show your events and daily busyness.
-          </p>
-          <a className="connect-link" href="/api/auth/google">
-            {data?.needsReconnect ? "Reconnect Google Calendar" : "Connect Google Calendar"}
-          </a>
-        </>
+        <form className="settings-form" onSubmit={addAccount}>
+          <label className="field">
+            <span className="field-label">Account label</span>
+            <input
+              type="text"
+              value={label}
+              placeholder="e.g. Personal, Work"
+              maxLength={40}
+              onChange={(e) => setLabel(e.target.value)}
+            />
+          </label>
+          <div className="settings-actions">
+            <button type="submit" className="onboard-submit">
+              Add Google account
+            </button>
+          </div>
+        </form>
+      )}
+      {accounts.length > 0 && (
+        <div className="settings-actions" style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            className="onboard-submit settings-disconnect"
+            onClick={() => disconnect.mutate()}
+            disabled={disconnect.isPending}
+          >
+            {disconnect.isPending ? "Disconnecting…" : "Disconnect all"}
+          </button>
+          {disconnect.isError && (
+            <span className="settings-hint">Couldn't disconnect: {disconnect.error.message}</span>
+          )}
+        </div>
       )}
     </section>
   );

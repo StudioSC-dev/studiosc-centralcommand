@@ -1,7 +1,12 @@
 import type {
+  LabContainers,
   LabMonitor,
+  LabNetwork,
+  LabQBittorrent,
   LabSectionResult,
   LabSections,
+  LabStorage,
+  LabSystem,
   Notification,
 } from "@central-command/types";
 import { useLab } from "../lib/lab";
@@ -244,20 +249,125 @@ export function HomelabCard() {
 
       <ClippedNote count={clippedCount} noun={problems.length > 0 ? "issue" : "event"} />
 
-      {/* Droppable, lowest first. Both are context rather than alarm: a failed
-          backup or an unhealthy container has already surfaced in the list above
-          as a problem, so shedding these loses nothing actionable. */}
-      {images && images.pendingUpdates > 0 && (
-        <p className="lab-aside" data-drop-order="1">
-          {images.pendingUpdates} image update{images.pendingUpdates === 1 ? "" : "s"} pending
-        </p>
-      )}
-      {backups && backups.plans.length > 0 && (
-        <p className="lab-aside" data-drop-order="2">
-          {backups.plans.filter((plan) => plan.result === "ok").length}/{backups.plans.length}{" "}
-          backups OK
-        </p>
-      )}
+      <div className="lab-grid">
+        <ServicesTile monitors={monitors} containers={sectionData(sections?.containers)} />
+        <SystemTile system={sectionData(sections?.system)} />
+        <StorageTile storage={sectionData(sections?.storage)} />
+        <NetworkTile network={sectionData(sections?.network)} />
+        <QBitTile qbit={sectionData(sections?.qbittorrent)} />
+        <BackupsTile backups={backups} images={images} />
+      </div>
     </Card>
+  );
+}
+
+const fmtBytes = (bytes: number): string => {
+  if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(1)} TB`;
+  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
+  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(1)} MB`;
+  return `${(bytes / 1e3).toFixed(0)} KB`;
+};
+
+const fmtSpeed = (bps: number): string => {
+  if (bps >= 1e6) return `${(bps / 1e6).toFixed(1)} MB/s`;
+  if (bps >= 1e3) return `${(bps / 1e3).toFixed(0)} KB/s`;
+  return `${bps.toFixed(0)} B/s`;
+};
+
+function ServicesTile({
+  monitors,
+  containers,
+}: {
+  monitors: ReturnType<typeof sectionData<import("@central-command/types").LabMonitors>> | null;
+  containers: LabContainers | null;
+}) {
+  if (!monitors && !containers) return null;
+  return (
+    <div className="lab-tile" data-drop-order="5">
+      <span className="lab-tile-label">Services</span>
+      {monitors && <span className="lab-tile-val">{monitors.counts.up} up</span>}
+      {containers && (
+        <span className="lab-tile-val">
+          {containers.running}/{containers.total} containers
+        </span>
+      )}
+    </div>
+  );
+}
+
+function SystemTile({ system }: { system: LabSystem | null }) {
+  if (!system) return null;
+  return (
+    <div className="lab-tile" data-drop-order="4">
+      <span className="lab-tile-label">System</span>
+      <span className="lab-tile-val">CPU {system.cpu.usagePct.toFixed(0)}%</span>
+      <span className="lab-tile-val">
+        RAM {fmtBytes(system.memory.usedBytes)}/{fmtBytes(system.memory.totalBytes)}
+      </span>
+      {system.cpu.temp != null && (
+        <span className="lab-tile-val">{system.cpu.temp}°C</span>
+      )}
+    </div>
+  );
+}
+
+function StorageTile({ storage }: { storage: LabStorage | null }) {
+  if (!storage || storage.volumes.length === 0) return null;
+  return (
+    <div className="lab-tile" data-drop-order="3">
+      <span className="lab-tile-label">Storage</span>
+      {storage.volumes.map((v) => (
+        <span key={v.mount} className="lab-tile-val">
+          {v.label ?? v.mount} {v.pct.toFixed(0)}%
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function NetworkTile({ network }: { network: LabNetwork | null }) {
+  if (!network) return null;
+  return (
+    <div className="lab-tile" data-drop-order="2">
+      <span className="lab-tile-label">Network</span>
+      <span className="lab-tile-val">↓ {fmtSpeed(network.totalRxPerSec)}</span>
+      <span className="lab-tile-val">↑ {fmtSpeed(network.totalTxPerSec)}</span>
+    </div>
+  );
+}
+
+function QBitTile({ qbit }: { qbit: LabQBittorrent | null }) {
+  if (!qbit) return null;
+  return (
+    <div className="lab-tile" data-drop-order="1">
+      <span className="lab-tile-label">Torrents</span>
+      <span className="lab-tile-val">↓ {fmtSpeed(qbit.dlSpeed)}</span>
+      <span className="lab-tile-val">{qbit.activeCount} active</span>
+    </div>
+  );
+}
+
+function BackupsTile({
+  backups,
+  images,
+}: {
+  backups: import("@central-command/types").LabBackups | null;
+  images: import("@central-command/types").LabImages | null;
+}) {
+  if (!backups && !images) return null;
+  return (
+    <div className="lab-tile" data-drop-order="6">
+      <span className="lab-tile-label">Backups</span>
+      {backups && backups.plans.length > 0 && (
+        <span className="lab-tile-val">
+          {backups.plans.filter((p) => p.result === "ok").length}/{backups.plans.length} OK
+        </span>
+      )}
+      {images && images.pendingUpdates > 0 && (
+        <span className="lab-tile-val">
+          {images.pendingUpdates} image update{images.pendingUpdates === 1 ? "" : "s"}
+        </span>
+      )}
+    </div>
   );
 }

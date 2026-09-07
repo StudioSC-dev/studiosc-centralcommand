@@ -6,7 +6,7 @@ import { InlineText } from "./inline";
 import type { Task, TaskPriority, TaskUpdateInput } from "@central-command/types";
 import { useNow } from "../lib/clock";
 import { isSameLocalDay } from "../lib/time";
-import { useCreateTask, useDeleteTask, useTasks, useUpdateTask } from "../lib/tasks";
+import { useCreateTask, useDeleteTask, useSyncTasks, useTasks, useUpdateTask } from "../lib/tasks";
 import { useIsDemo } from "../lib/auth";
 
 const PRIORITY_SHORT: Record<TaskPriority, string> = { high: "High", med: "Med", low: "Low" };
@@ -44,6 +44,7 @@ export function TasksCard() {
   const create = useCreateTask();
   const update = useUpdateTask();
   const remove = useDeleteTask();
+  const sync = useSyncTasks();
 
   const demo = useIsDemo();
   const [title, setTitle] = useState("");
@@ -108,7 +109,20 @@ export function TasksCard() {
       )}
 
       <ClippedNote count={clippedCount} noun="task" />
-      {doneTodayCount > 0 && <p className="task-done-count">{doneTodayCount} done today</p>}
+      <div className="task-footer">
+        {doneTodayCount > 0 && <span className="task-done-count">{doneTodayCount} done today</span>}
+        {!demo && (
+          <button
+            type="button"
+            className="task-sync-btn"
+            onClick={() => sync.mutate()}
+            disabled={sync.isPending}
+            title="Sync with Google Tasks"
+          >
+            {sync.isPending ? "Syncing…" : "↻"}
+          </button>
+        )}
+      </div>
     </Card>
   );
 }

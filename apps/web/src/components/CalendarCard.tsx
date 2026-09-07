@@ -29,7 +29,10 @@ function EventRow({ e, now, onOpen }: { e: CalendarEvent; now: number; onOpen: (
   const live = !e.allDay && e.start <= now && now < e.end;
   const locationIsLink = e.location ? /^(https?:\/\/|www\.)/i.test(e.location.trim()) : false;
   return (
-    <li className={`cal-event${live ? " live" : ""}`}>
+    <li
+      className={`cal-event${live ? " live" : ""}`}
+      style={e.color ? { "--event-color": e.color } as React.CSSProperties : undefined}
+    >
       <button
         type="button"
         className="cal-event-button"

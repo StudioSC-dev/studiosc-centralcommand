@@ -38,3 +38,11 @@ export function useDeleteTask() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
   });
 }
+
+export function useSyncTasks() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiPost<{ pulled: number; skipped: number }>("/api/tasks/sync", {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+  });
+}

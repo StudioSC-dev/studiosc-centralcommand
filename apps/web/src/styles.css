@@ -4536,6 +4536,7 @@ button {
   border: 1px solid var(--glass-border);
   border-left: 3px solid var(--text-faint);
   font-size: clamp(0.72rem, 4.2cqh, 0.85rem);
+  flex: none;
 }
 
 .lab-row.tone-bad { border-left-color: var(--pillar-health); }

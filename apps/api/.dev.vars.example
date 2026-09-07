@@ -61,3 +61,10 @@ GOOGLE_MAPS_EMBED_KEY=""
 # Free plan, no card: 2,500 requests/day, 40,000/month. https://openrouteservice.org
 # Optional — with no key the Today card falls back to its plain countdown.
 ORS_API_KEY=""
+
+# VAPID keys for Web Push notifications (PWA).
+# Generate: node -e "const c=require('crypto');const p=c.generateKeyPairSync('ec',{namedCurve:'P-256'});console.log('PUB='+p.publicKey.export({type:'spki',format:'der'}).slice(-65).toString('base64url'));console.log('PRIV='+p.privateKey.export({type:'pkcs8',format:'der'}).toString('base64url'))"
+# Optional — without these, push notifications are silently disabled.
+VAPID_PUBLIC_KEY=""
+VAPID_PRIVATE_KEY=""
+VAPID_SUBJECT="mailto:admin@studiosc.dev"

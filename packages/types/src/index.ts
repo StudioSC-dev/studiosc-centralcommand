@@ -211,7 +211,7 @@ export type NewsResponse = NewsData;
 export type TaskPriority = "high" | "med" | "low";
 export type TaskStatus = "open" | "done";
 /** Where a task originates. Phase 2 adds external sources. */
-export type TaskSource = "native" | "linear" | "jira" | "trello";
+export type TaskSource = "native" | "linear" | "jira" | "trello" | "google_tasks";
 
 export interface Task {
   id: string;
@@ -223,6 +223,7 @@ export interface Task {
   /** Optional due date (epoch ms). Importance = priority, urgency = deadline. */
   deadline: EpochMs | null;
   createdAt: EpochMs;
+  updatedAt: EpochMs | null;
   completedAt: EpochMs | null;
 }
 
@@ -325,6 +326,8 @@ export interface CalendarEvent {
   end: EpochMs;
   allDay: boolean;
   location: string | null;
+  calendarId?: string;
+  color?: string;
   /** Present when the event has a joinable video call. */
   conference?: EventConference;
   /** Plain text — Google's HTML description, stripped and truncated. */
@@ -1281,6 +1284,34 @@ export interface TrelloConnectionResponse {
   accounts: TrelloAccount[];
 }
 
+export interface GoogleAccountInfo {
+  id: string;
+  label: string;
+  email: string;
+}
+
+export interface GoogleCalendarInfo {
+  id: string;
+  summary: string;
+  accountId: string;
+  accountLabel: string;
+  backgroundColor: string;
+  visible: boolean;
+  color: string;
+}
+
+export interface GoogleCalendarConfig {
+  [calendarId: string]: { visible: boolean; color: string };
+}
+
+export interface GoogleAccountsResponse {
+  accounts: GoogleAccountInfo[];
+}
+
+export interface GoogleCalendarsResponse {
+  calendars: GoogleCalendarInfo[];
+}
+
 // ─── Urgent tickets ──────────────────────────────────────────────────────────
 
 export interface UrgentTicket {
@@ -1535,11 +1566,52 @@ export interface LabContainers {
   unhealthy: { key: string; label: string }[];
 }
 
+export interface LabSystem {
+  cpu: { usagePct: number; cores: number; temp?: number };
+  memory: { totalBytes: number; usedBytes: number; pct: number };
+  loadAvg?: [number, number, number];
+}
+
+export interface LabStorageVolume {
+  mount: string;
+  label?: string;
+  totalBytes: number;
+  usedBytes: number;
+  pct: number;
+}
+
+export interface LabStorage {
+  volumes: LabStorageVolume[];
+}
+
+export interface LabNetworkInterface {
+  name: string;
+  rxBytesPerSec: number;
+  txBytesPerSec: number;
+}
+
+export interface LabNetwork {
+  interfaces: LabNetworkInterface[];
+  totalRxPerSec: number;
+  totalTxPerSec: number;
+}
+
+export interface LabQBittorrent {
+  dlSpeed: number;
+  ulSpeed: number;
+  ratio: number;
+  activeCount: number;
+}
+
 export interface LabSections {
   monitors: LabSectionResult<LabMonitors>;
   backups: LabSectionResult<LabBackups>;
   images: LabSectionResult<LabImages>;
   containers: LabSectionResult<LabContainers>;
+  system?: LabSectionResult<LabSystem>;
+  storage?: LabSectionResult<LabStorage>;
+  network?: LabSectionResult<LabNetwork>;
+  qbittorrent?: LabSectionResult<LabQBittorrent>;
 }
 
 /** Body of `POST /api/lab/ingest`. */

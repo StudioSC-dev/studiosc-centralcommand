@@ -7,7 +7,7 @@ import { getUserSettings, upsertUserSettings } from "../services/users";
 import { fetchGitHubActivity } from "../services/github";
 import type { GitHubAccount, GitHubActivityItem } from "@central-command/types";
 
-const CACHE_TTL = 5 * 60; // 5-minute KV cache
+const CACHE_TTL = 10 * 60; // must stay > client refetchInterval (5 min) or every poll rewrites
 
 interface StoredAccount {
   id: string;

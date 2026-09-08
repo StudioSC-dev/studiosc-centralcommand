@@ -34,7 +34,10 @@ export async function pullGoogleTasks(
   let pulled = 0;
   let skipped = 0;
 
+  const remoteIds = new Set<string>();
+
   for (const gt of remote) {
+    remoteIds.add(gt.id);
     const existing = await db
       .select()
       .from(tasks)
@@ -75,6 +78,17 @@ export async function pullGoogleTasks(
         completedAt: gt.completed,
       });
       pulled++;
+    }
+  }
+
+  // Remove local tasks that were deleted on Google's side
+  const localGoogleTasks = await db
+    .select({ id: tasks.id, externalId: tasks.externalId })
+    .from(tasks)
+    .where(and(eq(tasks.userId, userId), eq(tasks.source, "google_tasks")));
+  for (const row of localGoogleTasks) {
+    if (row.externalId && !remoteIds.has(row.externalId)) {
+      await db.delete(tasks).where(eq(tasks.id, row.id));
     }
   }
 

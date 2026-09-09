@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { authProviders } from "@central-command/db";
+import { authProviders, users } from "@central-command/db";
 import type { Bindings } from "../env";
 import type { Database } from "../lib/db";
 import { decryptSecret, encryptSecret } from "../lib/crypto";
@@ -54,10 +54,12 @@ export async function getGoogleAccounts(
       .get();
 
     if (legacy?.refreshToken && legacy.accessToken) {
+      const user = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).get();
+      const email = user?.email ?? "";
       const account: StoredGoogleAccount = {
         id: "legacy",
-        label: "Google",
-        email: "",
+        label: email.split("@")[0] || "Google",
+        email,
         providerId: legacy.providerId ?? "",
         refreshToken: legacy.refreshToken,
         accessToken: legacy.accessToken,

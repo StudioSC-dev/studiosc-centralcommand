@@ -127,7 +127,10 @@ export function SummaryCard() {
   return (
     <Card title="Today" pillar="summary" ownFit>
       {next ? (
-        <div className="today-next">
+        <div
+          className="today-next"
+          style={next.color ? { "--event-color": next.color } as React.CSSProperties : undefined}
+        >
           {/* A button for the same reason the schedule rows are: this is the one
               event the list deliberately does not repeat, so without this the
               card's most prominent event was the only one with no way to open

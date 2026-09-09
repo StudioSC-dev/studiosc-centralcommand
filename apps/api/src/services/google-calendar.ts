@@ -40,6 +40,7 @@ interface GoogleEvent {
   description?: string;
   htmlLink?: string;
   hangoutLink?: string;
+  colorId?: string;
   attendees?: unknown[];
   conferenceData?: {
     entryPoints?: GoogleConferenceEntryPoint[];
@@ -48,6 +49,22 @@ interface GoogleEvent {
   start: GoogleEventDate;
   end: GoogleEventDate;
 }
+
+// Google Calendar event color palette (colorId → hex).
+// Source: https://developers.google.com/calendar/api/v3/reference/colors
+const EVENT_COLORS: Record<string, string> = {
+  "1": "#7986cb", // Lavender
+  "2": "#33b679", // Sage
+  "3": "#8e24aa", // Grape
+  "4": "#e67c73", // Flamingo
+  "5": "#f6bf26", // Banana
+  "6": "#f4511e", // Tangerine
+  "7": "#039be5", // Peacock
+  "8": "#616161", // Graphite
+  "9": "#3f51b5", // Blueberry
+  "10": "#0b8043", // Basil
+  "11": "#d50000", // Tomato
+};
 
 /** Longest description we forward. Enough for joining instructions, not a novel. */
 const MAX_DESCRIPTION = 600;
@@ -133,13 +150,15 @@ export function detectConference(e: GoogleEvent): EventConference | undefined {
 function toEvent(
   e: GoogleEvent,
   calendarId?: string,
-  color?: string,
+  calColor?: string,
 ): CalendarEvent {
   const allDay = !e.start.dateTime;
   const startStr = e.start.dateTime ?? e.start.date ?? "";
   const endStr = e.end.dateTime ?? e.end.date ?? "";
   const conference = detectConference(e);
   const description = e.description ? toPlainText(e.description) : "";
+  // Per-event colorId wins over the calendar-level background.
+  const color = (e.colorId && EVENT_COLORS[e.colorId]) ?? calColor;
   return {
     id: e.id,
     title: e.summary ?? "(no title)",

@@ -1,7 +1,9 @@
 # Notifications — the spine
 
 **Status:** Spine + route + card shipped. Producers: homelab ntfy relay, Linear (feed),
-Slack (count-only), Trello (feed). Stale detection active (24h threshold).
+Slack (count-only), Trello (feed). Stale detection active (24h threshold). Trailhead
+(feed) is **locally built and verified, not deployed** — see D6 and
+[`../../integrations/trailhead-inbox.md`](../../integrations/trailhead-inbox.md).
 **Owns:** every decision about how notifications are stored, counted, acted on and
 delivered. Layout decisions belong to [`ui-suite.md`](ui-suite.md); the homelab wire
 contract belongs to [`../../integrations/homelab-telemetry.md`](../../integrations/homelab-telemetry.md).
@@ -107,6 +109,34 @@ that decided *how* after being built needed a fix, so:
 The button is **disabled rather than hidden** at zero unread, so the control does not
 move as the feed drains under the pointer.
 
+## D6 — Push-ingest credentials share one table, source-scoped
+
+Trailhead is the second push-ingest producer, after `lab`. It authenticates the same
+way — a per-source bearer token, SHA-256 hashed at rest, mint/rotate/revoke as
+first-class operations, the plaintext returned exactly once — but the credential does
+**not** live in a new `trailhead_sources` table. That would make every future push
+producer another migration, the exact anti-pattern D1 above exists to avoid for the
+spine's own tables. Instead there is one new table, `ingest_sources`, keyed by a
+`source` TEXT discriminator, with Trailhead as its first row.
+
+`lab_sources` is deliberately **untouched** — not generalised into `ingest_sources`.
+It is live in production with an agent pushing every 60s, and `lab_snapshots.source_id`
+carries a foreign key onto it, so renaming or widening it under that load is blast
+radius with no functional gain. `lab` moves onto `ingest_sources` only if it is ever
+opened for its own reasons; until then two verification functions coexist
+(`sourceForToken` for `lab`, `ingestSourceForToken` for everything else).
+
+The middleware for a push-ingest route asserts `row.source === <the route's own
+source>`, so a token minted for `trailhead` cannot authenticate `/api/lab/*` and a
+`lab` token cannot authenticate `/api/trailhead/events` — source isolation by
+construction, not by convention. Unknown token, wrong token, and a valid token for the
+wrong source all return the byte-identical 401 body, so the endpoint is not an oracle
+for which sources exist.
+
+Full design: the Trailhead contract's D7
+(`../../integrations/trailhead-inbox.md`), migration
+`packages/db/migrations/0031_ingest_sources.sql`.
+
 ## Storage shape
 
 ```
@@ -152,6 +182,13 @@ not a notifications route: it authenticates with a lab source token outside the 
 guard, validates the ntfy topic against a server-side allowlist, and then calls
 `appendNotifications()` like any other producer would.
 
+Trailhead events arrive the same way via `POST /api/trailhead/events`, authenticated
+against `ingest_sources` (D6) instead of `lab_sources`, forcing `source = 'trailhead'`
+regardless of payload content. Mint/rotate/revoke live behind session auth at
+`/api/trailhead/sources`. Locally built and verified, not deployed — see
+[`../../integrations/trailhead-inbox.md`](../../integrations/trailhead-inbox.md) for the
+wire contract and remaining deploy steps.
+
 ## Build order
 
 1. ✅ **Spine + route + card** — this document.
@@ -162,8 +199,14 @@ guard, validates the ntfy topic against a server-side allowlist, and then calls
 5. ✅ **External collectors** — Linear (feed), Slack (count-only), Trello (feed).
    Polling-based with 15-min KV rate gates, following the GitHub multi-account pattern.
 6. ✅ **Stale detection** — `markStaleSources()` runs on each cron tick; sources with
-   `state='ok'` and `last_sync_at` > 24h are marked `state='stale'`.
-7. **Gmail** — deferred. Extends the existing Google OAuth with `gmail.readonly`. A
+   `state='ok'` and `last_sync_at` > 24h are marked `state='stale'`, except cadenceless
+   sources (D6's `CADENCELESS_SOURCES`, currently just `trailhead`).
+7. **Trailhead** — locally built and verified (D6), not deployed. Deferred production
+   steps: Cloudflare Access bypass + WAF coverage for `/api/trailhead/events`, applying
+   migration `0031` to remote D1, minting the real token into remote `ingest_sources`,
+   and setting `TRAILHEAD_CC_INGEST_URL` / `TRAILHEAD_CC_TOKEN` on the Trailhead side
+   before recreating the notifier. See `../../integrations/trailhead-inbox.md`.
+8. **Gmail** — deferred. Extends the existing Google OAuth with `gmail.readonly`. A
    **restricted** scope: it raises the verification bar if the app goes public, which
    interacts with the open Cloudflare Access demo-mode question. Count-only source (D1).
    Decision: wait until the demo-mode architecture is settled before requesting the scope,

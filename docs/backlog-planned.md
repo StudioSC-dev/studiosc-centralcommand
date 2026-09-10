@@ -4,7 +4,7 @@ Items that need design, cross-project coordination, or are large enough to span
 multiple sessions. Each section captures what is already designed-for, what is open,
 and what blocks starting.
 
-**Last updated:** 2026-09-02
+**Last updated:** 2026-09-11
 
 ---
 
@@ -66,12 +66,32 @@ owning document. The `notification_sources` table, the feed-vs-counter distincti
 
 Trailhead is the self-hosted orchestrator that turns tagged tickets into PRs via
 ephemeral Claude Code workers. A dedicated card would show job status, queue depth,
-and recent completed PRs.
+and recent completed PRs. That card is separate from, and still unscheduled relative
+to, the inbox feed below.
 
-### Integration model
+### Inbox feed — locally built and verified, not deployed
 
-Similar to the homelab integration: Trailhead pushes status to a Worker ingest
-endpoint. Needs a contract in `../integrations/`.
+Contract: `../integrations/trailhead-inbox.md` (supersedes the `trailhead-status.md`
+path this section used to cite — no such file was written). Trailhead's `gate.ready`
+and similar events push into the notifications spine as `source = 'trailhead'`, the
+same shape as the lab/Linear/Slack/Trello producers — see `docs/notifications.md` D6
+for the `ingest_sources` credential table this uses.
+
+- **Trailhead side:** the notifier's `centralcommand` channel adapter, `notifier_cursors`
+  table, and routing-matrix column are built (contract History).
+- **Central Command side:** `POST /api/trailhead/events`, the `ingest_sources` table,
+  mint/rotate/revoke routes, and the stale-state exemption are built and verified
+  against a local D1 + curl matrix.
+- **Deferred, not started:** Cloudflare Access bypass + WAF coverage for the new path,
+  applying migration `0031` to remote D1, minting the real token into remote
+  `ingest_sources`, and setting `TRAILHEAD_CC_INGEST_URL` / `TRAILHEAD_CC_TOKEN` on the
+  Trailhead side before recreating the notifier. The channel is inert until all of
+  that happens.
+
+### Dedicated status card — separate, still undecided
+
+Would show live orchestrator state (queue depth, active workers) as its own card,
+distinct from the inbox feed above (job events, not live state).
 
 | Data | Shape | Push frequency |
 |---|---|---|
@@ -80,16 +100,14 @@ endpoint. Needs a contract in `../integrations/`.
 | Recent completed jobs | Feed (PR link, ticket ref, duration, outcome) | On completion |
 | Errors / failed jobs | Feed (error summary, ticket ref) | On failure |
 
-### What needs building
+### What needs building (card only — the feed above is done)
 
-- **Contract:** `../integrations/trailhead-status.md` — defines the wire format,
-  auth model (lab-style source token), and what Trailhead pushes
+- **Contract:** a wire format for the card's snapshot/event push, separate from
+  `trailhead-inbox.md` (that contract covers the notifications feed only)
 - **Trailhead side:** a status reporter that POSTs snapshots and events to the
-  Central Command Worker. This is work in the `trailhead` repo.
+  Central Command Worker
 - **Central Command side:**
-  - `POST /api/trailhead/events` ingest endpoint (same pattern as `lab-ingest.ts`)
-  - D1 table or feed into the notifications spine (or both — snapshots for the card's
-    state display, events for the notifications feed)
+  - D1 table or KV snapshot for queue depth / active workers
   - New `CardKey`: `trailhead`
   - Component: queue depth, active workers, recent jobs list with PR links and
     outcomes, error count
@@ -97,19 +115,14 @@ endpoint. Needs a contract in `../integrations/`.
 
 ### What needs deciding
 
-- **Separate card vs. notifications only.** A card shows live state (queue, workers);
-  notifications show events (completed, failed). Both are useful. Recommendation:
-  a dedicated card for state, and job completions/failures also feed the notification
-  spine — the same split the homelab uses (Homelab card for state, Notifications card
-  for events).
-- **Whether Trailhead is ready.** Check `trailhead/CLAUDE.md` and its current state
-  before starting the integration — the orchestrator needs to be running reliably
-  before it can report status.
+- **Whether the card is still wanted now that job events already reach the inbox.**
+  The inbox feed covers "a gate needs you"; the card would add "here is live queue
+  state" — a different need, not yet prioritized.
 
 ### Blockers
 
-- Trailhead must be running and stable enough to report from.
-- The contract must be written and agreed before either side builds.
+- The card's own wire contract must be written and agreed before either side builds
+  it — distinct from `trailhead-inbox.md`, which is already agreed and locally built.
 - This is cross-project work — each side is a separate commit in a separate repo on
   its own branch.
 
@@ -560,7 +573,7 @@ need for a two-step dance where CC sends data to the homelab first.
 
 ```
 PL-1 (external notif sources — Slack, Linear, Trello)
-  ├─► PL-2 (Trailhead card — once Trailhead is stable)
+  ├─► PL-2 (Trailhead inbox feed built/verified, not deployed; dedicated card unscheduled)
   ├─► PL-5 (PWA + push notifications — needs spine feeding it)
   └─► PL-7 (urgent tickets card — shares auth with PL-1)
 

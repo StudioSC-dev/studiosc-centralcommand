@@ -30,6 +30,8 @@ import { tasks_routes } from "./routes/tasks";
 import { insights } from "./routes/insights";
 import { lab } from "./routes/lab";
 import { labEvents, labIngest } from "./routes/lab-ingest";
+import { trailhead } from "./routes/trailhead";
+import { trailheadEvents } from "./routes/trailhead-ingest";
 import { notificationRoutes } from "./routes/notifications";
 import { focus } from "./routes/focus";
 import { github } from "./routes/github";
@@ -67,6 +69,11 @@ app.route("/api/calendar/notifications", calendarWebhook);
 app.route("/api/lab/ingest", labIngest);
 app.route("/api/lab/events", labEvents);
 
+// Trailhead notifier push. Same shape as the lab ingest routes above: the
+// notifier has no cookie and authenticates with its own per-source bearer
+// token instead — see routes/trailhead-ingest.ts.
+app.route("/api/trailhead/events", trailheadEvents);
+
 // Everything below requires an authenticated session (cookie, Access JWT, or dev).
 const api = new Hono<AppEnv>();
 api.use("*", sessionAuth);
@@ -88,6 +95,7 @@ api.route("/performance", performance);
 api.route("/tasks", tasks_routes);
 api.route("/insights", insights);
 api.route("/lab", lab);
+api.route("/trailhead", trailhead);
 api.route("/notifications", notificationRoutes);
 api.route("/focus", focus);
 api.route("/github", github);

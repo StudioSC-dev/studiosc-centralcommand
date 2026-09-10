@@ -1688,6 +1688,19 @@ export interface LabSourceSecret {
   token: string;
 }
 
+/**
+ * Response of `POST /api/trailhead/sources` and `…/rotate` — the shared
+ * `ingest_sources` credential shape (../../integrations/trailhead-inbox.md D7).
+ * The token is shown ONCE.
+ */
+export interface IngestSourceSecret {
+  id: string;
+  source: string;
+  label: string;
+  /** Plaintext bearer token. Never stored, never returned again. */
+  token: string;
+}
+
 // ─── Notifications spine (docs/notifications.md) ─────────────────────────────
 
 /**
@@ -1699,6 +1712,7 @@ export interface LabSourceSecret {
  */
 export type NotificationSourceKey =
   | "lab"
+  | "trailhead"
   | "gmail"
   | "slack"
   | "linear"

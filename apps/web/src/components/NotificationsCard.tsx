@@ -42,6 +42,24 @@ const fmtAge = (ms: number): string => {
 const toneFor = (priority: number): string =>
   priority >= 5 ? "tone-bad" : priority === 4 ? "tone-warn" : "tone-quiet";
 
+/** Deep links render only for these schemes. Everything else is inert. */
+const LINK_SCHEMES = new Set(["https:", "http:"]);
+
+/**
+ * A row's `link` is already scheme-checked at ingest (trailhead), but this
+ * card renders every source's rows and not every producer validates yet —
+ * never render a scheme this component has not itself verified.
+ */
+function safeHref(link: string | null): string | null {
+  if (!link) return null;
+  try {
+    const url = new URL(link);
+    return LINK_SCHEMES.has(url.protocol) ? link : null;
+  } catch {
+    return null;
+  }
+}
+
 function SourceBadge({ source }: { source: NotificationSourceSummary }) {
   return (
     <span
@@ -138,26 +156,40 @@ export function NotificationsCard() {
 
       {filteredItems.length > 0 ? (
         <ul className="notif-list" ref={ref}>
-          {filteredItems.map((item) => (
-            <li key={item.id} className={`notif-row ${toneFor(item.priority)}`}>
-              <div className="notif-row-main">
-                <span className="notif-row-title">{item.title}</span>
-                {item.body && <span className="notif-row-body">{item.body}</span>}
-              </div>
-              <span className="notif-row-age">{fmtAge(now - item.publishedAt)}</span>
-              <button
-                type="button"
-                className="notif-row-clear"
-                onClick={() => setStatus.mutate({ id: item.id, status: "read" })}
-                aria-label={`Mark "${item.title}" as read`}
-                title="Mark read"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <polyline points="5 13 10 18 19 7" />
-                </svg>
-              </button>
-            </li>
-          ))}
+          {filteredItems.map((item) => {
+            const href = safeHref(item.link);
+            return (
+              <li key={item.id} className={`notif-row ${toneFor(item.priority)}`}>
+                <div className="notif-row-main">
+                  {href ? (
+                    <a
+                      className="notif-row-title"
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {item.title}
+                    </a>
+                  ) : (
+                    <span className="notif-row-title">{item.title}</span>
+                  )}
+                  {item.body && <span className="notif-row-body">{item.body}</span>}
+                </div>
+                <span className="notif-row-age">{fmtAge(now - item.publishedAt)}</span>
+                <button
+                  type="button"
+                  className="notif-row-clear"
+                  onClick={() => setStatus.mutate({ id: item.id, status: "read" })}
+                  aria-label={`Mark "${item.title}" as read`}
+                  title="Mark read"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <polyline points="5 13 10 18 19 7" />
+                  </svg>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       ) : (
         <p className="notif-empty">Nothing unread.</p>

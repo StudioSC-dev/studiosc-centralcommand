@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, lt, notInArray, sql } from "drizzle-orm";
 import { notificationSources, notifications } from "@central-command/db";
 import { sanitiseTags, sanitiseText } from "@central-command/utils";
 import type {
@@ -351,6 +351,15 @@ export async function pruneNotifications(db: Database, now: number): Promise<num
 
 const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Sources with no push cadence, where silence is normal and MUST NOT read as a
+ * fault (../../integrations/trailhead-inbox.md D6). Trailhead pushes only when
+ * a ticket reaches a gate; a quiet week is a quiet week, not an outage. Its
+ * liveness signal is the notifier's own monitor on the homelab side, not event
+ * arrival.
+ */
+const CADENCELESS_SOURCES: string[] = ["trailhead"];
+
 export async function markStaleSources(db: Database, now: number): Promise<number> {
   const threshold = now - STALE_THRESHOLD_MS;
   const updated = await db
@@ -361,6 +370,7 @@ export async function markStaleSources(db: Database, now: number): Promise<numbe
         eq(notificationSources.state, "ok"),
         isNotNull(notificationSources.lastSyncAt),
         lt(notificationSources.lastSyncAt, threshold),
+        notInArray(notificationSources.source, CADENCELESS_SOURCES),
       ),
     )
     .returning({ source: notificationSources.source });

@@ -536,6 +536,31 @@ export const labSnapshots = sqliteTable("lab_snapshots", {
   agentVersion: text("agent_version"),
 });
 
+// ─── Push ingest credentials (../../integrations/trailhead-inbox.md D7) ──────
+// Trailhead's first row and, for now, only row. `lab_sources` is deliberately
+// NOT generalised onto this table (see the schema comment above) — this is the
+// second member of a two-member set, sized so a third push producer is a row,
+// not a migration.
+export const ingestSources = sqliteTable(
+  "ingest_sources",
+  {
+    id: text("id").primaryKey(), // UUID v7
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    source: text("source").notNull(), // the spine source this token may write
+    label: text("label").notNull(),
+    tokenHash: text("token_hash").notNull(), // SHA-256 hex
+    createdAt: integer("created_at").notNull(),
+    rotatedAt: integer("rotated_at"),
+    lastSeenAt: integer("last_seen_at"),
+  },
+  (table) => [
+    unique("ingest_sources_token_hash_idx").on(table.tokenHash),
+    unique("ingest_sources_user_source_idx").on(table.userId, table.source),
+  ],
+);
+
 // ─── Focus sessions ────────────────────────────────────────────────────────
 // Pomodoro/focus-timer history. One row per completed or abandoned interval.
 // Feeds the timer card's daily total and, in Phase 2, the performance estimator.

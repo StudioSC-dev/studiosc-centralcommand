@@ -83,6 +83,13 @@ export interface Variables {
    */
   labSourceId: string;
   labSourceLabel: string;
+  /**
+   * Set by `ingestSourceAuth` on push-ingest routes backed by `ingest_sources`
+   * (trailhead today) only; `userId` there comes from the credential row
+   * rather than a cookie.
+   */
+  ingestSourceId: string;
+  ingestSourceLabel: string;
 }
 
 /** Hono generics for the whole app. */

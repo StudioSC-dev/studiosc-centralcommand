@@ -111,6 +111,7 @@ export function WeatherCard() {
 
   const { current, daily, units, location } = data;
   const today: WeatherDailyEntry | undefined = daily[0];
+  const feelsLike = Number.isFinite(current.feelsLike) ? current.feelsLike : current.temp;
 
   return (
     <Card>
@@ -131,7 +132,7 @@ export function WeatherCard() {
 
       <div className="weather-meta">
         {location.label ?? `${location.lat}, ${location.lon}`} · feels{" "}
-        {fmtTemp(current.feelsLike, units)}
+        {fmtTemp(feelsLike, units)}
         {current.rain1h != null && ` · ${current.rain1h}mm rain`}
         {!demo && (
           <>

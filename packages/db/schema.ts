@@ -210,36 +210,57 @@ export const gamingProviders = sqliteTable(
 // One table for both match and rank snapshots (CLAUDE.md), discriminated by
 // `kind`. Match columns describe a single game; rank columns a ranked-queue
 // standing at `capturedAt`.
-export const gamingSnapshots = sqliteTable("gaming_snapshots", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id),
-  game: text("game").notNull(), // 'league' | …
-  kind: text("kind").notNull(), // 'match' | 'rank'
-  capturedAt: integer("captured_at").notNull(),
+export const gamingSnapshots = sqliteTable(
+  "gaming_snapshots",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    game: text("game").notNull(), // 'league' | …
+    kind: text("kind").notNull(), // 'match' | 'rank'
+    capturedAt: integer("captured_at").notNull(),
 
-  // kind = 'match'
-  matchId: text("match_id"),
-  champion: text("champion"),
-  position: text("position"), // TOP | JUNGLE | MIDDLE | BOTTOM | UTILITY
-  queueId: integer("queue_id"),
-  win: integer("win"), // 0 | 1
-  kills: integer("kills"),
-  deaths: integer("deaths"),
-  assists: integer("assists"),
-  cs: integer("cs"),
-  durationSec: integer("duration_sec"),
-  score: integer("score"), // role-normalized, non-authoritative
+    // kind = 'match'
+    matchId: text("match_id"),
+    champion: text("champion"),
+    position: text("position"), // TOP | JUNGLE | MIDDLE | BOTTOM | UTILITY
+    queueId: integer("queue_id"),
+    win: integer("win"), // 0 | 1
+    kills: integer("kills"),
+    deaths: integer("deaths"),
+    assists: integer("assists"),
+    cs: integer("cs"),
+    durationSec: integer("duration_sec"),
+    score: integer("score"), // role-normalized, non-authoritative
 
-  // kind = 'rank'
-  queueType: text("queue_type"), // 'solo' | 'flex'
-  tier: text("tier"), // IRON … CHALLENGER
-  division: text("division"), // I–IV
-  leaguePoints: integer("league_points"),
-  wins: integer("wins"),
-  losses: integer("losses"),
-});
+    // kind = 'rank'
+    queueType: text("queue_type"), // 'solo' | 'flex'
+    tier: text("tier"), // IRON … CHALLENGER
+    division: text("division"), // I–IV
+    leaguePoints: integer("league_points"),
+    wins: integer("wins"),
+    losses: integer("losses"),
+  },
+  (table) => [
+    // Latest rank per queue: `ORDER BY captured_at DESC, id DESC LIMIT 1` (0032).
+    index("gaming_snapshots_rank_idx").on(
+      table.userId,
+      table.kind,
+      table.queueType,
+      table.capturedAt,
+      table.id,
+    ),
+    // Match payload and win-rate windows; `win` makes the window aggregate covering (0032).
+    index("gaming_snapshots_kind_time_idx").on(
+      table.userId,
+      table.kind,
+      table.capturedAt,
+      table.id,
+      table.win,
+    ),
+  ],
+);
 
 export const performanceScores = sqliteTable(
   "performance_scores",

@@ -61,6 +61,10 @@ calendar_channels -- one Google Calendar watch channel per user (0011);
   rank rows accumulate on every refresh, so an unbounded read grows without limit.
   `apps/api/scripts/check-gaming-d1.ts` verifies results, rows read and query plans
   against a local D1
+- `notifications` — ntfy/lab feed rows. Indexes: `notifications_feed_idx (user_id, status,
+  published_at)` for the unread feed, and `notifications_source_feed_idx (user_id, source,
+  published_at)` (0033) for the per-source read in `recentFromSource`, which filters
+  user + source and orders by `published_at` (not covering — the feed reads all columns)
 - `performance_scores`
 - `news_items`
 - `geocode_cache` — place string → coordinates (0017), for the Today card's "leave by"

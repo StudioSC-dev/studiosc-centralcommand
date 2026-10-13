@@ -1,7 +1,7 @@
 import { Hono } from "hono";
-import { and, desc, eq, gte, lt } from "drizzle-orm";
-import { dayBounds, isWithinDays } from "@central-command/utils";
-import { fitnessLogs, gamingSnapshots, nutritionLogs, sleepLogs } from "@central-command/db";
+import { and, eq, gte, lt } from "drizzle-orm";
+import { dayBounds } from "@central-command/utils";
+import { fitnessLogs, nutritionLogs, sleepLogs } from "@central-command/db";
 import type {
   CalendarData,
   NewsItem,
@@ -13,6 +13,7 @@ import { createDb } from "../lib/db";
 import { ok } from "../lib/response";
 import { getUserSettings } from "../services/users";
 import { computePerformanceToday } from "../services/performance";
+import { loadGamingSummary } from "../services/gaming-queries";
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
@@ -90,20 +91,7 @@ export const summary = new Hono<AppEnv>().get("/", async (c) => {
     : null;
 
   // Gaming (latest solo rank + 7d win rate, from stored snapshots).
-  let gaming: SummaryData["gaming"] = null;
-  const snapshots = await db
-    .select()
-    .from(gamingSnapshots)
-    .where(eq(gamingSnapshots.userId, userId))
-    .orderBy(desc(gamingSnapshots.capturedAt))
-    .all();
-  const solo = snapshots.find((r) => r.kind === "rank" && r.queueType === "solo");
-  if (solo) {
-    const matches = snapshots.filter((r) => r.kind === "match");
-    const recent = matches.filter((r) => isWithinDays(r.capturedAt, 7));
-    const winRate7d = recent.length ? recent.filter((r) => r.win === 1).length / recent.length : null;
-    gaming = { rank: `${solo.tier ?? ""} ${solo.division ?? ""}`.trim(), winRate7d };
-  }
+  const gaming: SummaryData["gaming"] = await loadGamingSummary(c.env.DB, userId, Date.now());
 
   // News (cached only).
   let news: SummaryData["news"] = null;

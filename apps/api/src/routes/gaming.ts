@@ -1,13 +1,11 @@
 import { Hono } from "hono";
-import { and, desc, eq } from "drizzle-orm";
-import { isWithinDays, leagueQueue } from "@central-command/utils";
-import { gamingProviders, gamingSnapshots } from "@central-command/db";
+import { and, eq } from "drizzle-orm";
+import { leagueQueue } from "@central-command/utils";
+import { gamingProviders } from "@central-command/db";
 import type {
   GamingConnectInput,
   GamingData,
   LiveGame,
-  MatchSummary,
-  RankInfo,
 } from "@central-command/types";
 import type { AppEnv, Bindings } from "../env";
 import type { Context } from "hono";
@@ -17,6 +15,7 @@ import { ok, fail } from "../lib/response";
 import { newId } from "../lib/ids";
 import { RiotError, getAccountByRiotId, getActiveGame, resolveRegion } from "../services/riot";
 import { refreshRiot } from "../services/riot-sync";
+import { loadGaming } from "../services/gaming-queries";
 import { allowGlobalDaily, allowUserDaily } from "../services/rate-limit";
 
 /** Build params the gaming response assembly needs. */
@@ -100,66 +99,16 @@ function riotFail(c: Context<AppEnv>, err: unknown) {
 
 async function buildGaming(
   env: Bindings,
-  db: Database,
   ref: ProviderRef,
   opts: { live?: boolean } = {},
 ): Promise<GamingData> {
-  const userId = ref.userId;
-  const rankRows = await db
-    .select()
-    .from(gamingSnapshots)
-    .where(and(eq(gamingSnapshots.userId, userId), eq(gamingSnapshots.kind, "rank")))
-    .orderBy(desc(gamingSnapshots.capturedAt))
-    .all();
-
-  const ranks: RankInfo[] = [];
-  for (const queueType of ["solo", "flex"] as const) {
-    const latest = rankRows.find((r) => r.queueType === queueType);
-    if (latest) {
-      ranks.push({
-        queueType,
-        tier: latest.tier ?? "",
-        division: latest.division ?? "",
-        leaguePoints: latest.leaguePoints ?? 0,
-        wins: latest.wins ?? 0,
-        losses: latest.losses ?? 0,
-      });
-    }
-  }
-
-  const matchRows = await db
-    .select()
-    .from(gamingSnapshots)
-    .where(and(eq(gamingSnapshots.userId, userId), eq(gamingSnapshots.kind, "match")))
-    .orderBy(desc(gamingSnapshots.capturedAt))
-    .all();
-
-  // Payload cap across *all* queues, and the client then filters to one queue —
-  // so this has to be generous enough that a busy queue is not truncated by
-  // matches in the others. It was 20, tuned when the card drew a fixed six rows;
-  // a resized card can now ask for twelve, and a user with 23 flex games saw
-  // roughly 16 of them because solo games used up the budget. The rows are
-  // already fetched in full, so this only bounds what goes over the wire.
-  const matches: MatchSummary[] = matchRows.slice(0, 60).map((r) => ({
-    matchId: r.matchId ?? "",
-    champion: r.champion ?? "",
-    position: r.position ?? "",
-    queue: leagueQueue(r.queueId ?? 0),
-    win: r.win === 1,
-    kills: r.kills ?? 0,
-    deaths: r.deaths ?? 0,
-    assists: r.assists ?? 0,
-    cs: r.cs ?? 0,
-    durationSec: r.durationSec ?? 0,
-    score: r.score ?? 0,
-    playedAt: r.capturedAt,
-  }));
-
-  const winRate = (days: number): number | null => {
-    const inWindow = matchRows.filter((r) => isWithinDays(r.capturedAt, days));
-    if (inWindow.length === 0) return null;
-    return inWindow.filter((r) => r.win === 1).length / inWindow.length;
-  };
+  const now = Date.now();
+  const { ranks, matches, winRate7d, winRate30d } = await loadGaming(
+    env.DB,
+    ref.userId,
+    now,
+    leagueQueue,
+  );
 
   return {
     connected: true,
@@ -167,8 +116,8 @@ async function buildGaming(
     region: ref.region,
     ranks,
     matches,
-    winRate7d: winRate(7),
-    winRate30d: winRate(30),
+    winRate7d,
+    winRate30d,
     live: opts.live === false ? null : await getLive(env, ref),
   };
 }
@@ -184,7 +133,6 @@ export const gaming = new Hono<AppEnv>()
       c,
       await buildGaming(
         c.env,
-        db,
         {
           userId,
           riotId: provider.riotId ?? "",
@@ -258,7 +206,7 @@ export const gaming = new Hono<AppEnv>()
 
       return ok(
         c,
-        await buildGaming(c.env, db, {
+        await buildGaming(c.env, {
           userId,
           riotId: `${account.gameName}#${account.tagLine}`,
           region: region.platform,
@@ -293,7 +241,7 @@ export const gaming = new Hono<AppEnv>()
         region: provider.region,
         puuid: provider.puuid,
       });
-      const data = await buildGaming(c.env, db, {
+      const data = await buildGaming(c.env, {
         userId,
         riotId: provider.riotId ?? "",
         region: provider.region,

@@ -9,7 +9,7 @@
  *   - every statement reports a numeric `meta.rows_read` within 2 × rows + 2, and
  *     the 2,000-row rank lookup reads fewer than 10;
  *   - EXPLAIN QUERY PLAN names the intended index and has no `USE TEMP B-TREE`;
- *   - the notifications feed query (pending T2's index) reads ≤ 2 × 50 + 2.
+ *   - the notifications feed query uses notifications_source_feed_idx and reads ≤ 2 × 50 + 2.
  *
  * Use an isolated state dir — never the developer's .wrangler/state. With no
  * `wrangler dev` running (apply migrations only then; see guard-no-dev.js):
@@ -17,7 +17,7 @@
  *   wrangler d1 migrations apply central-command-db --local --persist-to <dir>
  *   wrangler d1 execute central-command-db --local --persist-to <dir> \
  *     --file scripts/fixtures/gaming-d1.sql
- *   node scripts/check-gaming-d1.ts --persist-to <dir>
+ *   node --experimental-strip-types scripts/check-gaming-d1.ts --persist-to <dir>
  *
  * Run with Node ≥ 22.18 (native type stripping). It imports only type-strippable
  * files with no workspace runtime imports: `league.ts` has no imports of its own.
@@ -330,16 +330,14 @@ async function main(): Promise<void> {
     console.log(`  rows_read  fx-user-a  feed lab limit 50   rows=${feed?.results.length ?? 0}  rows_read=${feedRead}`);
     const feedPlan = await explain(db, FEED_SQL, []);
     for (const line of feedPlan) console.log(`  plan  feed               ${line}`);
-    if (!feedIndexExists) {
-      console.log(`  SKIPPED: pending T2 (index ${FEED_IDX} not present) — feed rows_read and plan not enforced`);
-    } else {
-      check(feedRead !== null, "feed: meta.rows_read is numeric");
-      if (feedRead !== null) {
-        check(feedRead <= 2 * FEED_LIMIT + 2, `feed: rows_read ${feedRead} <= ${2 * FEED_LIMIT + 2}`);
-      }
-      check(feedPlan.some((l) => l.includes(FEED_IDX)), `feed: plan uses ${FEED_IDX}`);
-      check(!feedPlan.some((l) => l.includes("USE TEMP B-TREE")), "feed: no USE TEMP B-TREE");
+    check(feedIndexExists, `feed: index ${FEED_IDX} present`);
+    check(feed?.results.length === FEED_LIMIT, `feed: returns exactly ${FEED_LIMIT} rows (got ${feed?.results.length ?? 0})`);
+    check(feedRead !== null, "feed: meta.rows_read is numeric");
+    if (feedRead !== null) {
+      check(feedRead <= 2 * FEED_LIMIT + 2, `feed: rows_read ${feedRead} <= ${2 * FEED_LIMIT + 2}`);
     }
+    check(feedPlan.some((l) => l.includes(FEED_IDX)), `feed: plan uses ${FEED_IDX}`);
+    check(!feedPlan.some((l) => l.includes("USE TEMP B-TREE")), "feed: no USE TEMP B-TREE");
   } finally {
     await proxy.dispose();
   }

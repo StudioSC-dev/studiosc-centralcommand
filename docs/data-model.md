@@ -52,7 +52,15 @@ calendar_channels -- one Google Calendar watch channel per user (0011);
 - `nutrition_logs`
 - `sleep_logs`
 - `gaming_providers` — per-user connected games (`provider`, `game`, `riot_id`, etc.)
-- `gaming_snapshots` — match results, KDA, CS, rank, LP, win/loss
+- `gaming_snapshots` — match results, KDA, CS, rank, LP, win/loss. Indexes (0032):
+  `gaming_snapshots_rank_idx (user_id, kind, queue_type, captured_at, id)` for the latest
+  rank per queue, and `gaming_snapshots_kind_time_idx (user_id, kind, captured_at, id, win)`
+  for the match payload and win-rate windows (`win` makes the window aggregate covering).
+  Reads go through `apps/api/src/services/gaming-queries.ts`, ordered
+  `captured_at DESC, id DESC` and always bounded (`LIMIT 1` / `LIMIT 60` / aggregates) —
+  rank rows accumulate on every refresh, so an unbounded read grows without limit.
+  `apps/api/scripts/check-gaming-d1.ts` verifies results, rows read and query plans
+  against a local D1
 - `performance_scores`
 - `news_items`
 - `geocode_cache` — place string → coordinates (0017), for the Today card's "leave by"
@@ -66,6 +74,12 @@ calendar_channels -- one Google Calendar watch channel per user (0011);
 Schema definitions live in `packages/db/schema.ts`. Migrations in `packages/db/migrations/`.
 **Read the migrations directory** to determine the current count — this doc has been
 wrong before.
+
+**Migration authority.** Drizzle's metadata (`migrations/meta/_journal.json` and its
+snapshots) stops at 0016. Every migration from 0017 on is hand-written SQL applied by
+wrangler, so the SQL files are authoritative and `schema.ts` mirrors them by hand. Do not
+run `drizzle-kit generate` until the metadata has been reconciled (a separate ticket) — it
+would diff against the 0016 snapshot and re-emit everything since.
 
 ---
 

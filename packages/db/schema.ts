@@ -456,6 +456,12 @@ export const notifications = sqliteTable(
     ),
     // The card's only read: this user's unread feed, newest first.
     index("notifications_feed_idx").on(table.userId, table.status, table.publishedAt),
+    // Per-source feed: filters user + source, ordered by published_at (0033).
+    index("notifications_source_feed_idx").on(
+      table.userId,
+      table.source,
+      table.publishedAt,
+    ),
   ],
 );
 

@@ -154,6 +154,8 @@ Linear after every session; create tickets before writing code in planning sessi
 **Labels:** `Trailhead - CC` on every ticket, plus type labels (`Feature`, `Bug`, etc.)
 and domain labels (`Frontend`, `Backend`, `Integration`, `Infra`) as appropriate.
 
+**Audits (manual sessions):** plan and PR audits and merge gates follow the machine-wide audit policy in the harness plugin (`/harness:audit`, explained in the plugin's `docs/audit-autonomy.md`).
+
 ---
 
 ## Commit Conventions
